@@ -3,7 +3,7 @@
 // lowercased email so authService can look a profile up directly without
 // a query. See authService.ts for how accounts actually get activated.
 
-import { collection, doc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, doc, deleteDoc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { User, UserRole } from '../types';
 import { SUPER_ADMIN_EMAIL } from './authService';
@@ -76,4 +76,18 @@ export async function toggleUserActiveDoc(email: string, isActive: boolean): Pro
   if (!db) return;
   const emailLower = email.trim().toLowerCase();
   await updateDoc(doc(db, 'users', emailLower), { isActive: !isActive });
+}
+
+// Permanently removes the Firestore profile — the person disappears from
+// the Admin Portal and immediately loses access (their next login attempt
+// finds no invite and no active profile). This only deletes the Firestore
+// record, not the underlying Firebase Auth account (the client SDK can't
+// delete other users' Auth accounts without the Admin SDK/a Cloud
+// Function) — see the note in AdminPortal.tsx's confirmation dialog.
+// firestore.rules independently blocks this for anyone but the
+// super-admin, and blocks deleting the super-admin's own doc.
+export async function deleteUserDoc(email: string): Promise<void> {
+  if (!db) return;
+  const emailLower = email.trim().toLowerCase();
+  await deleteDoc(doc(db, 'users', emailLower));
 }
