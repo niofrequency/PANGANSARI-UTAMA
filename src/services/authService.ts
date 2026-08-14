@@ -6,10 +6,13 @@
 //   1. The Admin Portal writes a Firestore doc to `users/{email}` with the
 //      person's name/role/site and `uid: null` — an "invite".
 //   2. The first time that person logs in with their email + a password
-//      they choose, we detect the invite (doc exists, uid is null) and
-//      call createUserWithEmailAndPassword to actually create their
-//      Firebase Auth account, then link it by writing their uid back onto
-//      the doc.
+//      they choose (on the Sign Up tab), we detect the invite (doc
+//      exists, uid is null) and call createUserWithEmailAndPassword to
+//      actually create their Firebase Auth account, then link it by
+//      writing their uid back onto the doc. If they typed a first/last
+//      name on the Sign Up form, that's saved at the same time — letting
+//      the person confirm/correct the name an admin guessed when inviting
+//      them.
 //   3. Every login after that is a normal signInWithEmailAndPassword.
 //
 // The one bootstrap exception: SUPER_ADMIN_EMAIL can self-register with no
@@ -41,6 +44,8 @@ export type LoginResult =
 
 interface FirestoreUserProfile {
   name: string;
+  firstName: string;
+  lastName: string;
   email: string;
   role: UserRole;
   site: string;
@@ -53,7 +58,23 @@ function userDocRef(email: string) {
   return doc(db, 'users', email.trim().toLowerCase());
 }
 
-export async function loginOrRegister(email: string, password: string): Promise<LoginResult> {
+// Best-effort split for names that only come as a single string (e.g. a
+// Google account's displayName) — first token is the first name, the rest
+// is the last name. Not perfect for every naming convention, but keeps
+// the firstName/lastName fields populated for search either way.
+function splitName(fullName: string): { firstName: string; lastName: string } {
+  const trimmed = fullName.trim();
+  if (!trimmed) return { firstName: '', lastName: '' };
+  const parts = trimmed.split(/\s+/);
+  return { firstName: parts[0], lastName: parts.slice(1).join(' ') };
+}
+
+export async function loginOrRegister(
+  email: string,
+  password: string,
+  firstName?: string,
+  lastName?: string
+): Promise<LoginResult> {
   if (!auth || !db) return { ok: false, error: 'invalid' };
   const emailLower = email.trim().toLowerCase();
   const ref = userDocRef(emailLower);
@@ -73,11 +94,17 @@ export async function loginOrRegister(email: string, password: string): Promise<
       }
     } else {
       // Invited but never logged in yet: this login *creates* the account,
-      // using whatever password they just typed.
+      // using whatever password they just typed. If they entered a name
+      // on the Sign Up form, save it now — it's more authoritative than
+      // whatever the admin guessed when creating the invite.
       try {
         const cred = await createUserWithEmailAndPassword(auth, email, password);
-        await updateDoc(ref, { uid: cred.user.uid });
-        return { ok: true, profile: { ...data, uid: cred.user.uid } };
+        const nameUpdate =
+          firstName && lastName
+            ? { firstName, lastName, name: `${firstName} ${lastName}`.trim() }
+            : {};
+        await updateDoc(ref, { uid: cred.user.uid, ...nameUpdate });
+        return { ok: true, profile: { ...data, ...nameUpdate, uid: cred.user.uid } };
       } catch {
         return { ok: false, error: 'invalid' };
       }
@@ -87,10 +114,14 @@ export async function loginOrRegister(email: string, password: string): Promise<
   if (emailLower === SUPER_ADMIN_EMAIL) {
     // Bootstrap path: no invite exists yet because nobody could have
     // created one. Create both the Auth account and its Firestore profile.
+    const fn = firstName || 'Admin';
+    const ln = lastName || '';
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       const profile: FirestoreUserProfile = {
-        name: 'Admin',
+        name: `${fn} ${ln}`.trim(),
+        firstName: fn,
+        lastName: ln,
         email: emailLower,
         role: 'ADMIN',
         site: '',
@@ -106,7 +137,9 @@ export async function loginOrRegister(email: string, password: string): Promise<
       try {
         const cred = await signInWithEmailAndPassword(auth, email, password);
         const profile: FirestoreUserProfile = {
-          name: 'Admin',
+          name: `${fn} ${ln}`.trim(),
+          firstName: fn,
+          lastName: ln,
           email: emailLower,
           role: 'ADMIN',
           site: '',
@@ -160,15 +193,24 @@ export async function loginWithGoogle(): Promise<LoginResult> {
     }
     if (!data.uid) {
       // Invited but never activated: this Google sign-in activates it.
-      await updateDoc(ref, { uid: firebaseUser.uid });
-      return { ok: true, profile: { ...data, uid: firebaseUser.uid } };
+      // Google already knows their name, so fill firstName/lastName from
+      // it if the invite didn't have one set.
+      const nameUpdate =
+        !data.firstName && firebaseUser.displayName
+          ? { ...splitName(firebaseUser.displayName), name: firebaseUser.displayName }
+          : {};
+      await updateDoc(ref, { uid: firebaseUser.uid, ...nameUpdate });
+      return { ok: true, profile: { ...data, ...nameUpdate, uid: firebaseUser.uid } };
     }
     return { ok: true, profile: data };
   }
 
   if (emailLower === SUPER_ADMIN_EMAIL) {
+    const { firstName, lastName } = splitName(firebaseUser.displayName || 'Admin');
     const profile: FirestoreUserProfile = {
       name: firebaseUser.displayName || 'Admin',
+      firstName,
+      lastName,
       email: emailLower,
       role: 'ADMIN',
       site: '',
@@ -228,6 +270,8 @@ export function watchAuthAndProfile(
       onChange({
         id: firebaseUser.uid,
         name: data.name,
+        firstName: data.firstName || '',
+        lastName: data.lastName || '',
         email: data.email,
         role: data.role,
         site: data.site,
