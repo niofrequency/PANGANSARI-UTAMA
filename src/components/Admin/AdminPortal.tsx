@@ -2,23 +2,25 @@ import React, { useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { AnalyticsDashboard } from '../Dashboard/AnalyticsDashboard';
 import { 
-  Users, UserPlus, Shield, CheckCircle2, XCircle, Search, Activity as ActivityIcon,
+  Users, UserPlus, Shield, Trash2, XCircle, Search, Activity as ActivityIcon,
   User as UserIcon, AlertTriangle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
-import { UserRole, Submission } from '../../types';
+import { UserRole, Submission, User } from '../../types';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { SUPER_ADMIN_EMAIL } from '../../services/authService';
 import { isFirebaseConfigured } from '../../lib/firebase';
 
 export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }) {
   const { t } = useTranslation();
-  const { users, sites, submissions, warnings, addUser, updateUserRole, toggleUserActive } = store;
+  const { users, sites, submissions, warnings, addUser, updateUserRole, deleteUser } = store;
   const [activeTab, setActiveTab] = useState<'USERS' | 'ACTIVITY' | 'ANALYTICS'>('USERS');
   const [search, setSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [newUser, setNewUser] = useState({ firstName: '', lastName: '', email: '', role: 'HOUSEKEEPER' as UserRole, site: 'site-1' });
+  const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
 
   // Activity tab state
   const [activitySegment, setActivitySegment] = useState<'SUBMISSIONS' | 'WARNINGS'>('SUBMISSIONS');
@@ -114,7 +116,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredUsers.map(user => (
-                <div key={user.id} className={cn("card flex flex-col gap-4", !user.isActive && "opacity-30 grayscale")}>
+                <div key={user.id} className="card flex flex-col gap-4">
                   <div className="flex items-center gap-4 min-w-0">
                     <div className="w-12 h-12 bg-psu-bg rounded-2xl flex items-center justify-center text-psu-gray/20 shrink-0">
                       <Users size={22} />
@@ -141,15 +143,15 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                       {/* ADMIN intentionally omitted: that role is locked to one
                           account and can't be granted from this screen. */}
                     </select>
-                    <button 
-                      onClick={() => toggleUserActive(user.id)}
-                      className={cn(
-                        "p-2 rounded-xl transition-all shrink-0",
-                        user.isActive ? "text-psu-rejected bg-psu-rejected/5 hover:bg-psu-rejected/10" : "text-psu-green bg-psu-green/5 hover:bg-psu-green/10"
-                      )}
-                    >
-                      {user.isActive ? <XCircle size={18} /> : <CheckCircle2 size={18} />}
-                    </button>
+                    {user.email.toLowerCase() !== SUPER_ADMIN_EMAIL && (
+                      <button 
+                        onClick={() => { setDeleteTarget(user); setDeleteConfirmText(''); }}
+                        className="p-2 rounded-xl transition-all shrink-0 text-psu-rejected bg-psu-rejected/5 hover:bg-psu-rejected/10"
+                        aria-label={t('admin.deleteButton')}
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -456,6 +458,69 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {deleteTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-psu-gray/60 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white w-full max-w-sm rounded-[32px] p-8 shadow-2xl"
+            >
+              <div className="flex flex-col items-center mb-6 text-center">
+                <div className="w-16 h-16 bg-psu-rejected/10 rounded-2xl flex items-center justify-center text-psu-rejected mb-4">
+                  <Trash2 size={28} />
+                </div>
+                <h3 className="text-lg font-bold tracking-tight text-psu-gray">{t('admin.deleteConfirmTitle')}</h3>
+                <p className="text-xs text-psu-gray/60 font-medium mt-2 leading-relaxed">
+                  {t('admin.deleteConfirmBody', { name: deleteTarget.name })}
+                </p>
+              </div>
+
+              {isFirebaseConfigured && (
+                <p className="text-[11px] text-psu-gray/50 bg-psu-bg rounded-xl p-3 mb-5 leading-snug">
+                  {t('admin.deleteConfirmAuthNote')}
+                </p>
+              )}
+
+              <label className="block text-[10px] font-black text-psu-gray/40 uppercase mb-2 tracking-widest">
+                {t('admin.deleteTypeToConfirm')}
+              </label>
+              <input
+                type="text"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder={t('admin.deleteInputPlaceholder')}
+                className="w-full p-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-sm font-bold tracking-widest focus:outline-none focus:ring-2 focus:ring-psu-rejected/20 transition-all mb-6"
+                autoFocus
+              />
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDeleteTarget(null)}
+                  className="flex-1 py-4 text-psu-gray/40 font-black text-[10px] uppercase tracking-widest"
+                >
+                  {t('common.cancel')}
+                </button>
+                <button
+                  type="button"
+                  disabled={deleteConfirmText !== 'DELETE'}
+                  onClick={() => {
+                    deleteUser(deleteTarget.id);
+                    setDeleteTarget(null);
+                  }}
+                  className="flex-[2] py-4 bg-psu-rejected text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-psu-rejected/20 active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  {t('admin.deleteButton')}
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
