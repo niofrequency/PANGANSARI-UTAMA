@@ -3,7 +3,7 @@ import { User, Submission, UserRole, Site, Warning, TrainingModule } from '../ty
 import { INITIAL_USERS, INITIAL_SUBMISSIONS, SITES, TRAINING_MODULES } from '../data/mockData';
 import { isFirebaseConfigured } from '../lib/firebase';
 import { loginOrRegister, loginWithGoogle as loginWithGoogleService, logout as firebaseLogout, watchAuthAndProfile, SUPER_ADMIN_EMAIL } from '../services/authService';
-import { subscribeUsers, inviteUser, updateUserRoleDoc, toggleUserActiveDoc } from '../services/usersService';
+import { subscribeUsers, inviteUser, updateUserRoleDoc, toggleUserActiveDoc, deleteUserDoc } from '../services/usersService';
 
 // This store has two modes:
 //
@@ -190,6 +190,16 @@ export function useAppStore() {
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, isActive: !u.isActive } : u));
   };
 
+  const deleteUser = (userId: string) => {
+    const target = users.find(u => u.id === userId);
+    if (!target || target.email.toLowerCase() === SUPER_ADMIN_EMAIL) return; // super-admin can never be deleted
+    if (isFirebaseConfigured) {
+      deleteUserDoc(target.email);
+      return;
+    }
+    setUsers(prev => prev.filter(u => u.id !== userId));
+  };
+
   const addWarning = (warning: Omit<Warning, 'id'>) => {
     const newWarning = { ...warning, id: `w-${Date.now()}` };
     setWarnings(prev => [newWarning, ...prev]);
@@ -219,6 +229,7 @@ export function useAppStore() {
     addUser,
     updateUserRole,
     toggleUserActive,
+    deleteUser,
     addWarning,
     completeTraining
   };
