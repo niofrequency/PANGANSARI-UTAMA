@@ -10,6 +10,8 @@ import { SUPER_ADMIN_EMAIL } from './authService';
 
 interface FirestoreUserDoc {
   name: string;
+  firstName: string;
+  lastName: string;
   email: string;
   role: UserRole;
   site: string;
@@ -29,6 +31,8 @@ export function subscribeUsers(onChange: (users: User[]) => void): () => void {
       return {
         id: data.uid || d.id, // fall back to the email-based doc id pre-activation
         name: data.name,
+        firstName: data.firstName || '',
+        lastName: data.lastName || '',
         email: data.email,
         role: data.role,
         site: data.site,
@@ -47,6 +51,8 @@ export async function inviteUser(user: Omit<User, 'id' | 'isActive'>): Promise<v
   const emailLower = user.email.trim().toLowerCase();
   const docData: FirestoreUserDoc = {
     name: user.name,
+    firstName: user.firstName,
+    lastName: user.lastName,
     email: emailLower,
     role: user.role,
     site: user.site,
