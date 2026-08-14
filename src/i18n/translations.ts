@@ -166,6 +166,10 @@ export const translations = {
       optimal: 'Good',
       caution: 'Needs attention',
       needsAttention: 'Needs Attention',
+      belowTarget: 'Score below {threshold}% target',
+      pendingReview: '{count} submission(s) awaiting review',
+      allGood: 'Everything looks good — no sites below target and nothing pending review.',
+      noSubmissionsYet: 'No submissions yet',
     },
     trainings: {
       bannerTitle: 'Training Library',
@@ -177,12 +181,7 @@ export const translations = {
       errorGeneric: 'Could not process that photo. Please try again.',
     },
     analyticsExtra: {
-      high: 'High',
       total: 'Total',
-      needsAttentionSite: 'Catering Facility A',
-      needsAttentionSiteNote: 'Food Safety Score Drop',
-      cleaningBacklog: 'Deep Cleaning Backlog',
-      cleaningBacklogNote: '4 Area Inspections Overdue',
     },
     install: {
       buttonLabel: 'Install App',
@@ -377,6 +376,10 @@ export const translations = {
       optimal: 'Baik',
       caution: 'Perlu perhatian',
       needsAttention: 'Perlu Perhatian',
+      belowTarget: 'Skor di bawah target {threshold}%',
+      pendingReview: '{count} laporan menunggu ditinjau',
+      allGood: 'Semuanya terlihat baik — tidak ada lokasi di bawah target dan tidak ada yang menunggu tinjauan.',
+      noSubmissionsYet: 'Belum ada laporan',
     },
     trainings: {
       bannerTitle: 'Pustaka Pelatihan',
@@ -388,12 +391,7 @@ export const translations = {
       errorGeneric: 'Tidak dapat memproses foto tersebut. Silakan coba lagi.',
     },
     analyticsExtra: {
-      high: 'Tinggi',
       total: 'Total',
-      needsAttentionSite: 'Catering Facility A',
-      needsAttentionSiteNote: 'Skor Keamanan Pangan Menurun',
-      cleaningBacklog: 'Antrean Pembersihan Menumpuk',
-      cleaningBacklogNote: '4 Inspeksi Area Terlambat',
     },
     install: {
       buttonLabel: 'Pasang Aplikasi',
