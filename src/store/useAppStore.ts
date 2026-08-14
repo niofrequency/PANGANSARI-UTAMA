@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { User, Submission, UserRole, Site, Warning, TrainingModule } from '../types';
 import { INITIAL_USERS, INITIAL_SUBMISSIONS, SITES, TRAINING_MODULES } from '../data/mockData';
 import { isFirebaseConfigured } from '../lib/firebase';
-import { loginOrRegister, logout as firebaseLogout, watchAuthAndProfile, SUPER_ADMIN_EMAIL } from '../services/authService';
+import { loginOrRegister, loginWithGoogle as loginWithGoogleService, logout as firebaseLogout, watchAuthAndProfile, SUPER_ADMIN_EMAIL } from '../services/authService';
 import { subscribeUsers, inviteUser, updateUserRoleDoc, toggleUserActiveDoc } from '../services/usersService';
 
 // This store has two modes:
@@ -84,24 +84,33 @@ export function useAppStore() {
     localStorage.setItem('psu_trainings', JSON.stringify(trainings));
   }, [trainings]);
 
-  const login = async (email: string, password: string): Promise<boolean> => {
+  const login = async (email: string, password: string): Promise<string | null> => {
     if (isFirebaseConfigured) {
       const result = await loginOrRegister(email, password);
       // currentUser is set by the watchAuthAndProfile subscription once
       // Firebase Auth's state updates — no need to set it here.
-      return result.ok;
+      return result.ok ? null : result.error;
     }
 
     // Demo mode: same behavior as before Firebase was wired in.
     const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (!user) return false;
-    if (!user.isActive) return false;
+    if (!user) return 'invalid';
+    if (!user.isActive) return 'inactive';
     const effectiveUser =
       user.role === 'ADMIN' && user.email.toLowerCase() !== SUPER_ADMIN_EMAIL
         ? { ...user, role: 'HOUSEKEEPER' as UserRole }
         : user;
     setCurrentUser(effectiveUser);
-    return true;
+    return null;
+  };
+
+  // Google Sign-In only makes sense in Firebase mode — there's no Google
+  // account concept in the localStorage demo. Callers should check
+  // isFirebaseConfigured before showing the button at all (Auth.tsx does).
+  const loginWithGoogle = async (): Promise<string | null> => {
+    if (!isFirebaseConfigured) return 'invalid';
+    const result = await loginWithGoogleService();
+    return result.ok ? null : result.error;
   };
 
   const logout = () => {
@@ -173,6 +182,7 @@ export function useAppStore() {
     trainings,
     sites: SITES,
     login,
+    loginWithGoogle,
     logout,
     addSubmission,
     updateSubmissionStatus,
