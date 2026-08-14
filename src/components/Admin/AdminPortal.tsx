@@ -134,7 +134,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
             animate={{ opacity: 1, scale: 1 }}
           >
             <h2 className="text-xl font-bold tracking-tight text-psu-gray mb-6 px-2">{t('admin.tabAnalytics')}</h2>
-            <AnalyticsDashboard submissions={submissions} warnings={warnings} sites={sites} />
+            <AnalyticsDashboard submissions={submissions} warnings={warnings} sites={sites} users={users} />
           </motion.div>
         )}
       </AnimatePresence>
