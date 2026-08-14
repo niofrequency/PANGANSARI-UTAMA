@@ -22,7 +22,7 @@
 // localStorage-backed demo mode instead of crashing — see useAppStore.ts.
 
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
-import { getAuth, type Auth } from 'firebase/auth';
+import { getAuth, setPersistence, browserLocalPersistence, type Auth } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 
 const firebaseConfig = {
@@ -44,3 +44,12 @@ export const app: FirebaseApp | null = isFirebaseConfigured
 
 export const auth: Auth | null = app ? getAuth(app) : null;
 export const db: Firestore | null = app ? getFirestore(app) : null;
+
+// Explicit rather than relying on the SDK default: keeps people logged in
+// across page refreshes and browser restarts (persisted in IndexedDB),
+// instead of only for the current tab session.
+if (auth) {
+  setPersistence(auth, browserLocalPersistence).catch((err) => {
+    console.error('Failed to set Firebase Auth persistence:', err);
+  });
+}
