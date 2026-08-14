@@ -37,6 +37,16 @@ export function useAppStore() {
     return saved ? JSON.parse(saved) : null;
   });
 
+  // In Firebase mode, we can't know synchronously on page load whether the
+  // person is still logged in — Firebase Auth has to check its persisted
+  // session first, which is async. Without tracking that separately, the
+  // app would briefly (sometimes not-so-briefly, if it's slow) show the
+  // Login screen on every refresh even for someone who's still logged in,
+  // which reads as "refreshing logs me out". This flag gates that: App.tsx
+  // shows a loading state instead of the Login screen until the first
+  // auth check has actually resolved.
+  const [isAuthResolving, setIsAuthResolving] = useState(isFirebaseConfigured);
+
   const [users, setUsers] = useState<User[]>(() => {
     if (isFirebaseConfigured) return []; // populated by subscribeUsers below
     const saved = localStorage.getItem('psu_users_v2');
@@ -69,7 +79,10 @@ export function useAppStore() {
   // --- Firebase mode: live subscriptions ---
   useEffect(() => {
     if (!isFirebaseConfigured) return;
-    const unsubAuth = watchAuthAndProfile(setCurrentUser);
+    const unsubAuth = watchAuthAndProfile((user) => {
+      setCurrentUser(user);
+      setIsAuthResolving(false); // first callback = the initial check is done, whatever it found
+    });
     const unsubUsers = subscribeUsers(setUsers);
     return () => {
       unsubAuth();
@@ -192,6 +205,7 @@ export function useAppStore() {
 
   return {
     currentUser,
+    isAuthResolving,
     users,
     submissions,
     warnings,
