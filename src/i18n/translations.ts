@@ -32,6 +32,15 @@ export const translations = {
       FOOD_SAFETY_MANAGER: 'Food Safety Manager',
       ADMIN: 'Admin',
     },
+    rolesShort: {
+      HOUSEKEEPER: 'Housekeeper',
+      HOUSEKEEPING_SUPERVISOR: 'HK Supervisor',
+      HOUSEKEEPING_MANAGER: 'HK Manager',
+      FOOD_SAFETY_TECHNICIAN: 'FS Technician',
+      FOOD_SAFETY_SUPERVISOR: 'FS Supervisor',
+      FOOD_SAFETY_MANAGER: 'FS Manager',
+      ADMIN: 'Admin',
+    },
     layout: {
       installApp: 'Install App',
       logout: 'Log out',
@@ -227,6 +236,15 @@ export const translations = {
       FOOD_SAFETY_TECHNICIAN: 'Teknisi Keamanan Pangan',
       FOOD_SAFETY_SUPERVISOR: 'Supervisor Keamanan Pangan',
       FOOD_SAFETY_MANAGER: 'Manajer Keamanan Pangan',
+      ADMIN: 'Admin',
+    },
+    rolesShort: {
+      HOUSEKEEPER: 'Housekeeper',
+      HOUSEKEEPING_SUPERVISOR: 'Sup. HK',
+      HOUSEKEEPING_MANAGER: 'Manajer HK',
+      FOOD_SAFETY_TECHNICIAN: 'Teknisi FS',
+      FOOD_SAFETY_SUPERVISOR: 'Sup. FS',
+      FOOD_SAFETY_MANAGER: 'Manajer FS',
       ADMIN: 'Admin',
     },
     layout: {
