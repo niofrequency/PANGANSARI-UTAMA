@@ -84,37 +84,37 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredUsers.map(user => (
-                <div key={user.id} className={cn("card flex items-center justify-between group", !user.isActive && "opacity-30 grayscale")}>
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-psu-bg rounded-2xl flex items-center justify-center text-psu-gray/20">
+                <div key={user.id} className={cn("card flex flex-col gap-4", !user.isActive && "opacity-30 grayscale")}>
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className="w-12 h-12 bg-psu-bg rounded-2xl flex items-center justify-center text-psu-gray/20 shrink-0">
                       <Users size={22} />
                     </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-psu-gray">{user.name}</h4>
-                      <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5">{t(`roles.${user.role}`)} • {user.email}</p>
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-sm font-bold text-psu-gray truncate">{user.name}</h4>
+                      <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5 truncate">{t(`roles.${user.role}`)} • {user.email}</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center gap-2">
                     <select 
                       value={user.role}
                       disabled={user.email.toLowerCase() === SUPER_ADMIN_EMAIL}
                       onChange={(e) => updateUserRole(user.id, e.target.value as UserRole)}
-                      className="text-[9px] bg-psu-bg border border-psu-gray/10 rounded-md px-2 py-1 font-black uppercase tracking-tighter outline-none focus:ring-2 focus:ring-psu-blue/20 disabled:opacity-50"
+                      className="flex-1 min-w-0 text-[9px] bg-psu-bg border border-psu-gray/10 rounded-md px-2 py-1.5 font-black uppercase tracking-tighter outline-none focus:ring-2 focus:ring-psu-blue/20 disabled:opacity-50 truncate"
                     >
-                      <option value="HOUSEKEEPER">{t('roles.HOUSEKEEPER')}</option>
-                      <option value="HOUSEKEEPING_SUPERVISOR">{t('roles.HOUSEKEEPING_SUPERVISOR')}</option>
-                      <option value="HOUSEKEEPING_MANAGER">{t('roles.HOUSEKEEPING_MANAGER')}</option>
-                      <option value="FOOD_SAFETY_TECHNICIAN">{t('roles.FOOD_SAFETY_TECHNICIAN')}</option>
-                      <option value="FOOD_SAFETY_SUPERVISOR">{t('roles.FOOD_SAFETY_SUPERVISOR')}</option>
-                      <option value="FOOD_SAFETY_MANAGER">{t('roles.FOOD_SAFETY_MANAGER')}</option>
+                      <option value="HOUSEKEEPER">{t('rolesShort.HOUSEKEEPER')}</option>
+                      <option value="HOUSEKEEPING_SUPERVISOR">{t('rolesShort.HOUSEKEEPING_SUPERVISOR')}</option>
+                      <option value="HOUSEKEEPING_MANAGER">{t('rolesShort.HOUSEKEEPING_MANAGER')}</option>
+                      <option value="FOOD_SAFETY_TECHNICIAN">{t('rolesShort.FOOD_SAFETY_TECHNICIAN')}</option>
+                      <option value="FOOD_SAFETY_SUPERVISOR">{t('rolesShort.FOOD_SAFETY_SUPERVISOR')}</option>
+                      <option value="FOOD_SAFETY_MANAGER">{t('rolesShort.FOOD_SAFETY_MANAGER')}</option>
                       {/* ADMIN intentionally omitted: that role is locked to one
                           account and can't be granted from this screen. */}
                     </select>
                     <button 
                       onClick={() => toggleUserActive(user.id)}
                       className={cn(
-                        "p-2 rounded-xl transition-all",
+                        "p-2 rounded-xl transition-all shrink-0",
                         user.isActive ? "text-psu-rejected bg-psu-rejected/5 hover:bg-psu-rejected/10" : "text-psu-green bg-psu-green/5 hover:bg-psu-green/10"
                       )}
                     >
@@ -194,12 +194,12 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                       onChange={(e) => setNewUser(p => ({ ...p, role: e.target.value as any }))}
                       className="w-full p-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-[10px] font-black uppercase tracking-tighter"
                     >
-                      <option value="HOUSEKEEPER">{t('roles.HOUSEKEEPER')}</option>
-                      <option value="HOUSEKEEPING_SUPERVISOR">{t('roles.HOUSEKEEPING_SUPERVISOR')}</option>
-                      <option value="HOUSEKEEPING_MANAGER">{t('roles.HOUSEKEEPING_MANAGER')}</option>
-                      <option value="FOOD_SAFETY_TECHNICIAN">{t('roles.FOOD_SAFETY_TECHNICIAN')}</option>
-                      <option value="FOOD_SAFETY_SUPERVISOR">{t('roles.FOOD_SAFETY_SUPERVISOR')}</option>
-                      <option value="FOOD_SAFETY_MANAGER">{t('roles.FOOD_SAFETY_MANAGER')}</option>
+                      <option value="HOUSEKEEPER">{t('rolesShort.HOUSEKEEPER')}</option>
+                      <option value="HOUSEKEEPING_SUPERVISOR">{t('rolesShort.HOUSEKEEPING_SUPERVISOR')}</option>
+                      <option value="HOUSEKEEPING_MANAGER">{t('rolesShort.HOUSEKEEPING_MANAGER')}</option>
+                      <option value="FOOD_SAFETY_TECHNICIAN">{t('rolesShort.FOOD_SAFETY_TECHNICIAN')}</option>
+                      <option value="FOOD_SAFETY_SUPERVISOR">{t('rolesShort.FOOD_SAFETY_SUPERVISOR')}</option>
+                      <option value="FOOD_SAFETY_MANAGER">{t('rolesShort.FOOD_SAFETY_MANAGER')}</option>
                       {/* ADMIN not offered here — locked to one account */}
                     </select>
                   </div>
