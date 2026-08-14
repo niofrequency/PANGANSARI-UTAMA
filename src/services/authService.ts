@@ -23,6 +23,8 @@
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  signInWithPopup,
+  GoogleAuthProvider,
   signOut,
   onAuthStateChanged,
   type User as FirebaseUser,
@@ -35,7 +37,7 @@ export const SUPER_ADMIN_EMAIL = 'mpigome44@gmail.com';
 
 export type LoginResult =
   | { ok: true; profile: FirestoreUserProfile }
-  | { ok: false; error: 'invalid' | 'inactive' | 'no-invite' };
+  | { ok: false; error: 'invalid' | 'inactive' | 'no-invite' | 'popup-closed' };
 
 interface FirestoreUserProfile {
   name: string;
@@ -119,6 +121,67 @@ export async function loginOrRegister(email: string, password: string): Promise<
     }
   }
 
+  return { ok: false, error: 'no-invite' };
+}
+
+// Google Sign-In, using the same invite-based activation rule as email
+// login: signing in with Google only succeeds if an admin already created
+// an invite for that Google account's email (or it's the bootstrap
+// super-admin). This keeps "anyone with a Google account can sign in"
+// from bypassing the same access control email/password login has.
+export async function loginWithGoogle(): Promise<LoginResult> {
+  if (!auth || !db) return { ok: false, error: 'invalid' };
+
+  let firebaseUser;
+  try {
+    const cred = await signInWithPopup(auth, new GoogleAuthProvider());
+    firebaseUser = cred.user;
+  } catch (err: any) {
+    if (err?.code === 'auth/popup-closed-by-user' || err?.code === 'auth/cancelled-popup-request') {
+      return { ok: false, error: 'popup-closed' };
+    }
+    return { ok: false, error: 'invalid' };
+  }
+
+  const emailLower = (firebaseUser.email || '').toLowerCase();
+  if (!emailLower) {
+    await signOut(auth);
+    return { ok: false, error: 'invalid' };
+  }
+
+  const ref = userDocRef(emailLower);
+  const snap = await getDoc(ref);
+
+  if (snap.exists()) {
+    const data = snap.data() as FirestoreUserProfile;
+    if (data.isActive === false) {
+      await signOut(auth);
+      return { ok: false, error: 'inactive' };
+    }
+    if (!data.uid) {
+      // Invited but never activated: this Google sign-in activates it.
+      await updateDoc(ref, { uid: firebaseUser.uid });
+      return { ok: true, profile: { ...data, uid: firebaseUser.uid } };
+    }
+    return { ok: true, profile: data };
+  }
+
+  if (emailLower === SUPER_ADMIN_EMAIL) {
+    const profile: FirestoreUserProfile = {
+      name: firebaseUser.displayName || 'Admin',
+      email: emailLower,
+      role: 'ADMIN',
+      site: '',
+      isActive: true,
+      uid: firebaseUser.uid,
+    };
+    await setDoc(ref, profile);
+    return { ok: true, profile };
+  }
+
+  // No invite for this account — don't leave them signed into Firebase
+  // Auth with nothing to show for it.
+  await signOut(auth);
   return { ok: false, error: 'no-invite' };
 }
 
