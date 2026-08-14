@@ -8,7 +8,7 @@ import { useTranslation } from '../../i18n/LanguageContext';
 
 export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore> }) {
   const { t } = useTranslation();
-  const { submissions, warnings, sites, updateSubmissionStatus } = store;
+  const { submissions, warnings, sites, users, updateSubmissionStatus } = store;
   const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'ESCALATIONS'>('DASHBOARD');
 
   const escalations = submissions.filter(s => s.status === 'PENDING');
@@ -50,7 +50,7 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
                 <Settings size={18} />
               </button>
             </div>
-            <AnalyticsDashboard submissions={submissions} warnings={warnings} sites={sites} />
+            <AnalyticsDashboard submissions={submissions} warnings={warnings} sites={sites} users={users} />
           </motion.div>
         )}
 
