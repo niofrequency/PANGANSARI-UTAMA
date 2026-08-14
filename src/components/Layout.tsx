@@ -51,10 +51,12 @@ export function Layout({ user, onLogout, children }: LayoutProps) {
 
           <div className="text-right hidden sm:block">
             <div className="text-xs font-bold text-psu-gray">{user.name}</div>
-            <div className="text-[10px] uppercase text-psu-gray/50 font-semibold tracking-tighter flex items-center gap-1 justify-end">
-              <MapPin size={10} className="text-psu-blue" />
-              {user.site}
-            </div>
+            {user.site && (
+              <div className="text-[10px] uppercase text-psu-gray/50 font-semibold tracking-tighter flex items-center gap-1 justify-end">
+                <MapPin size={10} className="text-psu-blue" />
+                {user.site}
+              </div>
+            )}
           </div>
 
           <button
