@@ -9,9 +9,11 @@ import { useTranslation } from '../../i18n/LanguageContext';
 
 export function TechnicianPortal({ store }: { store: ReturnType<typeof useAppStore> }) {
   const { t } = useTranslation();
-  const { currentUser, submissions, addSubmission, trainings, completeTraining, warnings } = store;
+  const { currentUser, submissions, addSubmission, trainings, completeTraining, warnings, sites } = store;
   const [activeTab, setActiveTab] = useState<'TASKS' | 'HISTORY' | 'TRAINING'>('TASKS');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const currentSite = sites.find(s => s.id === currentUser?.site);
+  const currentSiteName = currentSite?.name || currentUser?.site || '';
   const [formData, setFormData] = useState({
     fridgeTemp: '4',
     cookingTemp: '75',
@@ -32,7 +34,7 @@ export function TechnicianPortal({ store }: { store: ReturnType<typeof useAppSto
       userName: currentUser!.name,
       role: currentUser!.role,
       siteId: currentUser!.site,
-      siteName: 'Catering Facility A',
+      siteName: currentSiteName,
       timestamp: new Date().toISOString(),
       type: 'FOOD_SAFETY',
       status: 'PENDING',
@@ -101,7 +103,7 @@ export function TechnicianPortal({ store }: { store: ReturnType<typeof useAppSto
             <div className="flex items-center justify-between px-2">
               <h2 className="text-xl font-bold tracking-tight text-psu-gray">{t('technician.dailyLogTitle')}</h2>
               <div className="flex items-center gap-1 text-[10px] font-black text-psu-gray/40 uppercase tracking-widest">
-                <MapPin size={12} /> Kitchen B
+                <MapPin size={12} /> {currentSiteName}
               </div>
             </div>
 
