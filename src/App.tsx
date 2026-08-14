@@ -19,7 +19,7 @@ import { motion, AnimatePresence } from 'motion/react';
 
 export default function App() {
   const store = useAppStore();
-  const { currentUser, logout } = store;
+  const { currentUser, logout, isAuthResolving } = store;
   const { t } = useTranslation();
 
   // Simple routing based on role
@@ -80,7 +80,20 @@ export default function App() {
   return (
     <div className="min-h-screen bg-psu-bg font-sans">
       <AnimatePresence mode="wait">
-        {!currentUser ? (
+        {isAuthResolving ? (
+          // First-load auth check still in flight (Firebase mode only) —
+          // show this instead of flashing the Login screen at someone
+          // who's actually still logged in.
+          <motion.div
+            key="auth-loading"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="flex items-center justify-center min-h-screen"
+          >
+            <img src="/icons/psu-mark.png" alt="" className="h-10 w-auto animate-pulse opacity-50" />
+          </motion.div>
+        ) : !currentUser ? (
           <motion.div
             key="login"
             initial={{ opacity: 0 }}
