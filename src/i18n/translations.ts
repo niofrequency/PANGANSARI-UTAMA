@@ -61,6 +61,11 @@ export const translations = {
       firstLoginHint: "First time logging in? If your admin has added your email, just enter it with a new password — that creates your account.",
       orDivider: 'or',
       googleButton: 'Continue with Google',
+      googleButtonSignup: 'Sign up with Google',
+      tabLogin: 'Log In',
+      tabSignup: 'Sign Up',
+      signupButton: 'Sign Up',
+      signupHint: "Enter the email your admin added you with, then choose a password — this creates your account.",
       footer: 'Pangansari Utama · Food Resources Solutions',
     },
     accessRestricted: {
@@ -281,6 +286,11 @@ export const translations = {
       firstLoginHint: 'Baru pertama kali masuk? Jika admin sudah menambahkan email Anda, cukup masukkan email dan kata sandi baru — ini akan membuat akun Anda.',
       orDivider: 'atau',
       googleButton: 'Lanjutkan dengan Google',
+      googleButtonSignup: 'Daftar dengan Google',
+      tabLogin: 'Masuk',
+      tabSignup: 'Daftar',
+      signupButton: 'Daftar',
+      signupHint: 'Masukkan email yang telah ditambahkan admin Anda, lalu buat kata sandi — ini akan membuat akun Anda.',
       footer: 'Pangansari Utama · Food Resources Solutions',
     },
     accessRestricted: {
