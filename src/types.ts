@@ -9,7 +9,9 @@ export type UserRole =
 
 export interface User {
   id: string;
-  name: string;
+  name: string; // derived display name — always firstName + ' ' + lastName
+  firstName: string;
+  lastName: string;
   email: string;
   role: UserRole;
   site: string;
