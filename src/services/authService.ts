@@ -256,28 +256,35 @@ export function watchAuthAndProfile(
       return;
     }
     const ref = userDocRef(firebaseUser.email);
-    unsubProfile = onSnapshot(ref, (snap) => {
-      if (!snap.exists()) {
-        onChange(null);
-        return;
+    unsubProfile = onSnapshot(
+      ref,
+      (snap) => {
+        if (!snap.exists()) {
+          onChange(null);
+          return;
+        }
+        const data = snap.data() as FirestoreUserProfile;
+        if (data.isActive === false) {
+          onChange(null);
+          logout();
+          return;
+        }
+        onChange({
+          id: firebaseUser.uid,
+          name: data.name,
+          firstName: data.firstName || '',
+          lastName: data.lastName || '',
+          email: data.email,
+          role: data.role,
+          site: data.site,
+          isActive: data.isActive,
+        });
+      },
+      (err) => {
+        console.error('watchAuthAndProfile profile listener failed:', err);
+        onChange(null); // fail closed rather than leaving the app stuck loading
       }
-      const data = snap.data() as FirestoreUserProfile;
-      if (data.isActive === false) {
-        onChange(null);
-        logout();
-        return;
-      }
-      onChange({
-        id: firebaseUser.uid,
-        name: data.name,
-        firstName: data.firstName || '',
-        lastName: data.lastName || '',
-        email: data.email,
-        role: data.role,
-        site: data.site,
-        isActive: data.isActive,
-      });
-    });
+    );
   });
 
   return () => {
