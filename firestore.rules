@@ -1,0 +1,69 @@
+rules_version = '2';
+
+// Deploy with: firebase deploy --only firestore:rules
+// (requires the Firebase CLI and `firebase init` once, pointed at this project)
+//
+// Mirrors the logic in src/services/authService.ts and usersService.ts:
+//   - Anyone signed in can read the staff directory (needed for the
+//     Supervisor "issue warning" dropdown, Admin Portal list, etc).
+//   - A user can only ever write their OWN document, and only to attach
+//     their uid on first login (never to change their own role or
+//     active status — that's an admin-only action).
+//   - Only the designated super-admin account may create/edit other
+//     users' documents, and even they can never set role to ADMIN on
+//     anyone but themselves.
+//
+// This is enforced here independently of the client-side checks in
+// useAppStore.ts / AdminPortal.tsx, so a modified or malicious client
+// still can't do anything the rules don't allow.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function email() {
+      return request.auth.token.email.lower();
+    }
+
+    // Change this if you use a different super-admin address than the
+    // one baked into src/services/authService.ts — keep them in sync.
+    function isSuperAdmin() {
+      return isSignedIn() && email() == 'mpigome44@gmail.com';
+    }
+
+    function isOwnDoc(userId) {
+      return isSignedIn() && userId == email();
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+
+      // First-login activation: a user may attach their own uid to their
+      // own (pre-existing, admin-created) doc, but may not change their
+      // role, isActive flag, site, name, or email while doing so.
+      allow update: if isOwnDoc(userId)
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.isActive == resource.data.isActive
+        && request.resource.data.site == resource.data.site
+        && request.resource.data.name == resource.data.name
+        && request.resource.data.email == resource.data.email
+        && resource.data.uid == null
+        && request.resource.data.uid == request.auth.uid;
+
+      // Full create/update access for the super-admin, EXCEPT they can
+      // never grant the ADMIN role to anyone but themselves.
+      allow create, update: if isSuperAdmin()
+        && (request.resource.data.role != 'ADMIN' || userId == 'mpigome44@gmail.com');
+
+      allow delete: if isSuperAdmin() && userId != 'mpigome44@gmail.com';
+    }
+
+    // Everything else (submissions, warnings, trainings) still lives in
+    // localStorage in this version of the app — see FIREBASE_SETUP.md if
+    // you extend the store to move those into Firestore too, and add
+    // matching rules for them here before you do.
+  }
+}

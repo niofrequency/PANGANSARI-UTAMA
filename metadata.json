@@ -1,0 +1,10 @@
+{
+  "name": "PSU FieldOps",
+  "description": "Mobile-first PWA for Pangansari Utama (PSU) Field Operations, featuring role-based portals for housekeeping and food safety management.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

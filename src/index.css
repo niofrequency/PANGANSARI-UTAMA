@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+@theme {
+  --color-psu-green: #8DC63F;
+  --color-psu-gray: #58595B;
+  --color-psu-blue: #29ABE2;
+  --color-psu-bg: #F7F8F7;
+  --color-psu-warning: #F5A623;
+  --color-psu-rejected: #E14B4B;
+  
+  --radius-psu: 16px;
+  --radius-psu-inner: 12px;
+}
+
+@layer base {
+  body {
+    @apply bg-psu-bg text-psu-gray antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-psu-green text-white font-bold py-4 px-6 rounded-psu shadow-lg shadow-psu-green/20 active:scale-95 transition-all flex items-center justify-center gap-2;
+  }
+  .btn-outline {
+    @apply bg-white border-2 border-psu-green text-psu-green font-bold py-4 px-6 rounded-psu active:scale-95 transition-all flex items-center justify-center gap-2;
+  }
+  .card {
+    @apply bg-white p-6 rounded-psu shadow-sm border border-psu-gray/5;
+  }
+  .input-field {
+    @apply w-full p-4 bg-psu-bg border border-psu-gray/10 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-psu-blue/50 transition-all;
+  }
+}
