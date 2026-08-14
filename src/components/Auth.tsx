@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { LogIn, Mail, Lock, AlertCircle, Info } from 'lucide-react';
+import { LogIn, UserPlus, Mail, Lock, AlertCircle, Info } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext';
 import { isFirebaseConfigured } from '../lib/firebase';
+import { cn } from '../utils/cn';
 
 interface LoginProps {
   onLogin: (email: string, password: string) => string | null | Promise<string | null>;
@@ -22,6 +23,7 @@ function GoogleIcon() {
 
 export function Login({ onLogin, onLoginWithGoogle }: LoginProps) {
   const { t, language, toggleLanguage } = useTranslation();
+  const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -47,6 +49,10 @@ export function Login({ onLogin, onLoginWithGoogle }: LoginProps) {
     setError('');
     setIsSubmitting(true);
     try {
+      // Login and Sign Up both call the exact same function — whether it
+      // logs someone in or activates a fresh account is decided by
+      // whether an admin already added their email (see authService.ts).
+      // The two tabs are purely about making that clear in the UI.
       const result = await onLogin(email, password);
       setError(errorMessage(result));
     } finally {
@@ -66,6 +72,11 @@ export function Login({ onLogin, onLoginWithGoogle }: LoginProps) {
     }
   };
 
+  const switchMode = (next: 'login' | 'signup') => {
+    setMode(next);
+    setError('');
+  };
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-8 bg-[#F7F8F7]">
       <button
@@ -81,11 +92,29 @@ export function Login({ onLogin, onLoginWithGoogle }: LoginProps) {
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-sm bg-white rounded-3xl shadow-xl shadow-psu-gray/5 p-10 border border-psu-gray/5"
       >
-        <div className="flex flex-col items-center mb-10">
+        <div className="flex flex-col items-center mb-8">
           <img src="/icons/psu-logo-full.png" alt="Pangansari Utama" className="h-20 w-auto mb-4" />
           <h1 className="text-2xl font-bold tracking-tight text-psu-gray">FIELD<span className="text-psu-green">OPS</span></h1>
           <p className="text-psu-gray/40 text-[10px] font-bold uppercase tracking-widest mt-2">{t('auth.subtitle')}</p>
         </div>
+
+        {isFirebaseConfigured && (
+          <div className="flex bg-psu-bg rounded-2xl p-1.5 mb-8">
+            {(['login', 'signup'] as const).map(m => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => switchMode(m)}
+                className={cn(
+                  "flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
+                  mode === m ? "bg-white text-psu-green shadow-sm" : "text-psu-gray/40"
+                )}
+              >
+                {m === 'login' ? t('auth.tabLogin') : t('auth.tabSignup')}
+              </button>
+            ))}
+          </div>
+        )}
 
         {isFirebaseConfigured && onLoginWithGoogle && (
           <>
@@ -96,7 +125,7 @@ export function Login({ onLogin, onLoginWithGoogle }: LoginProps) {
               className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl border border-psu-gray/10 bg-white text-psu-gray font-bold text-sm active:scale-95 transition-all disabled:opacity-60 shadow-sm"
             >
               <GoogleIcon />
-              {isGoogleSubmitting ? t('common.loading') : t('auth.googleButton')}
+              {isGoogleSubmitting ? t('common.loading') : (mode === 'signup' ? t('auth.googleButtonSignup') : t('auth.googleButton'))}
             </button>
 
             <div className="flex items-center gap-3 my-6">
@@ -147,16 +176,20 @@ export function Login({ onLogin, onLoginWithGoogle }: LoginProps) {
             </motion.div>
           )}
 
-          {isFirebaseConfigured && (
+          {isFirebaseConfigured && mode === 'signup' && (
             <div className="flex items-start gap-2 p-3 bg-psu-blue/5 text-psu-blue/70 text-[11px] rounded-xl">
               <Info size={13} className="mt-0.5 shrink-0" />
-              <span>{t('auth.firstLoginHint')}</span>
+              <span>{t('auth.signupHint')}</span>
             </div>
           )}
 
-          <button type="submit" disabled={isSubmitting || isGoogleSubmitting} className="w-full bg-psu-green text-white font-bold py-4 rounded-2xl shadow-lg shadow-psu-green/20 active:scale-95 transition-all flex items-center justify-center gap-2 mt-4 disabled:opacity-60">
-            <LogIn size={18} />
-            {isSubmitting ? t('common.loading') : t('auth.submitButton')}
+          <button
+            type="submit"
+            disabled={isSubmitting || isGoogleSubmitting}
+            className="w-full bg-psu-green text-white font-bold py-4 rounded-2xl shadow-lg shadow-psu-green/20 active:scale-95 transition-all flex items-center justify-center gap-2 mt-4 disabled:opacity-60"
+          >
+            {mode === 'signup' ? <UserPlus size={18} /> : <LogIn size={18} />}
+            {isSubmitting ? t('common.loading') : (mode === 'signup' ? t('auth.signupButton') : t('auth.submitButton'))}
           </button>
         </form>
 
