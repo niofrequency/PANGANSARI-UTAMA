@@ -101,7 +101,7 @@ export function Login({ onLogin, onLoginWithGoogle }: LoginProps) {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-sm bg-white rounded-3xl shadow-xl shadow-psu-gray/5 p-10 border border-psu-gray/5"
+        className="w-full max-w-sm md:max-w-2xl bg-white rounded-3xl shadow-xl shadow-psu-gray/5 p-10 md:p-16 border border-psu-gray/5"
       >
         <div className="flex flex-col items-center mb-8">
           <img src="/icons/psu-logo-full.png" alt="Pangansari Utama" className="h-20 w-auto mb-4" />
@@ -173,31 +173,33 @@ export function Login({ onLogin, onLoginWithGoogle }: LoginProps) {
             </div>
           )}
 
-          <div>
-            <label className="block text-[10px] font-black text-psu-gray/50 uppercase tracking-widest mb-2">{t('auth.emailLabel')}</label>
-            <div className="relative">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-psu-gray/30" size={18} />
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-12 pr-4 py-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-psu-green/20 transition-all"
-                placeholder={t('auth.emailPlaceholder')}
-              />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+              <label className="block text-[10px] font-black text-psu-gray/50 uppercase tracking-widest mb-2">{t('auth.emailLabel')}</label>
+              <div className="relative">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-psu-gray/30" size={18} />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full pl-12 pr-4 py-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-psu-green/20 transition-all"
+                  placeholder={t('auth.emailPlaceholder')}
+                />
+              </div>
             </div>
-          </div>
 
-          <div>
-            <label className="block text-[10px] font-black text-psu-gray/50 uppercase tracking-widest mb-2">{t('auth.passwordLabel')}</label>
-            <div className="relative">
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-psu-gray/30" size={18} />
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-12 pr-4 py-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-psu-green/20 transition-all"
-                placeholder={t('auth.passwordPlaceholder')}
-              />
+            <div>
+              <label className="block text-[10px] font-black text-psu-gray/50 uppercase tracking-widest mb-2">{t('auth.passwordLabel')}</label>
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-psu-gray/30" size={18} />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-12 pr-4 py-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-psu-green/20 transition-all"
+                  placeholder={t('auth.passwordPlaceholder')}
+                />
+              </div>
             </div>
           </div>
 
