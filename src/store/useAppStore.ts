@@ -23,32 +23,48 @@ import { subscribeUsers, inviteUser, updateUserRoleDoc, toggleUserActiveDoc } fr
 // the returned shape is identical either way.
 
 export function useAppStore() {
+  // v2: key names bumped once, deliberately, to invalidate an old cache of
+  // fake demo data (30 days of randomly-generated submissions) that was
+  // seeded by an earlier version of this app and would otherwise linger in
+  // people's browsers forever, even after mockData.ts was cleared out —
+  // localStorage persists across deploys, so clearing the source file
+  // alone doesn't clear what's already saved on a given device. Do not
+  // change these key names again without a good reason; every bump wipes
+  // local data for anyone still on localStorage (demo) mode.
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     if (isFirebaseConfigured) return null; // resolved async by watchAuthAndProfile below
-    const saved = localStorage.getItem('psu_current_user');
+    const saved = localStorage.getItem('psu_current_user_v2');
     return saved ? JSON.parse(saved) : null;
   });
 
   const [users, setUsers] = useState<User[]>(() => {
     if (isFirebaseConfigured) return []; // populated by subscribeUsers below
-    const saved = localStorage.getItem('psu_users');
+    const saved = localStorage.getItem('psu_users_v2');
     return saved ? JSON.parse(saved) : INITIAL_USERS;
   });
 
   const [submissions, setSubmissions] = useState<Submission[]>(() => {
-    const saved = localStorage.getItem('psu_submissions');
+    const saved = localStorage.getItem('psu_submissions_v2');
     return saved ? JSON.parse(saved) : INITIAL_SUBMISSIONS;
   });
 
   const [warnings, setWarnings] = useState<Warning[]>(() => {
-    const saved = localStorage.getItem('psu_warnings');
+    const saved = localStorage.getItem('psu_warnings_v2');
     return saved ? JSON.parse(saved) : [];
   });
 
   const [trainings, setTrainings] = useState<TrainingModule[]>(() => {
-    const saved = localStorage.getItem('psu_trainings');
+    const saved = localStorage.getItem('psu_trainings_v2');
     return saved ? JSON.parse(saved) : TRAINING_MODULES;
   });
+
+  // One-time cleanup: remove the old (pre-v2) keys so they don't sit
+  // around unused forever in people's browsers.
+  useEffect(() => {
+    ['psu_current_user', 'psu_users', 'psu_submissions', 'psu_warnings', 'psu_trainings'].forEach(
+      (key) => localStorage.removeItem(key)
+    );
+  }, []);
 
   // --- Firebase mode: live subscriptions ---
   useEffect(() => {
@@ -64,24 +80,24 @@ export function useAppStore() {
   // --- Demo mode: persist everything to localStorage ---
   useEffect(() => {
     if (isFirebaseConfigured) return;
-    localStorage.setItem('psu_current_user', JSON.stringify(currentUser));
+    localStorage.setItem('psu_current_user_v2', JSON.stringify(currentUser));
   }, [currentUser]);
 
   useEffect(() => {
     if (isFirebaseConfigured) return;
-    localStorage.setItem('psu_users', JSON.stringify(users));
+    localStorage.setItem('psu_users_v2', JSON.stringify(users));
   }, [users]);
 
   useEffect(() => {
-    localStorage.setItem('psu_submissions', JSON.stringify(submissions));
+    localStorage.setItem('psu_submissions_v2', JSON.stringify(submissions));
   }, [submissions]);
 
   useEffect(() => {
-    localStorage.setItem('psu_warnings', JSON.stringify(warnings));
+    localStorage.setItem('psu_warnings_v2', JSON.stringify(warnings));
   }, [warnings]);
 
   useEffect(() => {
-    localStorage.setItem('psu_trainings', JSON.stringify(trainings));
+    localStorage.setItem('psu_trainings_v2', JSON.stringify(trainings));
   }, [trainings]);
 
   const login = async (email: string, password: string): Promise<string | null> => {
