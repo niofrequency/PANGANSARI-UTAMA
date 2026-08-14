@@ -6,7 +6,7 @@ import { isFirebaseConfigured } from '../lib/firebase';
 import { cn } from '../utils/cn';
 
 interface LoginProps {
-  onLogin: (email: string, password: string) => string | null | Promise<string | null>;
+  onLogin: (email: string, password: string, firstName?: string, lastName?: string) => string | null | Promise<string | null>;
   onLoginWithGoogle?: () => string | null | Promise<string | null>;
 }
 
@@ -24,6 +24,8 @@ function GoogleIcon() {
 export function Login({ onLogin, onLoginWithGoogle }: LoginProps) {
   const { t, language, toggleLanguage } = useTranslation();
   const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -46,14 +48,21 @@ export function Login({ onLogin, onLoginWithGoogle }: LoginProps) {
       setError(t('auth.errorEmpty'));
       return;
     }
+    if (mode === 'signup' && (!firstName || !lastName)) {
+      setError(t('auth.errorNameRequired'));
+      return;
+    }
     setError('');
     setIsSubmitting(true);
     try {
       // Login and Sign Up both call the exact same function — whether it
       // logs someone in or activates a fresh account is decided by
       // whether an admin already added their email (see authService.ts).
-      // The two tabs are purely about making that clear in the UI.
-      const result = await onLogin(email, password);
+      // The two tabs are purely about making that clear in the UI. The
+      // name is only used when this login *creates* an account.
+      const result = mode === 'signup'
+        ? await onLogin(email, password, firstName, lastName)
+        : await onLogin(email, password);
       setError(errorMessage(result));
     } finally {
       setIsSubmitting(false);
@@ -75,6 +84,8 @@ export function Login({ onLogin, onLoginWithGoogle }: LoginProps) {
   const switchMode = (next: 'login' | 'signup') => {
     setMode(next);
     setError('');
+    setFirstName('');
+    setLastName('');
   };
 
   return (
@@ -137,6 +148,31 @@ export function Login({ onLogin, onLoginWithGoogle }: LoginProps) {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
+          {mode === 'signup' && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[10px] font-black text-psu-gray/50 uppercase tracking-widest mb-2">{t('admin.firstNameLabel')}</label>
+                <input
+                  type="text"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  className="w-full px-4 py-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-psu-green/20 transition-all"
+                  placeholder={t('admin.firstNamePlaceholder')}
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-psu-gray/50 uppercase tracking-widest mb-2">{t('admin.lastNameLabel')}</label>
+                <input
+                  type="text"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  className="w-full px-4 py-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-psu-green/20 transition-all"
+                  placeholder={t('admin.lastNamePlaceholder')}
+                />
+              </div>
+            </div>
+          )}
+
           <div>
             <label className="block text-[10px] font-black text-psu-gray/50 uppercase tracking-widest mb-2">{t('auth.emailLabel')}</label>
             <div className="relative">
