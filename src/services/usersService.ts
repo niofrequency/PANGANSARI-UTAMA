@@ -25,22 +25,31 @@ export function subscribeUsers(onChange: (users: User[]) => void): () => void {
     onChange([]);
     return () => {};
   }
-  return onSnapshot(collection(db, 'users'), (snap) => {
-    const users: User[] = snap.docs.map((d) => {
-      const data = d.data() as FirestoreUserDoc;
-      return {
-        id: data.uid || d.id, // fall back to the email-based doc id pre-activation
-        name: data.name,
-        firstName: data.firstName || '',
-        lastName: data.lastName || '',
-        email: data.email,
-        role: data.role,
-        site: data.site,
-        isActive: data.isActive,
-      };
-    });
-    onChange(users);
-  });
+  return onSnapshot(
+    collection(db, 'users'),
+    (snap) => {
+      const users: User[] = snap.docs.map((d) => {
+        const data = d.data() as FirestoreUserDoc;
+        return {
+          id: data.uid || d.id, // fall back to the email-based doc id pre-activation
+          name: data.name,
+          firstName: data.firstName || '',
+          lastName: data.lastName || '',
+          email: data.email,
+          role: data.role,
+          site: data.site,
+          isActive: data.isActive,
+        };
+      });
+      onChange(users);
+    },
+    (err) => {
+      // Surface this instead of letting the Personnel list silently stay
+      // empty forever — Firestore treats permission-denied as terminal
+      // for a given listener rather than something it retries on its own.
+      console.error('subscribeUsers failed:', err);
+    }
+  );
 }
 
 // Creates an "invite": a profile with a role, but no linked Auth account
