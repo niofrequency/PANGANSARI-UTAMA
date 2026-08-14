@@ -18,7 +18,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
   const [activeTab, setActiveTab] = useState<'USERS' | 'ACTIVITY' | 'ANALYTICS'>('USERS');
   const [search, setSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [newUser, setNewUser] = useState({ name: '', email: '', role: 'HOUSEKEEPER' as UserRole, site: 'site-1' });
+  const [newUser, setNewUser] = useState({ firstName: '', lastName: '', email: '', role: 'HOUSEKEEPER' as UserRole, site: 'site-1' });
 
   // Activity tab state
   const [activitySegment, setActivitySegment] = useState<'SUBMISSIONS' | 'WARNINGS'>('SUBMISSIONS');
@@ -45,9 +45,10 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
 
   const handleAddUser = (e: React.FormEvent) => {
     e.preventDefault();
-    addUser(newUser);
+    const name = `${newUser.firstName} ${newUser.lastName}`.trim();
+    addUser({ ...newUser, name });
     setShowAddModal(false);
-    setNewUser({ name: '', email: '', role: 'HOUSEKEEPER', site: 'site-1' });
+    setNewUser({ firstName: '', lastName: '', email: '', role: 'HOUSEKEEPER', site: 'site-1' });
   };
 
   const statusBadgeClass = (status: Submission['status']) => cn(
@@ -379,16 +380,29 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
               )}
               
               <form onSubmit={handleAddUser} className="space-y-5">
-                <div>
-                  <label className="block text-[10px] font-black text-psu-gray/40 uppercase mb-2 tracking-widest">{t('admin.nameLabel')}</label>
-                  <input 
-                    required
-                    type="text" 
-                    value={newUser.name}
-                    onChange={(e) => setNewUser(p => ({ ...p, name: e.target.value }))}
-                    className="w-full p-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-psu-green/20 transition-all"
-                    placeholder={t('admin.namePlaceholder')}
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-black text-psu-gray/40 uppercase mb-2 tracking-widest">{t('admin.firstNameLabel')}</label>
+                    <input 
+                      required
+                      type="text" 
+                      value={newUser.firstName}
+                      onChange={(e) => setNewUser(p => ({ ...p, firstName: e.target.value }))}
+                      className="w-full p-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-psu-green/20 transition-all"
+                      placeholder={t('admin.firstNamePlaceholder')}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-psu-gray/40 uppercase mb-2 tracking-widest">{t('admin.lastNameLabel')}</label>
+                    <input 
+                      required
+                      type="text" 
+                      value={newUser.lastName}
+                      onChange={(e) => setNewUser(p => ({ ...p, lastName: e.target.value }))}
+                      className="w-full p-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-psu-green/20 transition-all"
+                      placeholder={t('admin.lastNamePlaceholder')}
+                    />
+                  </div>
                 </div>
 
                 <div>
