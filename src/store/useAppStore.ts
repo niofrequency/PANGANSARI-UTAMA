@@ -113,9 +113,9 @@ export function useAppStore() {
     localStorage.setItem('psu_trainings_v2', JSON.stringify(trainings));
   }, [trainings]);
 
-  const login = async (email: string, password: string): Promise<string | null> => {
+  const login = async (email: string, password: string, firstName?: string, lastName?: string): Promise<string | null> => {
     if (isFirebaseConfigured) {
-      const result = await loginOrRegister(email, password);
+      const result = await loginOrRegister(email, password, firstName, lastName);
       // currentUser is set by the watchAuthAndProfile subscription once
       // Firebase Auth's state updates — no need to set it here.
       return result.ok ? null : result.error;
