@@ -7,7 +7,16 @@ import { AlertCircle, Clock, BarChart3, Users, CheckCircle2 } from 'lucide-react
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
 
-export function AnalyticsDashboard({ submissions, warnings, sites }: { submissions: any[], warnings: any[], sites: any[] }) {
+interface AnalyticsDashboardProps {
+  submissions: any[];
+  warnings: any[];
+  sites: any[];
+  users?: any[]; // optional so existing callers without it don't break; staffActive shows '—' if omitted
+}
+
+const ATTENTION_THRESHOLD = 85; // matches the "Optimal"/"Caution" cutoff used in the site list below
+
+export function AnalyticsDashboard({ submissions, warnings, sites, users = [] }: AnalyticsDashboardProps) {
   const { t } = useTranslation();
   const stats = useMemo(() => {
     const total = submissions.length;
@@ -25,11 +34,22 @@ export function AnalyticsDashboard({ submissions, warnings, sites }: { submissio
     const siteScores = sites.map(site => {
       const siteSubs = submissions.filter(s => s.siteId === site.id);
       const avg = siteSubs.length ? siteSubs.reduce((acc, s) => acc + (s.score || 0), 0) / siteSubs.length : 0;
-      return { name: site.name, score: Math.round(avg) };
+      return { name: site.name, score: Math.round(avg), count: siteSubs.length };
     });
 
-    return { total, avgScore, last7Days, siteScores };
+    const pendingCount = submissions.filter(s => s.status === 'PENDING').length;
+
+    // Only flag sites that actually have data and are underperforming —
+    // a site with zero submissions yet isn't "needs attention", it's just
+    // "no data yet", so it's excluded here rather than shown as 0%/bad.
+    const needsAttentionSites = siteScores
+      .filter(s => s.count > 0 && s.score < ATTENTION_THRESHOLD)
+      .sort((a, b) => a.score - b.score);
+
+    return { total, avgScore, last7Days, siteScores, pendingCount, needsAttentionSites };
   }, [submissions, sites]);
+
+  const activeStaffCount = users.filter(u => u.isActive).length;
 
   return (
     <div className="space-y-8">
@@ -53,7 +73,6 @@ export function AnalyticsDashboard({ submissions, warnings, sites }: { submissio
           <p className="text-[10px] font-black text-psu-gray/40 uppercase tracking-widest mb-1">{t('analytics.activeAlerts')}</p>
           <div className="flex items-baseline gap-1">
             <span className="text-2xl font-black text-psu-gray">{warnings.length}</span>
-            <span className="text-xs font-bold text-psu-rejected">{t('analyticsExtra.high')}</span>
           </div>
         </div>
       </div>
@@ -65,8 +84,8 @@ export function AnalyticsDashboard({ submissions, warnings, sites }: { submissio
           </div>
           <p className="text-[10px] font-black text-psu-gray/40 uppercase tracking-widest mb-1">{t('analytics.staffActive')}</p>
           <div className="flex items-baseline gap-1">
-            <span className="text-2xl font-black text-psu-gray">12</span>
-            <span className="text-[10px] font-black text-psu-green ml-1 uppercase">{t('analytics.live')}</span>
+            <span className="text-2xl font-black text-psu-gray">{users.length ? activeStaffCount : '—'}</span>
+            {users.length > 0 && <span className="text-[10px] font-black text-psu-green ml-1 uppercase">{t('analytics.live')}</span>}
           </div>
         </div>
         
@@ -131,46 +150,62 @@ export function AnalyticsDashboard({ submissions, warnings, sites }: { submissio
                 </div>
                 <div>
                   <h4 className="text-sm font-bold text-psu-gray">{site.name}</h4>
-                  <p className="text-[10px] text-psu-gray/40 font-bold uppercase tracking-widest">{t('analytics.systemActive')}</p>
+                  <p className="text-[10px] text-psu-gray/40 font-bold uppercase tracking-widest">
+                    {site.count > 0 ? t('analytics.systemActive') : t('analytics.noSubmissionsYet')}
+                  </p>
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-sm font-black text-psu-gray">{site.score}%</div>
-                <div className={cn(
-                  "text-[9px] font-black uppercase tracking-tighter",
-                  site.score > 85 ? "text-psu-green" : "text-psu-warning"
-                )}>
-                  {site.score > 85 ? t('analytics.optimal') : t('analytics.caution')}
-                </div>
+                <div className="text-sm font-black text-psu-gray">{site.count > 0 ? `${site.score}%` : '—'}</div>
+                {site.count > 0 && (
+                  <div className={cn(
+                    "text-[9px] font-black uppercase tracking-tighter",
+                    site.score > ATTENTION_THRESHOLD ? "text-psu-green" : "text-psu-warning"
+                  )}>
+                    {site.score > ATTENTION_THRESHOLD ? t('analytics.optimal') : t('analytics.caution')}
+                  </div>
+                )}
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Attention Panel */}
-      <div className="bg-psu-rejected/10 p-6 rounded-[32px] border border-psu-rejected/5">
-        <h4 className="text-[10px] font-black text-psu-rejected uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-          <AlertCircle size={16} />
-          {t('analytics.needsAttention')}
-        </h4>
-        <div className="space-y-3">
-          <div className="bg-white p-4 rounded-2xl shadow-sm border border-psu-rejected/10 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold text-psu-gray">{t('analyticsExtra.needsAttentionSite')}</p>
-              <p className="text-[10px] text-psu-gray/40 font-medium">{t('analyticsExtra.needsAttentionSiteNote')}</p>
-            </div>
-            <span className="text-xs font-black text-psu-rejected">-14%</span>
-          </div>
-          <div className="bg-white p-4 rounded-2xl shadow-sm border border-psu-gray/5 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold text-psu-gray">{t('analyticsExtra.cleaningBacklog')}</p>
-              <p className="text-[10px] text-psu-gray/40 font-medium">{t('analyticsExtra.cleaningBacklogNote')}</p>
-            </div>
-            <Clock size={16} className="text-psu-warning" />
+      {/* Attention Panel — built from real data: underperforming sites
+          (below ATTENTION_THRESHOLD, with actual submissions) and any
+          submissions still awaiting review. */}
+      {(stats.needsAttentionSites.length > 0 || stats.pendingCount > 0) ? (
+        <div className="bg-psu-rejected/10 p-6 rounded-[32px] border border-psu-rejected/5">
+          <h4 className="text-[10px] font-black text-psu-rejected uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+            <AlertCircle size={16} />
+            {t('analytics.needsAttention')}
+          </h4>
+          <div className="space-y-3">
+            {stats.needsAttentionSites.map(site => (
+              <div key={site.name} className="bg-white p-4 rounded-2xl shadow-sm border border-psu-rejected/10 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold text-psu-gray">{site.name}</p>
+                  <p className="text-[10px] text-psu-gray/40 font-medium">{t('analytics.belowTarget', { threshold: ATTENTION_THRESHOLD })}</p>
+                </div>
+                <span className="text-xs font-black text-psu-rejected">{site.score}%</span>
+              </div>
+            ))}
+            {stats.pendingCount > 0 && (
+              <div className="bg-white p-4 rounded-2xl shadow-sm border border-psu-gray/5 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold text-psu-gray">{t('analytics.pendingReview', { count: stats.pendingCount })}</p>
+                </div>
+                <Clock size={16} className="text-psu-warning" />
+              </div>
+            )}
           </div>
         </div>
-      </div>
+      ) : (
+        <div className="bg-psu-green/5 p-6 rounded-[32px] border border-psu-green/10 flex items-center gap-3">
+          <CheckCircle2 size={20} className="text-psu-green shrink-0" />
+          <p className="text-xs font-bold text-psu-gray">{t('analytics.allGood')}</p>
+        </div>
+      )}
     </div>
   );
 }
