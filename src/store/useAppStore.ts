@@ -77,18 +77,37 @@ export function useAppStore() {
   }, []);
 
   // --- Firebase mode: live subscriptions ---
+  // Auth and the users-collection subscription are deliberately in
+  // separate effects, with the second one gated on `currentUser` actually
+  // being resolved (not just "Firebase is configured"). Starting the
+  // users-collection listener in parallel with the auth check used to
+  // cause an intermittent bug: on a slower/fresh session (e.g. a mobile
+  // browser with no cached auth token yet), that Firestore query could
+  // fire before the login token was attached, get rejected by
+  // firestore.rules (`isSignedIn()`), and then — because Firestore
+  // treats permission-denied as terminal, not something it retries —
+  // silently leave the Personnel list empty forever, even after login
+  // fully succeeded moments later. Waiting for currentUser first removes
+  // the race entirely.
   useEffect(() => {
     if (!isFirebaseConfigured) return;
     const unsubAuth = watchAuthAndProfile((user) => {
       setCurrentUser(user);
       setIsAuthResolving(false); // first callback = the initial check is done, whatever it found
     });
-    const unsubUsers = subscribeUsers(setUsers);
-    return () => {
-      unsubAuth();
-      unsubUsers();
-    };
+    return () => unsubAuth();
   }, []);
+
+  useEffect(() => {
+    if (!isFirebaseConfigured) return;
+    if (!currentUser) {
+      setUsers([]);
+      return;
+    }
+    const unsubUsers = subscribeUsers(setUsers);
+    return () => unsubUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFirebaseConfigured, currentUser?.id]);
 
   // --- Demo mode: persist everything to localStorage ---
   useEffect(() => {
