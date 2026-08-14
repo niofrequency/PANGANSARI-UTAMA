@@ -9,9 +9,11 @@ import { useTranslation } from '../../i18n/LanguageContext';
 
 export function HousekeeperPortal({ store }: { store: ReturnType<typeof useAppStore> }) {
   const { t } = useTranslation();
-  const { currentUser, submissions, addSubmission, trainings, completeTraining } = store;
+  const { currentUser, submissions, addSubmission, trainings, completeTraining, sites } = store;
   const [activeTab, setActiveTab] = useState<'TASKS' | 'HISTORY' | 'TRAINING'>('TASKS');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const currentSite = sites.find(s => s.id === currentUser?.site);
+  const currentSiteName = currentSite?.name || currentUser?.site || '';
   const checklistDefs = [
     { id: '1', key: 'housekeeper.checklist.q1' },
     { id: '2', key: 'housekeeper.checklist.q2' },
@@ -50,7 +52,7 @@ export function HousekeeperPortal({ store }: { store: ReturnType<typeof useAppSt
       userName: currentUser!.name,
       role: currentUser!.role,
       siteId: currentUser!.site,
-      siteName: 'Catering Facility A',
+      siteName: currentSiteName,
       timestamp: new Date().toISOString(),
       type: 'HOUSEKEEPING',
       status: 'PENDING',
@@ -100,7 +102,7 @@ export function HousekeeperPortal({ store }: { store: ReturnType<typeof useAppSt
             <div className="flex items-center justify-between px-2">
               <h2 className="text-xl font-bold tracking-tight text-psu-gray">{t('housekeeper.today')}</h2>
               <div className="flex items-center gap-1 text-[10px] font-black text-psu-gray/40 uppercase tracking-widest">
-                <MapPin size={12} /> RM-102
+                <MapPin size={12} /> {currentSiteName}
               </div>
             </div>
 
