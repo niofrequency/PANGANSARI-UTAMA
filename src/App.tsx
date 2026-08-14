@@ -24,7 +24,7 @@ export default function App() {
 
   // Simple routing based on role
   const renderPortal = () => {
-    if (!currentUser) return <Login onLogin={store.login} />;
+    if (!currentUser) return <Login onLogin={store.login} onLoginWithGoogle={store.loginWithGoogle} />;
 
     switch (currentUser.role) {
       case 'ADMIN':
@@ -87,7 +87,7 @@ export default function App() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            <Login onLogin={store.login} />
+            <Login onLogin={store.login} onLoginWithGoogle={store.loginWithGoogle} />
           </motion.div>
         ) : (
           <motion.div
