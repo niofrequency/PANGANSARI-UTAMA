@@ -4,6 +4,7 @@ import { INITIAL_USERS, INITIAL_SUBMISSIONS, SITES, TRAINING_MODULES } from '../
 import { isFirebaseConfigured } from '../lib/firebase';
 import { loginOrRegister, loginWithGoogle as loginWithGoogleService, logout as firebaseLogout, watchAuthAndProfile, SUPER_ADMIN_EMAIL } from '../services/authService';
 import { subscribeUsers, inviteUser, updateUserRoleDoc, toggleUserActiveDoc, deleteUserDoc } from '../services/usersService';
+import { createStaffAccount } from '../services/adminFunctions';
 
 // This store has two modes:
 //
@@ -178,13 +179,27 @@ export function useAppStore() {
     setSubmissions(prev => prev.map(s => s.id === id ? { ...s, status, rejectionReason: reason } : s));
   };
 
-  const addUser = (user: Omit<User, 'id' | 'isActive'>) => {
+  // If a password is given (Firebase mode), this creates a fully working,
+  // already-activated login via the createStaffAccount Cloud Function —
+  // the person can log in immediately with the credentials you hand them,
+  // no self-activation step needed. Without a password, falls back to the
+  // old invite flow (person sets their own password on first Sign Up) —
+  // kept for cases like wanting someone to activate via Google instead.
+  const addUser = async (
+    user: Omit<User, 'id' | 'isActive'>,
+    password?: string
+  ): Promise<{ ok: boolean; error?: string }> => {
     if (isFirebaseConfigured) {
-      inviteUser(user);
-      return;
+      if (password) {
+        const result = await createStaffAccount({ ...user, password });
+        return result.ok ? { ok: true } : { ok: false, error: result.error };
+      }
+      await inviteUser(user);
+      return { ok: true };
     }
     const newUser: User = { ...user, id: `u-${Date.now()}`, isActive: true };
     setUsers(prev => [...prev, newUser]);
+    return { ok: true };
   };
 
   const updateUserRole = (userId: string, role: UserRole) => {
