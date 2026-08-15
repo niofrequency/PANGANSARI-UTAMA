@@ -12,7 +12,7 @@ import { useTranslation } from '../../i18n/LanguageContext';
 import { SUPER_ADMIN_EMAIL } from '../../services/authService';
 import { isFirebaseConfigured } from '../../lib/firebase';
 
-// Avoids visually-ambiguous characters (0/O, 1/l/I) since this password
+// Avoids visually-ambiguous characters (0/O, 1/l/I) since this password 
 // gets read aloud, typed by hand, or copy-pasted into a text message.
 function generatePassword(length = 10): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
