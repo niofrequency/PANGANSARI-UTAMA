@@ -1,6 +1,6 @@
 // Central translation dictionary. Keep keys flat-per-screen and grouped by
 // namespace so it's obvious where to add new strings as the app grows. 
-// Add a new language by adding another top-level key here — nothing else 
+// Add a new language by adding another top-level key here — nothing else  
 // in the app needs to change.
 
 export type Language = 'en' | 'id';
