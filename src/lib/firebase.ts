@@ -24,6 +24,7 @@
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
 import { getAuth, setPersistence, browserLocalPersistence, type Auth } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
+import { getFunctions, type Functions } from 'firebase/functions';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -44,6 +45,10 @@ export const app: FirebaseApp | null = isFirebaseConfigured
 
 export const auth: Auth | null = app ? getAuth(app) : null;
 export const db: Firestore | null = app ? getFirestore(app) : null;
+// Powers calls to Cloud Functions (see functions/src/index.ts) — e.g. the
+// Admin Portal creating a staff account with a set password, which the
+// browser-only SDK can never do on its own (see that file for why).
+export const functions: Functions | null = app ? getFunctions(app) : null;
 
 // Explicit rather than relying on the SDK default: keeps people logged in
 // across page refreshes and browser restarts (persisted in IndexedDB),
