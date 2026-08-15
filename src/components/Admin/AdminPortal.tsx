@@ -3,7 +3,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { AnalyticsDashboard } from '../Dashboard/AnalyticsDashboard';
 import { 
   Users, UserPlus, Shield, Trash2, XCircle, Search, Activity as ActivityIcon,
-  User as UserIcon, AlertTriangle, Copy, Check
+  User as UserIcon, AlertTriangle, Copy, Check, Eye, EyeOff, RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
@@ -12,6 +12,17 @@ import { useTranslation } from '../../i18n/LanguageContext';
 import { SUPER_ADMIN_EMAIL } from '../../services/authService';
 import { isFirebaseConfigured } from '../../lib/firebase';
 
+// Avoids visually-ambiguous characters (0/O, 1/l/I) since this password
+// gets read aloud, typed by hand, or copy-pasted into a text message.
+function generatePassword(length = 10): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+  let pw = '';
+  for (let i = 0; i < length; i++) {
+    pw += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return pw;
+}
+
 export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }) {
   const { t } = useTranslation();
   const { users, sites, submissions, warnings, addUser, updateUserRole, deleteUser } = store;
@@ -19,12 +30,16 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
   const [search, setSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [newUser, setNewUser] = useState({ firstName: '', lastName: '', email: '', role: 'HOUSEKEEPER' as UserRole, site: 'site-1' });
+  const [password, setPassword] = useState(() => generatePassword());
+  const [showPassword, setShowPassword] = useState(false);
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
+  const [addUserError, setAddUserError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
-  const [justInvited, setJustInvited] = useState<{ name: string; email: string } | null>(null);
+  const [justCreated, setJustCreated] = useState<{ name: string; email: string; password: string } | null>(null);
   const [inviteCopied, setInviteCopied] = useState(false);
 
-  // Activity tab state 
+  // Activity tab state
   const [activitySegment, setActivitySegment] = useState<'SUBMISSIONS' | 'WARNINGS'>('SUBMISSIONS');
   const [activitySearch, setActivitySearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | Submission['status']>('ALL');
@@ -47,25 +62,45 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
     .filter(w => w.technicianName.toLowerCase().includes(activitySearch.toLowerCase()))
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-  const handleAddUser = (e: React.FormEvent) => {
+  const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
+    setAddUserError('');
     const name = `${newUser.firstName} ${newUser.lastName}`.trim();
-    addUser({ ...newUser, name });
-    // Don't close the modal yet — show the "here's what to send them" step
-    // first. Adding someone only creates their profile; without being
-    // told to go use the Sign Up tab, they have no way to know an account
-    // is waiting for them.
-    setJustInvited({ name, email: newUser.email });
+
+    if (isFirebaseConfigured && password.length < 6) {
+      setAddUserError(t('admin.passwordTooShort'));
+      return;
+    }
+
+    setIsCreatingUser(true);
+    const result = await addUser({ ...newUser, name }, isFirebaseConfigured ? password : undefined);
+    setIsCreatingUser(false);
+
+    if (!result.ok) {
+      setAddUserError(
+        result.error === 'already-exists' ? t('admin.emailAlreadyExists') : t('admin.createAccountFailed')
+      );
+      return;
+    }
+
+    if (isFirebaseConfigured) {
+      // Show the credentials so the admin can hand them over — this
+      // account is already fully active, no self-activation needed.
+      setJustCreated({ name, email: newUser.email, password });
+    } else {
+      setShowAddModal(false);
+    }
     setNewUser({ firstName: '', lastName: '', email: '', role: 'HOUSEKEEPER', site: 'site-1' });
+    setPassword(generatePassword());
   };
 
-  const inviteMessage = justInvited
-    ? t('admin.inviteMessage', { url: window.location.origin, email: justInvited.email })
+  const credentialsMessage = justCreated
+    ? t('admin.credentialsMessage', { url: window.location.origin, email: justCreated.email, password: justCreated.password })
     : '';
 
   const copyInviteMessage = async () => {
     try {
-      await navigator.clipboard.writeText(inviteMessage);
+      await navigator.clipboard.writeText(credentialsMessage);
       setInviteCopied(true);
       setTimeout(() => setInviteCopied(false), 2000);
     } catch {
@@ -76,8 +111,9 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
 
   const closeAddModal = () => {
     setShowAddModal(false);
-    setJustInvited(null);
+    setJustCreated(null);
     setInviteCopied(false);
+    setAddUserError('');
   };
 
   const statusBadgeClass = (status: Submission['status']) => cn(
@@ -134,7 +170,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                 />
               </div>
               <button 
-                onClick={() => { setJustInvited(null); setShowAddModal(true); }}
+                onClick={() => { setJustCreated(null); setAddUserError(''); setPassword(generatePassword()); setShowAddModal(true); }}
                 className="bg-psu-green text-white w-14 h-14 flex items-center justify-center rounded-2xl shadow-xl shadow-psu-green/20 active:scale-95 transition-all"
               >
                 <UserPlus size={22} />
@@ -394,22 +430,22 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white w-full max-w-sm rounded-[32px] p-10 shadow-2xl"
+              className="bg-white w-full max-w-sm rounded-[32px] p-10 shadow-2xl max-h-[90vh] overflow-y-auto"
             >
-              {justInvited ? (
+              {justCreated ? (
                 <>
                   <div className="flex flex-col items-center mb-8 text-center">
                     <div className="w-16 h-16 bg-psu-green/10 rounded-2xl flex items-center justify-center text-psu-green mb-4">
                       <Check size={32} />
                     </div>
-                    <h3 className="text-xl font-bold tracking-tight text-psu-gray">{t('admin.inviteSuccessTitle')}</h3>
+                    <h3 className="text-xl font-bold tracking-tight text-psu-gray">{t('admin.accountReadyTitle')}</h3>
                     <p className="text-xs text-psu-gray/50 font-medium mt-2 leading-relaxed">
-                      {t('admin.inviteSuccessBody', { name: justInvited.name })}
+                      {t('admin.accountReadyBody', { name: justCreated.name })}
                     </p>
                   </div>
 
                   <div className="bg-psu-bg border border-psu-gray/10 rounded-2xl p-4 mb-4">
-                    <p className="text-xs text-psu-gray whitespace-pre-line leading-relaxed">{inviteMessage}</p>
+                    <p className="text-xs text-psu-gray whitespace-pre-line leading-relaxed">{credentialsMessage}</p>
                   </div>
 
                   <button
@@ -421,7 +457,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                     )}
                   >
                     {inviteCopied ? <Check size={16} /> : <Copy size={16} />}
-                    {inviteCopied ? t('admin.copied') : t('admin.copyInviteMessage')}
+                    {inviteCopied ? t('admin.copied') : t('admin.copyCredentials')}
                   </button>
 
                   <button
@@ -443,7 +479,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                   </div>
 
                   {isFirebaseConfigured && (
-                    <p className="text-[11px] text-psu-blue/70 bg-psu-blue/5 rounded-xl p-3 mb-5 leading-snug">{t('admin.inviteHint')}</p>
+                    <p className="text-[11px] text-psu-blue/70 bg-psu-blue/5 rounded-xl p-3 mb-5 leading-snug">{t('admin.instantAccountHint')}</p>
                   )}
                   
                   <form onSubmit={handleAddUser} className="space-y-5">
@@ -484,6 +520,41 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                       />
                     </div>
 
+                    {isFirebaseConfigured && (
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-[10px] font-black text-psu-gray/40 uppercase tracking-widest">{t('auth.passwordLabel')}</label>
+                          <button
+                            type="button"
+                            onClick={() => setPassword(generatePassword())}
+                            className="flex items-center gap-1 text-[9px] font-black text-psu-blue uppercase tracking-widest"
+                          >
+                            <RefreshCw size={11} />
+                            {t('admin.regenerate')}
+                          </button>
+                        </div>
+                        <div className="relative">
+                          <input
+                            required
+                            minLength={6}
+                            type={showPassword ? 'text' : 'password'}
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            className="w-full p-4 pr-12 bg-psu-bg border border-psu-gray/10 rounded-2xl text-sm font-mono font-medium focus:outline-none focus:ring-2 focus:ring-psu-green/20 transition-all"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(s => !s)}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-psu-gray/30"
+                            aria-label={showPassword ? t('admin.hidePassword') : t('admin.showPassword')}
+                          >
+                            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                          </button>
+                        </div>
+                        <p className="text-[10px] text-psu-gray/40 font-medium mt-2">{t('admin.passwordEditableNote')}</p>
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-[10px] font-black text-psu-gray/40 uppercase mb-2 tracking-widest">{t('admin.roleLabel')}</label>
@@ -513,13 +584,21 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                       </div>
                     </div>
 
+                    {addUserError && (
+                      <div className="flex items-start gap-2 p-3 bg-red-50 text-psu-rejected text-xs rounded-xl border border-red-100 font-medium">
+                        <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                        <span>{addUserError}</span>
+                      </div>
+                    )}
+
                     <div className="flex gap-4 pt-6">
                       <button type="button" onClick={() => setShowAddModal(false)} className="flex-1 py-4 text-psu-gray/40 font-black text-[10px] uppercase tracking-widest">{t('common.cancel')}</button>
                       <button 
                         type="submit"
-                        className="flex-[2] py-4 bg-psu-green text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-psu-green/20 active:scale-95 transition-all"
+                        disabled={isCreatingUser}
+                        className="flex-[2] py-4 bg-psu-green text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-psu-green/20 active:scale-95 transition-all disabled:opacity-60"
                       >
-                        {t('admin.addButton')}
+                        {isCreatingUser ? t('common.loading') : t('admin.addButton')}
                       </button>
                     </div>
                   </form>
