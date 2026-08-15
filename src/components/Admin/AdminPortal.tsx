@@ -3,7 +3,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { AnalyticsDashboard } from '../Dashboard/AnalyticsDashboard';
 import { 
   Users, UserPlus, Shield, Trash2, XCircle, Search, Activity as ActivityIcon,
-  User as UserIcon, AlertTriangle
+  User as UserIcon, AlertTriangle, Copy, Check
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
@@ -21,6 +21,8 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
   const [newUser, setNewUser] = useState({ firstName: '', lastName: '', email: '', role: 'HOUSEKEEPER' as UserRole, site: 'site-1' });
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [justInvited, setJustInvited] = useState<{ name: string; email: string } | null>(null);
+  const [inviteCopied, setInviteCopied] = useState(false);
 
   // Activity tab state
   const [activitySegment, setActivitySegment] = useState<'SUBMISSIONS' | 'WARNINGS'>('SUBMISSIONS');
@@ -49,8 +51,33 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
     e.preventDefault();
     const name = `${newUser.firstName} ${newUser.lastName}`.trim();
     addUser({ ...newUser, name });
-    setShowAddModal(false);
+    // Don't close the modal yet — show the "here's what to send them" step
+    // first. Adding someone only creates their profile; without being
+    // told to go use the Sign Up tab, they have no way to know an account
+    // is waiting for them.
+    setJustInvited({ name, email: newUser.email });
     setNewUser({ firstName: '', lastName: '', email: '', role: 'HOUSEKEEPER', site: 'site-1' });
+  };
+
+  const inviteMessage = justInvited
+    ? t('admin.inviteMessage', { url: window.location.origin, email: justInvited.email })
+    : '';
+
+  const copyInviteMessage = async () => {
+    try {
+      await navigator.clipboard.writeText(inviteMessage);
+      setInviteCopied(true);
+      setTimeout(() => setInviteCopied(false), 2000);
+    } catch {
+      // Clipboard API can fail (permissions, non-secure context, etc.) —
+      // the message is still shown on screen and selectable by hand.
+    }
+  };
+
+  const closeAddModal = () => {
+    setShowAddModal(false);
+    setJustInvited(null);
+    setInviteCopied(false);
   };
 
   const statusBadgeClass = (status: Submission['status']) => cn(
@@ -107,7 +134,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                 />
               </div>
               <button 
-                onClick={() => setShowAddModal(true)}
+                onClick={() => { setJustInvited(null); setShowAddModal(true); }}
                 className="bg-psu-green text-white w-14 h-14 flex items-center justify-center rounded-2xl shadow-xl shadow-psu-green/20 active:scale-95 transition-all"
               >
                 <UserPlus size={22} />
@@ -369,95 +396,135 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
               exit={{ opacity: 0, scale: 0.95 }}
               className="bg-white w-full max-w-sm rounded-[32px] p-10 shadow-2xl"
             >
-              <div className="flex flex-col items-center mb-10">
-                <div className="w-16 h-16 bg-psu-green/10 rounded-2xl flex items-center justify-center text-psu-green mb-4">
-                  <UserPlus size={32} />
-                </div>
-                <h3 className="text-xl font-bold tracking-tight text-psu-gray">{t('admin.addUserTitle')}</h3>
-                <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-2">{t('admin.addUserSubtitle')}</p>
-              </div>
-
-              {isFirebaseConfigured && (
-                <p className="text-[11px] text-psu-blue/70 bg-psu-blue/5 rounded-xl p-3 mb-5 leading-snug">{t('admin.inviteHint')}</p>
-              )}
-              
-              <form onSubmit={handleAddUser} className="space-y-5">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-black text-psu-gray/40 uppercase mb-2 tracking-widest">{t('admin.firstNameLabel')}</label>
-                    <input 
-                      required
-                      type="text" 
-                      value={newUser.firstName}
-                      onChange={(e) => setNewUser(p => ({ ...p, firstName: e.target.value }))}
-                      className="w-full p-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-psu-green/20 transition-all"
-                      placeholder={t('admin.firstNamePlaceholder')}
-                    />
+              {justInvited ? (
+                <>
+                  <div className="flex flex-col items-center mb-8 text-center">
+                    <div className="w-16 h-16 bg-psu-green/10 rounded-2xl flex items-center justify-center text-psu-green mb-4">
+                      <Check size={32} />
+                    </div>
+                    <h3 className="text-xl font-bold tracking-tight text-psu-gray">{t('admin.inviteSuccessTitle')}</h3>
+                    <p className="text-xs text-psu-gray/50 font-medium mt-2 leading-relaxed">
+                      {t('admin.inviteSuccessBody', { name: justInvited.name })}
+                    </p>
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-black text-psu-gray/40 uppercase mb-2 tracking-widest">{t('admin.lastNameLabel')}</label>
-                    <input 
-                      required
-                      type="text" 
-                      value={newUser.lastName}
-                      onChange={(e) => setNewUser(p => ({ ...p, lastName: e.target.value }))}
-                      className="w-full p-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-psu-green/20 transition-all"
-                      placeholder={t('admin.lastNamePlaceholder')}
-                    />
-                  </div>
-                </div>
 
-                <div>
-                  <label className="block text-[10px] font-black text-psu-gray/40 uppercase mb-2 tracking-widest">{t('admin.emailLabel')}</label>
-                  <input 
-                    required
-                    type="email" 
-                    value={newUser.email}
-                    onChange={(e) => setNewUser(p => ({ ...p, email: e.target.value }))}
-                    className="w-full p-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-psu-green/20 transition-all"
-                    placeholder={t('admin.emailPlaceholder')}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-black text-psu-gray/40 uppercase mb-2 tracking-widest">{t('admin.roleLabel')}</label>
-                    <select 
-                      value={newUser.role}
-                      onChange={(e) => setNewUser(p => ({ ...p, role: e.target.value as any }))}
-                      className="w-full p-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-[10px] font-black uppercase tracking-tighter"
-                    >
-                      <option value="HOUSEKEEPER">{t('rolesShort.HOUSEKEEPER')}</option>
-                      <option value="HOUSEKEEPING_SUPERVISOR">{t('rolesShort.HOUSEKEEPING_SUPERVISOR')}</option>
-                      <option value="HOUSEKEEPING_MANAGER">{t('rolesShort.HOUSEKEEPING_MANAGER')}</option>
-                      <option value="FOOD_SAFETY_TECHNICIAN">{t('rolesShort.FOOD_SAFETY_TECHNICIAN')}</option>
-                      <option value="FOOD_SAFETY_SUPERVISOR">{t('rolesShort.FOOD_SAFETY_SUPERVISOR')}</option>
-                      <option value="FOOD_SAFETY_MANAGER">{t('rolesShort.FOOD_SAFETY_MANAGER')}</option>
-                      {/* ADMIN not offered here — locked to one account */}
-                    </select>
+                  <div className="bg-psu-bg border border-psu-gray/10 rounded-2xl p-4 mb-4">
+                    <p className="text-xs text-psu-gray whitespace-pre-line leading-relaxed">{inviteMessage}</p>
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-black text-psu-gray/40 uppercase mb-2 tracking-widest">{t('admin.siteLabel')}</label>
-                    <select 
-                      value={newUser.site}
-                      onChange={(e) => setNewUser(p => ({ ...p, site: e.target.value }))}
-                      className="w-full p-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-[10px] font-black uppercase tracking-tighter"
-                    >
-                      {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
-                  </div>
-                </div>
 
-                <div className="flex gap-4 pt-6">
-                  <button type="button" onClick={() => setShowAddModal(false)} className="flex-1 py-4 text-psu-gray/40 font-black text-[10px] uppercase tracking-widest">{t('common.cancel')}</button>
-                  <button 
-                    type="submit"
-                    className="flex-[2] py-4 bg-psu-green text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-psu-green/20 active:scale-95 transition-all"
+                  <button
+                    type="button"
+                    onClick={copyInviteMessage}
+                    className={cn(
+                      "w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all mb-3",
+                      inviteCopied ? "bg-psu-green/10 text-psu-green" : "bg-psu-blue text-white shadow-lg shadow-psu-blue/20 active:scale-95"
+                    )}
                   >
-                    {t('admin.addButton')}
+                    {inviteCopied ? <Check size={16} /> : <Copy size={16} />}
+                    {inviteCopied ? t('admin.copied') : t('admin.copyInviteMessage')}
                   </button>
-                </div>
-              </form>
+
+                  <button
+                    type="button"
+                    onClick={closeAddModal}
+                    className="w-full py-3 text-psu-gray/40 font-black text-[10px] uppercase tracking-widest"
+                  >
+                    {t('common.close')}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="flex flex-col items-center mb-10">
+                    <div className="w-16 h-16 bg-psu-green/10 rounded-2xl flex items-center justify-center text-psu-green mb-4">
+                      <UserPlus size={32} />
+                    </div>
+                    <h3 className="text-xl font-bold tracking-tight text-psu-gray">{t('admin.addUserTitle')}</h3>
+                    <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-2">{t('admin.addUserSubtitle')}</p>
+                  </div>
+
+                  {isFirebaseConfigured && (
+                    <p className="text-[11px] text-psu-blue/70 bg-psu-blue/5 rounded-xl p-3 mb-5 leading-snug">{t('admin.inviteHint')}</p>
+                  )}
+                  
+                  <form onSubmit={handleAddUser} className="space-y-5">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[10px] font-black text-psu-gray/40 uppercase mb-2 tracking-widest">{t('admin.firstNameLabel')}</label>
+                        <input 
+                          required
+                          type="text" 
+                          value={newUser.firstName}
+                          onChange={(e) => setNewUser(p => ({ ...p, firstName: e.target.value }))}
+                          className="w-full p-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-psu-green/20 transition-all"
+                          placeholder={t('admin.firstNamePlaceholder')}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-black text-psu-gray/40 uppercase mb-2 tracking-widest">{t('admin.lastNameLabel')}</label>
+                        <input 
+                          required
+                          type="text" 
+                          value={newUser.lastName}
+                          onChange={(e) => setNewUser(p => ({ ...p, lastName: e.target.value }))}
+                          className="w-full p-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-psu-green/20 transition-all"
+                          placeholder={t('admin.lastNamePlaceholder')}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-black text-psu-gray/40 uppercase mb-2 tracking-widest">{t('admin.emailLabel')}</label>
+                      <input 
+                        required
+                        type="email" 
+                        value={newUser.email}
+                        onChange={(e) => setNewUser(p => ({ ...p, email: e.target.value }))}
+                        className="w-full p-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-psu-green/20 transition-all"
+                        placeholder={t('admin.emailPlaceholder')}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[10px] font-black text-psu-gray/40 uppercase mb-2 tracking-widest">{t('admin.roleLabel')}</label>
+                        <select 
+                          value={newUser.role}
+                          onChange={(e) => setNewUser(p => ({ ...p, role: e.target.value as any }))}
+                          className="w-full p-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-[10px] font-black uppercase tracking-tighter"
+                        >
+                          <option value="HOUSEKEEPER">{t('rolesShort.HOUSEKEEPER')}</option>
+                          <option value="HOUSEKEEPING_SUPERVISOR">{t('rolesShort.HOUSEKEEPING_SUPERVISOR')}</option>
+                          <option value="HOUSEKEEPING_MANAGER">{t('rolesShort.HOUSEKEEPING_MANAGER')}</option>
+                          <option value="FOOD_SAFETY_TECHNICIAN">{t('rolesShort.FOOD_SAFETY_TECHNICIAN')}</option>
+                          <option value="FOOD_SAFETY_SUPERVISOR">{t('rolesShort.FOOD_SAFETY_SUPERVISOR')}</option>
+                          <option value="FOOD_SAFETY_MANAGER">{t('rolesShort.FOOD_SAFETY_MANAGER')}</option>
+                          {/* ADMIN not offered here — locked to one account */}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-black text-psu-gray/40 uppercase mb-2 tracking-widest">{t('admin.siteLabel')}</label>
+                        <select 
+                          value={newUser.site}
+                          onChange={(e) => setNewUser(p => ({ ...p, site: e.target.value }))}
+                          className="w-full p-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-[10px] font-black uppercase tracking-tighter"
+                        >
+                          {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-4 pt-6">
+                      <button type="button" onClick={() => setShowAddModal(false)} className="flex-1 py-4 text-psu-gray/40 font-black text-[10px] uppercase tracking-widest">{t('common.cancel')}</button>
+                      <button 
+                        type="submit"
+                        className="flex-[2] py-4 bg-psu-green text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-psu-green/20 active:scale-95 transition-all"
+                      >
+                        {t('admin.addButton')}
+                      </button>
+                    </div>
+                  </form>
+                </>
+              )}
             </motion.div>
           </div>
         )}
