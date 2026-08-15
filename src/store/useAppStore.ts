@@ -11,7 +11,7 @@ import { createStaffAccount } from '../services/adminFunctions';
 //  - DEMO MODE (default, no Firebase env vars set): everything lives in
 //    localStorage, exactly as in the original prototype. Zero setup, works
 //    immediately after `git clone` with no backend at all. 
-//
+// 
 //  - FIREBASE MODE (VITE_FIREBASE_* env vars present, e.g. set in Vercel):
 //    user accounts, roles, and auth are backed by real Firebase
 //    Authentication + Firestore, so an admin's role assignments actually
