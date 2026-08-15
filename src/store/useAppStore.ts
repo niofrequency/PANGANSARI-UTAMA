@@ -6,7 +6,7 @@ import { loginOrRegister, loginWithGoogle as loginWithGoogleService, logout as f
 import { subscribeUsers, inviteUser, updateUserRoleDoc, toggleUserActiveDoc, deleteUserDoc } from '../services/usersService';
 import { createStaffAccount } from '../services/adminFunctions';
 
-// This store has two modes:
+// This store has two modes: 
 //
 //  - DEMO MODE (default, no Firebase env vars set): everything lives in
 //    localStorage, exactly as in the original prototype. Zero setup, works
