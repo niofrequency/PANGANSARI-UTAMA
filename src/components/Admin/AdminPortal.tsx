@@ -24,7 +24,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
   const [justInvited, setJustInvited] = useState<{ name: string; email: string } | null>(null);
   const [inviteCopied, setInviteCopied] = useState(false);
 
-  // Activity tab state
+  // Activity tab state 
   const [activitySegment, setActivitySegment] = useState<'SUBMISSIONS' | 'WARNINGS'>('SUBMISSIONS');
   const [activitySearch, setActivitySearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | Submission['status']>('ALL');
