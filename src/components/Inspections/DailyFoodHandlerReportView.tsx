@@ -2,6 +2,7 @@ import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { Submission } from '../../types';
 import { DAILY_FOOD_HANDLER_GROUPS } from '../../data/dailyFoodHandlerData';
+import { isGoodMark } from '../../data/dailyFoodHandlerScoring';
 import { ChevronLeft, CheckCircle2, XCircle as XCircleIcon } from 'lucide-react';
 
 export function DailyFoodHandlerReportView({ submission, onBack }: { submission: Submission; onBack: () => void }) {
@@ -63,7 +64,7 @@ export function DailyFoodHandlerReportView({ submission, onBack }: { submission:
             {!entry.readyToWork && (
               <div className="flex flex-wrap gap-1.5">
                 {DAILY_FOOD_HANDLER_GROUPS.flatMap(g => g.criteria)
-                  .filter(c => entry.marks[c.id] === 'NOT_GOOD')
+                  .filter(c => !isGoodMark(entry.marks[c.id]))
                   .map(c => (
                     <span key={c.id} className="text-[9px] font-black px-2 py-1 rounded-md bg-psu-rejected/10 text-psu-rejected">
                       {c.labelEn || c.labelId}

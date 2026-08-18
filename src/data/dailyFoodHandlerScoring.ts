@@ -1,18 +1,30 @@
 import { DAILY_FOOD_HANDLER_ALL_CRITERIA } from './dailyFoodHandlerData';
 
-// The source template has no formula at all — every cell, including
-// "Ready to Work", is filled in by hand. This app computes "Ready to Work"
-// rather than asking for it separately: GOOD on every one of the 19
-// criteria (row 32's own legend: "(v) Good/ appropriate as standard, (x)
-// not appropriate with standard"). That's this app's own rule, not
-// something read off the workbook — flagged here for the same reason as
-// the Inspection Checklist's scoring assumption.
-export function computeReadyToWork(marks: Record<string, 'GOOD' | 'NOT_GOOD'>): boolean {
-  return DAILY_FOOD_HANDLER_ALL_CRITERIA.every(c => marks[c.id] === 'GOOD');
+// The source's own legend for this column (row 32): "Hygiene Personal : (v)
+// Good/ appropriate as standard, (x) not appropriate with standard" — on
+// the real form this is a blank cell the food handler writes into by hand,
+// not a pick-list, so this app takes free text too rather than forcing a
+// Good/Not Good toggle. Whatever gets typed still has to collapse to a
+// yes/no for "Ready to Work": only a "v" (case- and whitespace-insensitive)
+// counts as Good, matching the source legend exactly; anything else that's
+// been filled in (an "x", or anything else someone writes) counts as Not
+// Good.
+export function isGoodMark(mark?: string): boolean {
+  return (mark || '').trim().toLowerCase() === 'v';
 }
 
-export function countMarked(marks: Record<string, 'GOOD' | 'NOT_GOOD'>): number {
-  return DAILY_FOOD_HANDLER_ALL_CRITERIA.filter(c => marks[c.id] !== undefined).length;
+// The source template has no formula at all — every cell, including
+// "Ready to Work", is filled in by hand. This app computes "Ready to Work"
+// rather than asking for it separately: a "v" on every one of the 19
+// criteria. That's this app's own rule, not something read off the
+// workbook — flagged here for the same reason as the Inspection
+// Checklist's scoring assumption.
+export function computeReadyToWork(marks: Record<string, string>): boolean {
+  return DAILY_FOOD_HANDLER_ALL_CRITERIA.every(c => isGoodMark(marks[c.id]));
+}
+
+export function countMarked(marks: Record<string, string>): number {
+  return DAILY_FOOD_HANDLER_ALL_CRITERIA.filter(c => (marks[c.id] || '').trim().length > 0).length;
 }
 
 // Submission-level score: % of the roster that's ready to work. Lets this
