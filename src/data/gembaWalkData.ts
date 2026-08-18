@@ -518,3 +518,32 @@ export const THREE_IN_A_ROW_PROMPTS: { en: string; id: string }[] = [
     id: 'Jika daftar daftar poin untuk perbaikan terlalu lama, poin mana yang akan difokuskan oleh tim selama Diskusi untuk perbaikan segera?',
   },
 ];
+
+// The "Steps to follow" 7-step process (Section C). Missed on the first pass
+// through this workbook: these aren't cell values, they're a manual
+// SmartArt-style flow of drawing shapes (a rounded arrow labelled "Steps to
+// follow" plus 7 numbered boxes laid out in a serpentine — 1→3 left to
+// right, 4 stepping down, 5→7 right to left) living in xl/drawings/
+// drawing1.xml, which cell-by-cell extraction never reads. Recovered by
+// unzipping the .xlsx and pulling the <a:t> text runs directly out of that
+// drawing part, then confirming the 1→7 reading order from each shape's
+// anchor position (col/row) in the same file — not guessed from a render.
+// Step 4 is the one place the source doesn't give a single EN/ID phrase but
+// two stacked pairs ("Describe / Gambarkan" then "reinforce / Perkuat"),
+// joined here as "Describe / Reinforce" — that pairing (not "Describe /
+// Gambarkan" as a single phrase) is this app's own reading, not verbatim.
+export interface ThreeInARowStep {
+  num: number;
+  en: string;
+  id: string;
+}
+
+export const THREE_IN_A_ROW_STEPS: ThreeInARowStep[] = [
+  { num: 1, en: 'Planning', id: 'Perencanaan' },
+  { num: 2, en: 'Observe', id: 'Mengamati' },
+  { num: 3, en: 'Introduce', id: 'Memperkenalkan' },
+  { num: 4, en: 'Describe / Reinforce', id: 'Gambarkan / Perkuat' },
+  { num: 5, en: 'Discuss / Agreement', id: 'Diskusi / Kesepakatan' },
+  { num: 6, en: 'Commitment', id: 'Komitmen' },
+  { num: 7, en: 'Thanks', id: 'Terima kasih' },
+];

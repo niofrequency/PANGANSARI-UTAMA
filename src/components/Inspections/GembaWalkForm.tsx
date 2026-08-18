@@ -10,6 +10,7 @@ import {
   THREE_IN_A_ROW_TITLE,
   THREE_IN_A_ROW_ROLES,
   THREE_IN_A_ROW_PROMPTS,
+  THREE_IN_A_ROW_STEPS,
 } from '../../data/gembaWalkData';
 import { scoreGembaEvaluations } from '../../data/gembaWalkScoring';
 import { Submission } from '../../types';
@@ -278,6 +279,18 @@ export function GembaWalkForm({ onSubmit, onCancel, inspectorName }: Props) {
               ))}
             </tbody>
           </table>
+        </div>
+
+        <div className="space-y-2 border-t border-psu-gray/5 pt-4">
+          <h4 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-widest">{t('gemba.stepsToFollowTitle')}</h4>
+          <div className="flex flex-wrap gap-2">
+            {THREE_IN_A_ROW_STEPS.map(step => (
+              <div key={step.num} className="flex items-center gap-2 bg-psu-bg border border-psu-gray/10 rounded-xl px-3 py-2">
+                <span className="w-5 h-5 rounded-full bg-psu-blue text-white text-[10px] font-black flex items-center justify-center shrink-0">{step.num}</span>
+                <span className="text-[11px] font-bold text-psu-gray">{language === 'id' ? step.id : step.en}</span>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="space-y-2 border-t border-psu-gray/5 pt-4">
