@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { DAILY_FOOD_HANDLER_GROUPS, DAILY_FOOD_HANDLER_ALL_CRITERIA } from '../../data/dailyFoodHandlerData';
-import { computeReadyToWork, countMarked } from '../../data/dailyFoodHandlerScoring';
+import { computeReadyToWork, countMarked, isGoodMark } from '../../data/dailyFoodHandlerScoring';
 
 const GROUP_LABEL_KEY: Record<string, string> = {
   wellness: 'dfh.groupWellness',
@@ -35,7 +35,7 @@ export function TechnicianPortal({ store }: { store: ReturnType<typeof useAppSto
   // rather than a supervisor walking the whole crew. See that tool's data
   // files for the source citation and the "computed, not sourced" note on
   // Ready to Work.
-  const [wellnessMarks, setWellnessMarks] = useState<Record<string, 'GOOD' | 'NOT_GOOD'>>({});
+  const [wellnessMarks, setWellnessMarks] = useState<Record<string, string>>({});
 
   const myHistory = submissions.filter(s => s.userId === currentUser?.id);
   const myWarnings = warnings.filter(w => w.technicianId === currentUser?.id);
@@ -46,7 +46,7 @@ export function TechnicianPortal({ store }: { store: ReturnType<typeof useAppSto
   const readyToWork = useMemo(() => computeReadyToWork(wellnessMarks), [wellnessMarks]);
   const canSubmit = allMarked;
 
-  const setMark = (criterionId: string, mark: 'GOOD' | 'NOT_GOOD') => {
+  const setMark = (criterionId: string, mark: string) => {
     setWellnessMarks(p => ({ ...p, [criterionId]: mark }));
   };
 
@@ -61,7 +61,7 @@ export function TechnicianPortal({ store }: { store: ReturnType<typeof useAppSto
     const wellnessItems = DAILY_FOOD_HANDLER_ALL_CRITERIA.map(c => ({
       id: c.id,
       question: c.labelEn || c.labelId,
-      answer: wellnessMarks[c.id] === 'GOOD',
+      answer: isGoodMark(wellnessMarks[c.id]),
     }));
     const goodCount = wellnessItems.filter(i => i.answer).length;
 
@@ -212,26 +212,17 @@ export function TechnicianPortal({ store }: { store: ReturnType<typeof useAppSto
                                 <span className="font-bold text-psu-gray">{criterion.labelId}</span>
                               )}
                             </span>
-                            <div className="flex gap-1.5 shrink-0">
-                              <button
-                                onClick={() => setMark(criterion.id, 'GOOD')}
-                                className={cn(
-                                  "px-3 py-1.5 rounded-lg text-[10px] font-black border-2 transition-all active:scale-95",
-                                  mark === 'GOOD' ? "bg-psu-green text-white border-psu-green" : "bg-psu-bg border-psu-gray/10 text-psu-gray/40"
-                                )}
-                              >
-                                {t('dfh.good')}
-                              </button>
-                              <button
-                                onClick={() => setMark(criterion.id, 'NOT_GOOD')}
-                                className={cn(
-                                  "px-3 py-1.5 rounded-lg text-[10px] font-black border-2 transition-all active:scale-95",
-                                  mark === 'NOT_GOOD' ? "bg-psu-rejected text-white border-psu-rejected" : "bg-psu-bg border-psu-gray/10 text-psu-gray/40"
-                                )}
-                              >
-                                {t('dfh.notGood')}
-                              </button>
-                            </div>
+                            <input
+                              value={mark || ''}
+                              onChange={e => setMark(criterion.id, e.target.value)}
+                              placeholder={t('dfh.markPlaceholder')}
+                              maxLength={8}
+                              className={cn(
+                                "w-16 shrink-0 text-center p-2 rounded-lg text-xs font-black border-2 uppercase focus:outline-none transition-colors",
+                                !mark ? "bg-psu-bg border-psu-gray/10 text-psu-gray/60" :
+                                isGoodMark(mark) ? "bg-psu-green/10 border-psu-green text-psu-green" : "bg-psu-rejected/10 border-psu-rejected text-psu-rejected"
+                              )}
+                            />
                           </div>
                         );
                       })}

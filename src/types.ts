@@ -48,7 +48,7 @@ export interface DailyFoodHandlerRosterEntry {
   no: number;
   name: string;
   position: string;
-  marks: Record<string, 'GOOD' | 'NOT_GOOD'>; // keyed by DailyFoodHandlerCriterion.id
+  marks: Record<string, string>; // keyed by DailyFoodHandlerCriterion.id — free text as typed (e.g. "v" / "x"), see isGoodMark()
   readyToWork: boolean;
   remark?: string;
 }

@@ -4,14 +4,14 @@ import { ChevronDown, ClipboardCheck, Clock, Plus, Trash2, XCircle, User } from 
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { DAILY_FOOD_HANDLER_GROUPS, DAILY_FOOD_HANDLER_ALL_CRITERIA } from '../../data/dailyFoodHandlerData';
-import { computeReadyToWork, countMarked, scoreRoster } from '../../data/dailyFoodHandlerScoring';
+import { computeReadyToWork, countMarked, isGoodMark, scoreRoster } from '../../data/dailyFoodHandlerScoring';
 import { DailyFoodHandlerRosterEntry, Submission } from '../../types';
 
 interface RowState {
   key: string;
   name: string;
   position: string;
-  marks: Record<string, 'GOOD' | 'NOT_GOOD'>;
+  marks: Record<string, string>;
   remark: string;
 }
 
@@ -58,7 +58,7 @@ export function DailyFoodHandlerForm({ onSubmit, onCancel, siteName }: Props) {
     setRows(p => p.map(r => (r.key === key ? { ...r, ...patch } : r)));
   };
 
-  const setMark = (key: string, criterionId: string, mark: 'GOOD' | 'NOT_GOOD') => {
+  const setMark = (key: string, criterionId: string, mark: string) => {
     setRows(p => p.map(r => (r.key === key ? { ...r, marks: { ...r.marks, [criterionId]: mark } } : r)));
   };
 
@@ -206,26 +206,17 @@ export function DailyFoodHandlerForm({ onSubmit, onCancel, siteName }: Props) {
                                       <span className="font-bold text-psu-gray">{criterion.labelId}</span>
                                     )}
                                   </span>
-                                  <div className="flex gap-1.5 shrink-0">
-                                    <button
-                                      onClick={() => setMark(row.key, criterion.id, 'GOOD')}
-                                      className={cn(
-                                        "px-3 py-1.5 rounded-lg text-[10px] font-black border-2 transition-all active:scale-95",
-                                        mark === 'GOOD' ? "bg-psu-green text-white border-psu-green" : "bg-psu-bg border-psu-gray/10 text-psu-gray/40"
-                                      )}
-                                    >
-                                      {t('dfh.good')}
-                                    </button>
-                                    <button
-                                      onClick={() => setMark(row.key, criterion.id, 'NOT_GOOD')}
-                                      className={cn(
-                                        "px-3 py-1.5 rounded-lg text-[10px] font-black border-2 transition-all active:scale-95",
-                                        mark === 'NOT_GOOD' ? "bg-psu-rejected text-white border-psu-rejected" : "bg-psu-bg border-psu-gray/10 text-psu-gray/40"
-                                      )}
-                                    >
-                                      {t('dfh.notGood')}
-                                    </button>
-                                  </div>
+                                  <input
+                                    value={mark || ''}
+                                    onChange={e => setMark(row.key, criterion.id, e.target.value)}
+                                    placeholder={t('dfh.markPlaceholder')}
+                                    maxLength={8}
+                                    className={cn(
+                                      "w-16 shrink-0 text-center p-2 rounded-lg text-xs font-black border-2 uppercase focus:outline-none transition-colors",
+                                      !mark ? "bg-psu-bg border-psu-gray/10 text-psu-gray/60" :
+                                      isGoodMark(mark) ? "bg-psu-green/10 border-psu-green text-psu-green" : "bg-psu-rejected/10 border-psu-rejected text-psu-rejected"
+                                    )}
+                                  />
                                 </div>
                               );
                             })}
