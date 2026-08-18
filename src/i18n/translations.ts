@@ -309,7 +309,12 @@ export const translations = {
       formSubtitle: 'Per-shift wellness, personal hygiene & PPE check for every food handler on the roster.',
       locationLabel: 'Location',
       dateLabel: 'Date',
-      instructionNote: 'Hygiene Personal: (✓) Good/appropriate as standard, (✗) not appropriate with standard.',
+      // Verbatim from the source (sharedStrings.xml): "Hygiene Personal : (v) Good/
+      // appropriate as standard , (x) not appropriate with standard" — literal
+      // "(v)" / "(x)" letters, not check/cross symbols, and English-only (unlike
+      // almost every other label on this form, this one has no Indonesian pairing
+      // in the source, so it stays identical in both locales here too).
+      instructionNote: 'Hygiene Personal : (v) Good/ appropriate as standard , (x) not appropriate with standard',
       rosterTitle: 'Crew Roster',
       addStaff: 'Add Staff',
       removeStaff: 'Remove',
@@ -694,7 +699,7 @@ export const translations = {
       formSubtitle: 'Pemeriksaan wellness, higiene personal & APD per shift untuk setiap food handler di roster.',
       locationLabel: 'Lokasi',
       dateLabel: 'Tanggal',
-      instructionNote: 'Hygiene Personal: (✓) Good/ appropriate as standard, (✗) not appropriate with standard.',
+      instructionNote: 'Hygiene Personal : (v) Good/ appropriate as standard , (x) not appropriate with standard',
       rosterTitle: 'Roster Kru',
       addStaff: 'Tambah Staf',
       removeStaff: 'Hapus',
