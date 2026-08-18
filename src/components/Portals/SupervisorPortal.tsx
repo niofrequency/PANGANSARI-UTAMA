@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
-import { CheckCircle2, XCircle, Clock, Eye, AlertTriangle, User, MapPin } from 'lucide-react';
+import { CheckCircle2, XCircle, Clock, Eye, AlertTriangle, User, MapPin, ClipboardCheck, ListChecks } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
 import { Submission } from '../../types';
 import { useTranslation } from '../../i18n/LanguageContext';
+import { InspectionsTab } from '../Inspections/InspectionsTab';
 
 export function SupervisorPortal({ store }: { store: ReturnType<typeof useAppStore> }) {
   const { t } = useTranslation();
   const { currentUser, submissions, updateSubmissionStatus, addWarning, users } = store;
+  const isFoodSafety = currentUser?.role === 'FOOD_SAFETY_SUPERVISOR';
+  const [activeTab, setActiveTab] = useState<'QUEUE' | 'INSPECTIONS'>('QUEUE');
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [showWarningDialog, setShowWarningDialog] = useState(false);
@@ -48,6 +51,33 @@ export function SupervisorPortal({ store }: { store: ReturnType<typeof useAppSto
 
   return (
     <div className="space-y-6">
+      {isFoodSafety && (
+        <div className="flex bg-white rounded-2xl p-1.5 shadow-sm border border-psu-gray/5">
+          {[
+            { id: 'QUEUE' as const, icon: ListChecks, label: t('supervisorHK.queueTitle') },
+            { id: 'INSPECTIONS' as const, icon: ClipboardCheck, label: t('inspection.tabTitle') },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                "flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+                activeTab === tab.id
+                  ? "bg-psu-blue text-white shadow-md shadow-psu-blue/20"
+                  : "text-psu-gray/40 hover:text-psu-gray"
+              )}
+            >
+              <tab.icon size={18} />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {isFoodSafety && activeTab === 'INSPECTIONS' && <InspectionsTab store={store} />}
+
+      {(!isFoodSafety || activeTab === 'QUEUE') && (
+      <>
       <div className="flex items-center justify-between px-2">
         <h2 className="text-xl font-bold tracking-tight text-psu-gray">{t('supervisorHK.queueTitle')}</h2>
         <div className="bg-psu-blue/10 text-psu-blue px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
@@ -93,6 +123,8 @@ export function SupervisorPortal({ store }: { store: ReturnType<typeof useAppSto
         <AlertTriangle size={18} />
         {t('supervisorHK.issueWarning')}
       </button>
+      </>
+      )}
 
       {/* Submission Detail Modal */}
       <AnimatePresence>
