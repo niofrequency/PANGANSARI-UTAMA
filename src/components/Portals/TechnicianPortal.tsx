@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { PhotoCapture } from '../PhotoCapture';
 import { TrainingsTab } from '../TrainingsTab';
@@ -6,29 +6,65 @@ import { ClipboardCheck, History, GraduationCap, CheckCircle2, Clock, XCircle, A
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
+import { DAILY_FOOD_HANDLER_GROUPS, DAILY_FOOD_HANDLER_ALL_CRITERIA } from '../../data/dailyFoodHandlerData';
+import { computeReadyToWork, countMarked } from '../../data/dailyFoodHandlerScoring';
+
+const GROUP_LABEL_KEY: Record<string, string> = {
+  wellness: 'dfh.groupWellness',
+  personalHygiene: 'dfh.groupPersonalHygiene',
+  ppe: 'dfh.groupPpe',
+};
 
 export function TechnicianPortal({ store }: { store: ReturnType<typeof useAppStore> }) {
   const { t } = useTranslation();
   const { currentUser, submissions, addSubmission, trainings, completeTraining, warnings, sites } = store;
   const [activeTab, setActiveTab] = useState<'TASKS' | 'HISTORY' | 'TRAINING'>('TASKS');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showValidation, setShowValidation] = useState(false);
   const currentSite = sites.find(s => s.id === currentUser?.site);
   const currentSiteName = currentSite?.name || currentUser?.site || '';
   const [formData, setFormData] = useState({
     fridgeTemp: '4',
     cookingTemp: '75',
     areaClean: false,
-    ppeWorn: false,
     photo: null as string | null
   });
+  // Personal wellness / hygiene / PPE self-check — same 19 criteria and the
+  // same "all GOOD = Ready to Work" rule as the Supervisor/Manager roster
+  // tool under Inspections, just answered by one person about themselves
+  // rather than a supervisor walking the whole crew. See that tool's data
+  // files for the source citation and the "computed, not sourced" note on
+  // Ready to Work.
+  const [wellnessMarks, setWellnessMarks] = useState<Record<string, 'GOOD' | 'NOT_GOOD'>>({});
 
   const myHistory = submissions.filter(s => s.userId === currentUser?.id);
   const myWarnings = warnings.filter(w => w.technicianId === currentUser?.id);
 
+  const totalCriteria = DAILY_FOOD_HANDLER_ALL_CRITERIA.length;
+  const markedCount = countMarked(wellnessMarks);
+  const allMarked = markedCount === totalCriteria;
+  const readyToWork = useMemo(() => computeReadyToWork(wellnessMarks), [wellnessMarks]);
+  const canSubmit = allMarked;
+
+  const setMark = (criterionId: string, mark: 'GOOD' | 'NOT_GOOD') => {
+    setWellnessMarks(p => ({ ...p, [criterionId]: mark }));
+  };
+
   const handleSubmit = async () => {
+    if (!canSubmit) {
+      setShowValidation(true);
+      return;
+    }
     setIsSubmitting(true);
     await new Promise(r => setTimeout(r, 1000));
-    
+
+    const wellnessItems = DAILY_FOOD_HANDLER_ALL_CRITERIA.map(c => ({
+      id: c.id,
+      question: c.labelEn || c.labelId,
+      answer: wellnessMarks[c.id] === 'GOOD',
+    }));
+    const goodCount = wellnessItems.filter(i => i.answer).length;
+
     addSubmission({
       userId: currentUser!.id,
       userName: currentUser!.name,
@@ -41,13 +77,15 @@ export function TechnicianPortal({ store }: { store: ReturnType<typeof useAppSto
       items: [
         { id: '1', question: t('technician.fridgeTemp'), answer: formData.fridgeTemp },
         { id: '2', question: t('technician.coreTemp'), answer: formData.cookingTemp },
-        { id: '3', question: t('technician.areaClean'), answer: formData.areaClean },
-        { id: '4', question: t('technician.ppeWorn'), answer: formData.ppeWorn },
+        { id: '3', question: t('technician.areaClean'), answer: formData.areaClean, photoUrl: formData.photo || undefined },
+        ...wellnessItems,
       ],
-      score: 100,
+      score: Math.round((goodCount / totalCriteria) * 100),
     });
 
-    setFormData({ fridgeTemp: '4', cookingTemp: '75', areaClean: false, ppeWorn: false, photo: null });
+    setFormData({ fridgeTemp: '4', cookingTemp: '75', areaClean: false, photo: null });
+    setWellnessMarks({});
+    setShowValidation(false);
     setIsSubmitting(false);
     setActiveTab('HISTORY');
   };
@@ -108,11 +146,12 @@ export function TechnicianPortal({ store }: { store: ReturnType<typeof useAppSto
             </div>
 
             <div className="card space-y-8">
+              <h4 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em] border-b border-psu-gray/5 pb-2 -mb-2">{t('technician.sectionOperations')}</h4>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-black text-psu-gray/40 uppercase tracking-widest mb-2">{t('technician.fridgeTemp')}</label>
-                  <input 
-                    type="number" 
+                  <input
+                    type="number"
                     value={formData.fridgeTemp}
                     onChange={(e) => setFormData(p => ({ ...p, fridgeTemp: e.target.value }))}
                     className="w-full bg-psu-bg border border-psu-gray/10 rounded-xl p-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-psu-blue/20"
@@ -120,8 +159,8 @@ export function TechnicianPortal({ store }: { store: ReturnType<typeof useAppSto
                 </div>
                 <div>
                   <label className="block text-[10px] font-black text-psu-gray/40 uppercase tracking-widest mb-2">{t('technician.coreTemp')}</label>
-                  <input 
-                    type="number" 
+                  <input
+                    type="number"
                     value={formData.cookingTemp}
                     onChange={(e) => setFormData(p => ({ ...p, cookingTemp: e.target.value }))}
                     className="w-full bg-psu-bg border border-psu-gray/10 rounded-xl p-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-psu-blue/20"
@@ -130,23 +169,88 @@ export function TechnicianPortal({ store }: { store: ReturnType<typeof useAppSto
               </div>
 
               <div className="space-y-3">
-                {[
-                  { id: 'areaClean', label: t('technician.areaClean') },
-                  { id: 'ppeWorn', label: t('technician.ppeWorn') },
-                ].map(item => (
-                  <label key={item.id} className="flex items-center justify-between p-4 bg-psu-bg/50 border border-psu-gray/5 rounded-2xl cursor-pointer hover:bg-psu-bg transition-colors">
-                    <span className="text-sm font-bold text-psu-gray">{item.label}</span>
-                    <div className="relative inline-flex items-center cursor-pointer">
-                      <input 
-                        type="checkbox" 
-                        className="sr-only peer"
-                        checked={(formData as any)[item.id]}
-                        onChange={(e) => setFormData(p => ({ ...p, [item.id]: e.target.checked }))}
-                      />
-                      <div className="w-12 h-6 bg-psu-gray/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-psu-blue"></div>
+                <label className="flex items-center justify-between p-4 bg-psu-bg/50 border border-psu-gray/5 rounded-2xl cursor-pointer hover:bg-psu-bg transition-colors">
+                  <span className="text-sm font-bold text-psu-gray">{t('technician.areaClean')}</span>
+                  <div className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={formData.areaClean}
+                      onChange={(e) => setFormData(p => ({ ...p, areaClean: e.target.checked }))}
+                    />
+                    <div className="w-12 h-6 bg-psu-gray/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-psu-blue"></div>
+                  </div>
+                </label>
+              </div>
+
+              <div className="space-y-5 pt-2">
+                <div className="flex items-center justify-between border-b border-psu-gray/5 pb-2">
+                  <h4 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em]">{t('technician.sectionPersonalCheck')}</h4>
+                  {allMarked && (
+                    <span className={cn("text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-md", readyToWork ? "bg-psu-green/10 text-psu-green" : "bg-psu-rejected/10 text-psu-rejected")}>
+                      {t('dfh.readyToWork')}: {readyToWork ? t('dfh.readyYes') : t('dfh.readyNo')}
+                    </span>
+                  )}
+                </div>
+
+                {DAILY_FOOD_HANDLER_GROUPS.map(group => (
+                  <div key={group.key} className="space-y-2">
+                    <h5 className="text-[9px] font-black text-psu-gray/30 uppercase tracking-widest">{t(GROUP_LABEL_KEY[group.key])}</h5>
+                    <div className="space-y-1.5">
+                      {group.criteria.map(criterion => {
+                        const mark = wellnessMarks[criterion.id];
+                        const missing = showValidation && !mark;
+                        return (
+                          <div key={criterion.id} className={cn("flex items-center justify-between gap-3 py-1.5 px-2 -mx-2 rounded-xl", missing && "bg-psu-rejected/5")}>
+                            <span className="text-xs font-medium text-psu-gray/70 min-w-0">
+                              {criterion.labelEn ? (
+                                <>
+                                  <span className="font-bold text-psu-gray">{criterion.labelEn}</span>{' '}
+                                  <span className="text-psu-gray/50 italic">({criterion.labelId})</span>
+                                </>
+                              ) : (
+                                <span className="font-bold text-psu-gray">{criterion.labelId}</span>
+                              )}
+                            </span>
+                            <div className="flex gap-1.5 shrink-0">
+                              <button
+                                onClick={() => setMark(criterion.id, 'GOOD')}
+                                className={cn(
+                                  "px-3 py-1.5 rounded-lg text-[10px] font-black border-2 transition-all active:scale-95",
+                                  mark === 'GOOD' ? "bg-psu-green text-white border-psu-green" : "bg-psu-bg border-psu-gray/10 text-psu-gray/40"
+                                )}
+                              >
+                                {t('dfh.good')}
+                              </button>
+                              <button
+                                onClick={() => setMark(criterion.id, 'NOT_GOOD')}
+                                className={cn(
+                                  "px-3 py-1.5 rounded-lg text-[10px] font-black border-2 transition-all active:scale-95",
+                                  mark === 'NOT_GOOD' ? "bg-psu-rejected text-white border-psu-rejected" : "bg-psu-bg border-psu-gray/10 text-psu-gray/40"
+                                )}
+                              >
+                                {t('dfh.notGood')}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  </label>
+                  </div>
                 ))}
+
+                {allMarked && !readyToWork && (
+                  <div className="bg-psu-rejected/10 border border-psu-rejected/20 text-psu-rejected text-xs font-bold p-4 rounded-2xl flex items-center gap-2">
+                    <AlertTriangle size={16} className="shrink-0" />
+                    {t('technician.notReadyBanner')}
+                  </div>
+                )}
+                {showValidation && !allMarked && (
+                  <div className="bg-psu-rejected/10 border border-psu-rejected/20 text-psu-rejected text-xs font-bold p-4 rounded-2xl flex items-center gap-2">
+                    <XCircle size={16} className="shrink-0" />
+                    {t('technician.completeAllFirst')}
+                  </div>
+                )}
               </div>
 
               <div>
