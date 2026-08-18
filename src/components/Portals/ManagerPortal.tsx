@@ -1,25 +1,30 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { AnalyticsDashboard } from '../Dashboard/AnalyticsDashboard';
-import { LayoutDashboard, CheckSquare, Settings, User, CheckCircle2 } from 'lucide-react';
+import { LayoutDashboard, CheckSquare, Settings, User, CheckCircle2, ClipboardCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
+import { InspectionsTab } from '../Inspections/InspectionsTab';
 
 export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore> }) {
   const { t } = useTranslation();
-  const { submissions, warnings, sites, users, updateSubmissionStatus } = store;
-  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'ESCALATIONS'>('DASHBOARD');
+  const { currentUser, submissions, warnings, sites, users, updateSubmissionStatus } = store;
+  const isFoodSafety = currentUser?.role === 'FOOD_SAFETY_MANAGER';
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'ESCALATIONS' | 'INSPECTIONS'>('DASHBOARD');
 
   const escalations = submissions.filter(s => s.status === 'PENDING');
+
+  const tabs = [
+    { id: 'DASHBOARD' as const, icon: LayoutDashboard, label: t('manager.tabAnalytics') },
+    { id: 'ESCALATIONS' as const, icon: CheckSquare, label: t('manager.tabEscalations') },
+    ...(isFoodSafety ? [{ id: 'INSPECTIONS' as const, icon: ClipboardCheck, label: t('inspection.tabTitle') }] : []),
+  ];
 
   return (
     <div className="space-y-6">
       <div className="flex bg-white rounded-2xl p-1.5 shadow-sm border border-psu-gray/5">
-        {[
-          { id: 'DASHBOARD', icon: LayoutDashboard, label: t('manager.tabAnalytics') },
-          { id: 'ESCALATIONS', icon: CheckSquare, label: t('manager.tabEscalations') },
-        ].map(tab => (
+        {tabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
@@ -102,6 +107,17 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
                 </div>
               )}
             </div>
+          </motion.div>
+        )}
+
+        {activeTab === 'INSPECTIONS' && isFoodSafety && (
+          <motion.div
+            key="inspections"
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+          >
+            <InspectionsTab store={store} />
           </motion.div>
         )}
       </AnimatePresence>

@@ -26,6 +26,17 @@ export interface Site {
 
 export type SubmissionStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'WARNING';
 
+// Per-section rollup for the Food Safety Inspection Checklist (and any future
+// multi-section audit) — lets a detail view show the same category breakdown
+// the source workbook's "Score" sheet does, without re-deriving it from 169
+// individual items every render.
+export interface SubmissionSectionScore {
+  key: string;
+  titleId: string;
+  titleEn: string;
+  scorePct: number; // 0-100
+}
+
 export interface Submission {
   id: string;
   userId: string;
@@ -34,17 +45,29 @@ export interface Submission {
   siteId: string;
   siteName: string;
   timestamp: string;
-  type: 'HOUSEKEEPING' | 'FOOD_SAFETY';
+  type: 'HOUSEKEEPING' | 'FOOD_SAFETY' | 'FOOD_SAFETY_INSPECTION';
   status: SubmissionStatus;
   items: {
     id: string;
     question: string;
     answer: string | boolean | number;
     photoUrl?: string;
+    remarks?: string; // free-text finding/remark tied to this one item
   }[];
   notes?: string;
   rejectionReason?: string;
   score?: number;
+  // Structured header + scoring info for audit-style submissions
+  // (currently: FOOD_SAFETY_INSPECTION). Optional so existing HOUSEKEEPING /
+  // FOOD_SAFETY submissions are unaffected.
+  meta?: {
+    areaAudited?: string;
+    areaOwner?: string;
+    inspectorName?: string;
+    category?: 'A' | 'B' | 'C' | 'D';
+    categoryStatus?: string;
+    sectionScores?: SubmissionSectionScore[];
+  };
 }
 
 export interface TrainingModule {
