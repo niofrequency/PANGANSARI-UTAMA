@@ -6,6 +6,17 @@ import { cn } from '../../utils/cn';
 import { Submission } from '../../types';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { InspectionsTab } from '../Inspections/InspectionsTab';
+import { DAILY_FOOD_HANDLER_ALL_CRITERIA } from '../../data/dailyFoodHandlerData';
+
+// A Food Safety Technician's daily log folds in a personal wellness/hygiene/
+// PPE self-check (same 19 criteria as the Inspections roster tool — see
+// TechnicianPortal). If any of those items came back false, that's not a
+// routine failed checklist item, it's someone reporting they may not be fit
+// to handle food — worth surfacing before a supervisor opens the card, not
+// just visible once they do.
+const isNotReadyToWork = (s: Submission) =>
+  s.type === 'FOOD_SAFETY' &&
+  DAILY_FOOD_HANDLER_ALL_CRITERIA.some(c => s.items.find(i => i.id === c.id)?.answer === false);
 
 export function SupervisorPortal({ store }: { store: ReturnType<typeof useAppStore> }) {
   const { t } = useTranslation();
@@ -86,12 +97,17 @@ export function SupervisorPortal({ store }: { store: ReturnType<typeof useAppSto
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {pending.map(s => (
-          <motion.div 
+        {pending.map(s => {
+          const flagged = isNotReadyToWork(s);
+          return (
+          <motion.div
             key={s.id}
             layoutId={s.id}
             onClick={() => setSelectedSubmission(s)}
-            className="card flex items-center justify-between active:scale-98 transition-all cursor-pointer group hover:border-psu-blue/20"
+            className={cn(
+              "card flex items-center justify-between active:scale-98 transition-all cursor-pointer group",
+              flagged ? "border-2 border-psu-rejected/40 bg-psu-rejected/5 hover:border-psu-rejected/60" : "hover:border-psu-blue/20"
+            )}
           >
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 bg-psu-bg rounded-2xl flex items-center justify-center text-psu-gray/20">
@@ -100,13 +116,19 @@ export function SupervisorPortal({ store }: { store: ReturnType<typeof useAppSto
               <div>
                 <h4 className="text-sm font-bold text-psu-gray">{s.userName}</h4>
                 <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5">{s.type} • {new Date(s.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                {flagged && (
+                  <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-psu-rejected bg-psu-rejected/10 px-2 py-0.5 rounded-full mt-1">
+                    <AlertTriangle size={10} /> {t('supervisorHK.notReadyFlag')}
+                  </span>
+                )}
               </div>
             </div>
             <div className="w-10 h-10 rounded-full border-2 border-psu-blue/10 text-psu-blue flex items-center justify-center group-hover:bg-psu-blue group-hover:text-white transition-all">
               <Eye size={18} />
             </div>
           </motion.div>
-        ))}
+          );
+        })}
 
         {pending.length === 0 && (
           <div className="text-center py-16 opacity-20">
@@ -148,6 +170,12 @@ export function SupervisorPortal({ store }: { store: ReturnType<typeof useAppSto
                 </div>
 
                 <div className="space-y-6">
+                  {isNotReadyToWork(selectedSubmission) && (
+                    <div className="bg-psu-rejected/10 border border-psu-rejected/20 rounded-2xl p-4 flex items-center gap-3">
+                      <AlertTriangle className="text-psu-rejected shrink-0" size={20} />
+                      <p className="text-xs font-bold text-psu-rejected">{t('supervisorHK.notReadyDetailBanner')}</p>
+                    </div>
+                  )}
                   <div className="bg-psu-bg p-5 rounded-2xl border border-psu-gray/5 flex items-center gap-4">
                     <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm">
                       <User className="text-psu-blue" size={24} />
