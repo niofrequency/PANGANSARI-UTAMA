@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { User, Submission, UserRole, Site, Warning, TrainingModule } from '../types';
-import { INITIAL_USERS, INITIAL_SUBMISSIONS, SITES, TRAINING_MODULES } from '../data/mockData';
+import { INITIAL_USERS, INITIAL_SUBMISSIONS, INITIAL_WARNINGS, SITES, TRAINING_MODULES } from '../data/mockData';
 import { isFirebaseConfigured } from '../lib/firebase';
 import { loginOrRegister, loginWithGoogle as loginWithGoogleService, logout as firebaseLogout, watchAuthAndProfile, SUPER_ADMIN_EMAIL } from '../services/authService';
 import { subscribeUsers, inviteUser, updateUserRoleDoc, toggleUserActiveDoc, deleteUserDoc } from '../services/usersService';
@@ -61,7 +61,7 @@ export function useAppStore() {
 
   const [warnings, setWarnings] = useState<Warning[]>(() => {
     const saved = localStorage.getItem('psu_warnings_v2');
-    return saved ? JSON.parse(saved) : [];
+    return saved ? JSON.parse(saved) : INITIAL_WARNINGS;
   });
 
   const [trainings, setTrainings] = useState<TrainingModule[]>(() => {

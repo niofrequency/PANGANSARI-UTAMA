@@ -13,7 +13,14 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
   const isFoodSafety = currentUser?.role === 'FOOD_SAFETY_MANAGER';
   const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'ESCALATIONS' | 'INSPECTIONS'>('DASHBOARD');
 
-  const escalations = submissions.filter(s => s.status === 'PENDING');
+  // Site-scoped *and* department-scoped, same as the Supervisor's Field
+  // Queue — a Housekeeping Manager's Escalations is HOUSEKEEPING
+  // submissions only, a Food Safety Manager's is FOOD_SAFETY only. This
+  // used to filter by status alone, which let either Manager approve or
+  // reject the other department's — and every site's — pending work.
+  const escalations = submissions.filter(
+    s => s.status === 'PENDING' && s.siteId === currentUser?.site && s.type === (isFoodSafety ? 'FOOD_SAFETY' : 'HOUSEKEEPING')
+  );
 
   const tabs = [
     { id: 'DASHBOARD' as const, icon: LayoutDashboard, label: t('manager.tabAnalytics') },
