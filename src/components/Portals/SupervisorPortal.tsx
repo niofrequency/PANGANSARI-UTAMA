@@ -28,7 +28,15 @@ export function SupervisorPortal({ store }: { store: ReturnType<typeof useAppSto
   const [showWarningDialog, setShowWarningDialog] = useState(false);
   const [warningData, setWarningData] = useState({ userId: '', reason: '', severity: 'LOW' as any });
 
-  const pending = submissions.filter(s => s.status === 'PENDING' && s.siteId === currentUser?.site);
+  // Site-scoped *and* department-scoped: a Housekeeping Supervisor's queue
+  // is HOUSEKEEPING submissions only, a Food Safety Supervisor's is
+  // FOOD_SAFETY only (the two departments' only PENDING-capable types —
+  // the three Inspections audits are auto-approved and never land here).
+  // Missing the type filter used to let either Supervisor see and act on
+  // the other department's queue entirely.
+  const pending = submissions.filter(
+    s => s.status === 'PENDING' && s.siteId === currentUser?.site && s.type === (isFoodSafety ? 'FOOD_SAFETY' : 'HOUSEKEEPING')
+  );
 
   const handleApprove = (id: string) => {
     updateSubmissionStatus(id, 'APPROVED');
@@ -138,13 +146,15 @@ export function SupervisorPortal({ store }: { store: ReturnType<typeof useAppSto
         )}
       </div>
 
-      <button 
-        onClick={() => setShowWarningDialog(true)}
-        className="w-full flex items-center justify-center gap-3 py-4 border-2 border-dashed border-psu-warning/30 text-psu-warning rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-psu-warning/5 transition-all"
-      >
-        <AlertTriangle size={18} />
-        {t('supervisorHK.issueWarning')}
-      </button>
+      {isFoodSafety && (
+        <button
+          onClick={() => setShowWarningDialog(true)}
+          className="w-full flex items-center justify-center gap-3 py-4 border-2 border-dashed border-psu-warning/30 text-psu-warning rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-psu-warning/5 transition-all"
+        >
+          <AlertTriangle size={18} />
+          {t('supervisorHK.issueWarning')}
+        </button>
+      )}
       </>
       )}
 
@@ -262,7 +272,8 @@ export function SupervisorPortal({ store }: { store: ReturnType<typeof useAppSto
                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold"
                   >
                     <option value="">{t('supervisorHK.choosePerson')}</option>
-                    {users.filter(u => u.role.includes('TECHNICIAN') || u.role.includes('HOUSEKEEPER')).map(u => (
+                    {/* Per the brief, only a Food Safety Supervisor warns, and only a technician — this dialog only renders for isFoodSafety, so this list is Food Safety Technicians alone, not Housekeepers. */}
+                    {users.filter(u => u.role === 'FOOD_SAFETY_TECHNICIAN').map(u => (
                       <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
                     ))}
                   </select>
