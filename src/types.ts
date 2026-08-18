@@ -45,7 +45,7 @@ export interface Submission {
   siteId: string;
   siteName: string;
   timestamp: string;
-  type: 'HOUSEKEEPING' | 'FOOD_SAFETY' | 'FOOD_SAFETY_INSPECTION';
+  type: 'HOUSEKEEPING' | 'FOOD_SAFETY' | 'FOOD_SAFETY_INSPECTION' | 'GEMBA_WALK';
   status: SubmissionStatus;
   items: {
     id: string;
@@ -53,12 +53,17 @@ export interface Submission {
     answer: string | boolean | number;
     photoUrl?: string;
     remarks?: string; // free-text finding/remark tied to this one item
+    // GEMBA_WALK only — the source form gives each item its own separate
+    // "corrective action" and "comment" columns alongside the observation
+    // (carried in `remarks` above).
+    correctiveAction?: string;
+    comment?: string;
   }[];
   notes?: string;
   rejectionReason?: string;
   score?: number;
   // Structured header + scoring info for audit-style submissions
-  // (currently: FOOD_SAFETY_INSPECTION). Optional so existing HOUSEKEEPING /
+  // (FOOD_SAFETY_INSPECTION, GEMBA_WALK). Optional so existing HOUSEKEEPING /
   // FOOD_SAFETY submissions are unaffected.
   meta?: {
     areaAudited?: string;
@@ -67,6 +72,11 @@ export interface Submission {
     category?: 'A' | 'B' | 'C' | 'D';
     categoryStatus?: string;
     sectionScores?: SubmissionSectionScore[];
+    // GEMBA_WALK only
+    project?: string;
+    unit?: string;
+    evaluationCounts?: { conform: number; notConform: number; nonObserved: number; na: number };
+    threeInARowNotes?: { positives?: string; improvements?: string };
   };
 }
 
