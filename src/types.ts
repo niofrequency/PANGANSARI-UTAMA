@@ -37,6 +37,22 @@ export interface SubmissionSectionScore {
   scorePct: number; // 0-100
 }
 
+// One staff member's row on the Daily Food Handler Assessment Checklist —
+// the source is a per-shift roster (up to 22 rows in the template), not a
+// single-subject audit like the other two checklists, so it doesn't fit
+// Submission.items the way they do; it's carried on meta.roster instead.
+// `readyToWork` is computed by this app (GOOD on every one of the 19
+// criteria) rather than taken from a source formula — the source's
+// "Ready to Work" column is filled in by hand, with no formula behind it.
+export interface DailyFoodHandlerRosterEntry {
+  no: number;
+  name: string;
+  position: string;
+  marks: Record<string, 'GOOD' | 'NOT_GOOD'>; // keyed by DailyFoodHandlerCriterion.id
+  readyToWork: boolean;
+  remark?: string;
+}
+
 export interface Submission {
   id: string;
   userId: string;
@@ -45,7 +61,7 @@ export interface Submission {
   siteId: string;
   siteName: string;
   timestamp: string;
-  type: 'HOUSEKEEPING' | 'FOOD_SAFETY' | 'FOOD_SAFETY_INSPECTION' | 'GEMBA_WALK';
+  type: 'HOUSEKEEPING' | 'FOOD_SAFETY' | 'FOOD_SAFETY_INSPECTION' | 'GEMBA_WALK' | 'DAILY_FOOD_HANDLER';
   status: SubmissionStatus;
   items: {
     id: string;
@@ -77,6 +93,11 @@ export interface Submission {
     unit?: string;
     evaluationCounts?: { conform: number; notConform: number; nonObserved: number; na: number };
     threeInARowNotes?: { positives?: string; improvements?: string };
+    // DAILY_FOOD_HANDLER only
+    roster?: DailyFoodHandlerRosterEntry[];
+    checkedBy?: string; // "Checked by, (SPV)" in the source
+    acknowledgedBy?: string; // "Acknowledge by, (Area Owner)"
+    verifiedBy?: string; // "Verified by, (HSSE Representative)"
   };
 }
 

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ClipboardList, Plus, ChevronRight, ClipboardCheck, Footprints } from 'lucide-react';
+import { ClipboardList, Plus, ChevronRight, ClipboardCheck, Footprints, Users } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { useAppStore } from '../../store/useAppStore';
@@ -9,6 +9,10 @@ import { FoodSafetyInspectionForm } from './FoodSafetyInspectionForm';
 import { InspectionReportView } from './InspectionReportView';
 import { GembaWalkForm } from './GembaWalkForm';
 import { GembaWalkReportView } from './GembaWalkReportView';
+import { DailyFoodHandlerForm } from './DailyFoodHandlerForm';
+import { DailyFoodHandlerReportView } from './DailyFoodHandlerReportView';
+
+type AuditType = 'FOOD_SAFETY_INSPECTION' | 'GEMBA_WALK' | 'DAILY_FOOD_HANDLER';
 
 const CATEGORY_COLOR: Record<string, string> = {
   A: 'text-psu-green bg-psu-green/10',
@@ -17,7 +21,7 @@ const CATEGORY_COLOR: Record<string, string> = {
   D: 'text-psu-rejected bg-psu-rejected/10',
 };
 
-function gembaScoreColor(score?: number) {
+function scoreColor(score?: number) {
   if (score === undefined) return 'text-psu-gray/50 bg-psu-gray/10';
   if (score >= 90) return 'text-psu-green bg-psu-green/10';
   if (score >= 75) return 'text-psu-blue bg-psu-blue/10';
@@ -26,20 +30,22 @@ function gembaScoreColor(score?: number) {
 }
 
 // Shared by SupervisorPortal (FOOD_SAFETY_SUPERVISOR) and ManagerPortal
-// (FOOD_SAFETY_MANAGER): both audits are self-contained records — there is
-// no separate reviewer, so each is stored as APPROVED the moment the
-// inspector submits it (mirrors how the paper forms work: once filled in
-// and scored, it *is* the record).
+// (FOOD_SAFETY_MANAGER): all three audits are self-contained records —
+// there is no separate reviewer, so each is stored as APPROVED the moment
+// the inspector submits it (mirrors how the paper forms work: once filled
+// in and scored, it *is* the record).
 export function InspectionsTab({ store }: { store: ReturnType<typeof useAppStore> }) {
   const { t } = useTranslation();
   const { currentUser, submissions, addSubmission, sites } = store;
-  const [view, setView] = useState<'LIST' | 'PICKER' | 'NEW_FSI' | 'NEW_GEMBA'>('LIST');
+  const [view, setView] = useState<'LIST' | 'PICKER' | 'NEW_FSI' | 'NEW_GEMBA' | 'NEW_DFH'>('LIST');
   const [selected, setSelected] = useState<Submission | null>(null);
   const currentSite = sites.find(s => s.id === currentUser?.site);
   const currentSiteName = currentSite?.name || currentUser?.site || '';
 
   const myAudits = submissions
-    .filter(s => (s.type === 'FOOD_SAFETY_INSPECTION' || s.type === 'GEMBA_WALK') && s.siteId === currentUser?.site)
+    .filter((s): s is Submission & { type: AuditType } =>
+      (s.type === 'FOOD_SAFETY_INSPECTION' || s.type === 'GEMBA_WALK' || s.type === 'DAILY_FOOD_HANDLER') && s.siteId === currentUser?.site
+    )
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
   const commonSubmissionFields = () => ({
@@ -53,9 +59,9 @@ export function InspectionsTab({ store }: { store: ReturnType<typeof useAppStore
   });
 
   if (selected) {
-    return selected.type === 'GEMBA_WALK'
-      ? <GembaWalkReportView submission={selected} onBack={() => setSelected(null)} />
-      : <InspectionReportView submission={selected} onBack={() => setSelected(null)} />;
+    if (selected.type === 'GEMBA_WALK') return <GembaWalkReportView submission={selected} onBack={() => setSelected(null)} />;
+    if (selected.type === 'DAILY_FOOD_HANDLER') return <DailyFoodHandlerReportView submission={selected} onBack={() => setSelected(null)} />;
+    return <InspectionReportView submission={selected} onBack={() => setSelected(null)} />;
   }
 
   if (view === 'NEW_FSI') {
@@ -84,7 +90,25 @@ export function InspectionsTab({ store }: { store: ReturnType<typeof useAppStore
     );
   }
 
+  if (view === 'NEW_DFH') {
+    return (
+      <DailyFoodHandlerForm
+        siteName={currentSiteName}
+        onCancel={() => setView('LIST')}
+        onSubmit={(payload) => {
+          addSubmission({ ...payload, ...commonSubmissionFields() });
+          setView('LIST');
+        }}
+      />
+    );
+  }
+
   if (view === 'PICKER') {
+    const options: { view: 'NEW_FSI' | 'NEW_GEMBA' | 'NEW_DFH'; icon: typeof ClipboardCheck; color: string; title: string; desc: string }[] = [
+      { view: 'NEW_FSI', icon: ClipboardCheck, color: 'bg-psu-blue/10 text-psu-blue', title: t('inspection.pickerFsi'), desc: t('inspection.pickerFsiDesc') },
+      { view: 'NEW_GEMBA', icon: Footprints, color: 'bg-psu-green/10 text-psu-green', title: t('inspection.pickerGemba'), desc: t('inspection.pickerGembaDesc') },
+      { view: 'NEW_DFH', icon: Users, color: 'bg-psu-warning/10 text-psu-warning', title: t('inspection.pickerDfh'), desc: t('inspection.pickerDfhDesc') },
+    ];
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between px-2">
@@ -94,24 +118,17 @@ export function InspectionsTab({ store }: { store: ReturnType<typeof useAppStore
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <button onClick={() => setView('NEW_FSI')} className="card text-left flex items-start gap-4 hover:border-psu-blue/20 transition-all active:scale-98">
-            <div className="w-12 h-12 rounded-2xl bg-psu-blue/10 text-psu-blue flex items-center justify-center shrink-0">
-              <ClipboardCheck size={22} />
-            </div>
-            <div>
-              <h4 className="text-sm font-bold text-psu-gray">{t('inspection.pickerFsi')}</h4>
-              <p className="text-xs text-psu-gray/50 font-medium mt-1">{t('inspection.pickerFsiDesc')}</p>
-            </div>
-          </button>
-          <button onClick={() => setView('NEW_GEMBA')} className="card text-left flex items-start gap-4 hover:border-psu-blue/20 transition-all active:scale-98">
-            <div className="w-12 h-12 rounded-2xl bg-psu-green/10 text-psu-green flex items-center justify-center shrink-0">
-              <Footprints size={22} />
-            </div>
-            <div>
-              <h4 className="text-sm font-bold text-psu-gray">{t('inspection.pickerGemba')}</h4>
-              <p className="text-xs text-psu-gray/50 font-medium mt-1">{t('inspection.pickerGembaDesc')}</p>
-            </div>
-          </button>
+          {options.map(opt => (
+            <button key={opt.view} onClick={() => setView(opt.view)} className="card text-left flex items-start gap-4 hover:border-psu-blue/20 transition-all active:scale-98">
+              <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center shrink-0", opt.color)}>
+                <opt.icon size={22} />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-psu-gray">{opt.title}</h4>
+                <p className="text-xs text-psu-gray/50 font-medium mt-1">{opt.desc}</p>
+              </div>
+            </button>
+          ))}
         </div>
         <button onClick={() => setView('LIST')} className="w-full py-3 text-psu-gray/40 font-black text-xs uppercase tracking-widest">
           {t('inspection.cancel')}
@@ -135,8 +152,11 @@ export function InspectionsTab({ store }: { store: ReturnType<typeof useAppStore
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <AnimatePresence>
           {myAudits.map(s => {
-            const isGemba = s.type === 'GEMBA_WALK';
             const category = s.meta?.category || 'D';
+            const icon = s.type === 'GEMBA_WALK' ? Footprints : s.type === 'DAILY_FOOD_HANDLER' ? Users : null;
+            const typeLabel = s.type === 'GEMBA_WALK' ? t('inspection.pickerGemba') : s.type === 'DAILY_FOOD_HANDLER' ? t('inspection.pickerDfh') : t('inspection.pickerFsi');
+            const defaultTitle = s.type === 'GEMBA_WALK' ? t('gemba.formTitle') : s.type === 'DAILY_FOOD_HANDLER' ? t('dfh.formTitle') : t('inspection.formTitle');
+            const scoreText = s.score !== undefined ? `${Math.round(s.score)}%` : '—';
             return (
               <motion.div
                 key={s.id}
@@ -148,14 +168,14 @@ export function InspectionsTab({ store }: { store: ReturnType<typeof useAppStore
                 <div className="flex items-center gap-4 min-w-0">
                   <div className={cn(
                     "w-12 h-12 rounded-2xl flex items-center justify-center text-sm font-black shrink-0",
-                    isGemba ? gembaScoreColor(s.score) : CATEGORY_COLOR[category]
+                    icon ? scoreColor(s.score) : CATEGORY_COLOR[category]
                   )}>
-                    {isGemba ? <Footprints size={20} /> : category}
+                    {icon ? (icon === Footprints ? <Footprints size={20} /> : <Users size={20} />) : category}
                   </div>
                   <div className="min-w-0">
-                    <h4 className="text-sm font-bold text-psu-gray truncate">{s.meta?.areaAudited || (isGemba ? t('gemba.formTitle') : t('inspection.formTitle'))}</h4>
+                    <h4 className="text-sm font-bold text-psu-gray truncate">{s.meta?.areaAudited || defaultTitle}</h4>
                     <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5">
-                      {new Date(s.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} · {isGemba ? (s.score !== undefined ? `${Math.round(s.score)}%` : '—') : `${Math.round(s.score || 0)}%`} · {isGemba ? t('inspection.pickerGemba') : t('inspection.pickerFsi')}
+                      {new Date(s.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} · {scoreText} · {typeLabel}
                     </p>
                   </div>
                 </div>
