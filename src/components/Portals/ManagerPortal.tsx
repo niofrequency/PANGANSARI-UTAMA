@@ -10,7 +10,12 @@ import { InspectionsTab } from '../Inspections/InspectionsTab';
 export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore> }) {
   const { t } = useTranslation();
   const { currentUser, submissions, warnings, sites, users, updateSubmissionStatus } = store;
-  const isFoodSafety = currentUser?.role === 'FOOD_SAFETY_MANAGER';
+  // GENERAL_MANAGER is site-wide leadership (GM, Deputy GM, HR & GA, COC,
+  // SPCS, etc.) — it sits above both departments rather than inside one,
+  // so it gets the Food Safety Manager's Inspections access *and* an
+  // unscoped Escalations queue, below.
+  const isGeneralManager = currentUser?.role === 'GENERAL_MANAGER';
+  const isFoodSafety = currentUser?.role === 'FOOD_SAFETY_MANAGER' || isGeneralManager;
   const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'ESCALATIONS' | 'INSPECTIONS'>('DASHBOARD');
 
   // Site-scoped *and* department-scoped, same as the Supervisor's Field
@@ -18,8 +23,10 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
   // submissions only, a Food Safety Manager's is FOOD_SAFETY only. This
   // used to filter by status alone, which let either Manager approve or
   // reject the other department's — and every site's — pending work.
+  // GENERAL_MANAGER is the deliberate exception: no site or department
+  // filter at all, since that role is meant to see everything.
   const escalations = submissions.filter(
-    s => s.status === 'PENDING' && s.siteId === currentUser?.site && s.type === (isFoodSafety ? 'FOOD_SAFETY' : 'HOUSEKEEPING')
+    s => s.status === 'PENDING' && (isGeneralManager || (s.siteId === currentUser?.site && s.type === (isFoodSafety ? 'FOOD_SAFETY' : 'HOUSEKEEPING')))
   );
 
   const tabs = [
@@ -85,7 +92,11 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
                       </div>
                       <div>
                         <h4 className="text-sm font-bold text-psu-gray">{s.userName}</h4>
-                        <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5">{s.siteName}</p>
+                        {/* Type shown alongside site so a GENERAL_MANAGER, whose
+                            queue mixes both departments and every site, can
+                            tell them apart at a glance — same info a
+                            Supervisor's Field Queue card already shows. */}
+                        <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5">{s.type} &middot; {s.siteName}</p>
                       </div>
                     </div>
                     <span className="text-[9px] font-black text-psu-blue bg-psu-blue/10 px-2 py-1 rounded uppercase tracking-tighter">{t('common.pending')}</span>

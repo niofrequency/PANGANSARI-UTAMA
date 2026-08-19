@@ -5,6 +5,12 @@ export type UserRole =
   | 'FOOD_SAFETY_TECHNICIAN'
   | 'FOOD_SAFETY_SUPERVISOR'
   | 'FOOD_SAFETY_MANAGER'
+  // Site-wide leadership (GM, Deputy GM, HR & GA, COC, SPCS, etc.) that
+  // sits above both departments rather than inside one of them — sees
+  // both departments' Escalations queues and the Inspections tab, unlike
+  // HOUSEKEEPING_MANAGER/FOOD_SAFETY_MANAGER which are each scoped to
+  // their own department (see ManagerPortal.tsx).
+  | 'GENERAL_MANAGER'
   | 'ADMIN';
 
 export interface User {

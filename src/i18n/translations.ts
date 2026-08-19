@@ -30,6 +30,7 @@ export const translations = {
       FOOD_SAFETY_TECHNICIAN: 'Food Safety Technician',
       FOOD_SAFETY_SUPERVISOR: 'Food Safety Supervisor',
       FOOD_SAFETY_MANAGER: 'Food Safety Manager',
+      GENERAL_MANAGER: 'General Manager (site-wide)',
       ADMIN: 'Admin',
     },
     rolesShort: {
@@ -39,6 +40,7 @@ export const translations = {
       FOOD_SAFETY_TECHNICIAN: 'FS Technician',
       FOOD_SAFETY_SUPERVISOR: 'FS Supervisor',
       FOOD_SAFETY_MANAGER: 'FS Manager',
+      GENERAL_MANAGER: 'General Manager',
       ADMIN: 'Admin',
     },
     layout: {
@@ -419,6 +421,7 @@ export const translations = {
       FOOD_SAFETY_TECHNICIAN: 'Teknisi Keamanan Pangan',
       FOOD_SAFETY_SUPERVISOR: 'Supervisor Keamanan Pangan',
       FOOD_SAFETY_MANAGER: 'Manajer Keamanan Pangan',
+      GENERAL_MANAGER: 'General Manager (seluruh site)',
       ADMIN: 'Admin',
     },
     rolesShort: {
@@ -428,6 +431,7 @@ export const translations = {
       FOOD_SAFETY_TECHNICIAN: 'Teknisi FS',
       FOOD_SAFETY_SUPERVISOR: 'Sup. FS',
       FOOD_SAFETY_MANAGER: 'Manajer FS',
+      GENERAL_MANAGER: 'General Manager',
       ADMIN: 'Admin',
     },
     layout: {

@@ -10,8 +10,20 @@ import { scoreRoster } from './dailyFoodHandlerScoring';
 // this file that isn't demo content (the Admin Portal doesn't yet have a
 // "manage sites" UI; site selection in Add Staff / analytics both read from
 // this list). Once you add real sites here, redeploy.
+//
+// 'site-1' stays as the fictional demo crew's home; the rest below are the
+// real locations from the staff roster (see INITIAL_USERS' "Real roster"
+// section) so their Escalations/Dashboard site-breakdown reflects the
+// actual org, not one flat "Main Site".
 export const SITES: Site[] = [
   { id: 'site-1', name: 'Main Site', location: '' },
+  { id: 'site-townsite', name: 'Townsite Office', location: '' },
+  { id: 'site-campservices', name: '68 Camp Services', location: '' },
+  { id: 'site-lupalelah', name: '68 Lupa Lelah Club', location: '' },
+  { id: 'site-melatibakery', name: '68 Melati Central Bakery', location: '' },
+  { id: 'site-melatimess', name: '68 Melati Mess Hall', location: '' },
+  { id: 'site-mawarmess', name: '68 Mawar Mess Hall', location: '' },
+  { id: 'site-spcs', name: 'SPCS', location: '' },
 ];
 
 const SITE_ID = 'site-1';
@@ -29,20 +41,60 @@ const SITE_NAME = 'Main Site';
 // — Field Queue, Escalations, the Dashboard, and all three Inspections
 // audits — with real-looking content on first load.
 //
-// Log in as any of these by typing the email below with any password.
+// Log in as any of these by typing the email below with any password —
+// or use DEMO_PASSWORD if you want one consistent answer for "what's the
+// password" (demo mode never actually checks it either way).
 // ---------------------------------------------------------------------------
 
+// Shared demo password for every account below — same reason as the note
+// above: demo-mode login() only ever checks the email (see useAppStore.ts),
+// so this value is never actually verified. It's here purely so there's a
+// real answer to "what's the password" instead of leaving it undefined.
+export const DEMO_PASSWORD = 'PSUdemo2026!';
+
 export const INITIAL_USERS: User[] = [
-  // Housekeeping
+  // --- Fictional demo cast ---
+  // Made-up placeholder people (not real PSU staff), on the placeholder
+  // 'site-1' "Main Site" — kept around from the original mock-data seed
+  // so the pre-built submission history below (which is tied to these
+  // IDs) keeps working. Safe to delete once the real roster below has its
+  // own submission history and this isn't needed for a demo anymore.
   { id: 'u-hk-mgr-1', firstName: 'Dewi', lastName: 'Anggraini', name: 'Dewi Anggraini', email: 'dewi.manager@psu.demo', role: 'HOUSEKEEPING_MANAGER', site: SITE_ID, isActive: true },
   { id: 'u-hk-sup-1', firstName: 'Budi', lastName: 'Santoso', name: 'Budi Santoso', email: 'budi.supervisor@psu.demo', role: 'HOUSEKEEPING_SUPERVISOR', site: SITE_ID, isActive: true },
   { id: 'u-hk-1', firstName: 'Siti', lastName: 'Rahayu', name: 'Siti Rahayu', email: 'siti.housekeeper@psu.demo', role: 'HOUSEKEEPER', site: SITE_ID, isActive: true },
   { id: 'u-hk-2', firstName: 'Agus', lastName: 'Wijaya', name: 'Agus Wijaya', email: 'agus.housekeeper@psu.demo', role: 'HOUSEKEEPER', site: SITE_ID, isActive: true },
-  // Food Safety
   { id: 'u-fs-mgr-1', firstName: 'Ratna', lastName: 'Kusuma', name: 'Ratna Kusuma', email: 'ratna.manager@psu.demo', role: 'FOOD_SAFETY_MANAGER', site: SITE_ID, isActive: true },
   { id: 'u-fs-sup-1', firstName: 'Hendra', lastName: 'Saputra', name: 'Hendra Saputra', email: 'hendra.supervisor@psu.demo', role: 'FOOD_SAFETY_SUPERVISOR', site: SITE_ID, isActive: true },
   { id: 'u-fs-tech-1', firstName: 'Made', lastName: 'Wirawan', name: 'Made Wirawan', email: 'made.technician@psu.demo', role: 'FOOD_SAFETY_TECHNICIAN', site: SITE_ID, isActive: true },
   { id: 'u-fs-tech-2', firstName: 'Nur', lastName: 'Fadillah', name: 'Nur Fadillah', email: 'nur.technician@psu.demo', role: 'FOOD_SAFETY_TECHNICIAN', site: SITE_ID, isActive: true },
+
+  // --- Real roster ---
+  // Transcribed from the staff list you provided. Role-tier assignments
+  // below follow the "( MANAGER)" / "( SUPERVISOR)" / "(TECHNICIAN)"
+  // annotations already in that list where present; department (HK vs FS)
+  // is inferred from the job title where it wasn't specified outright (see
+  // per-row notes). No submission history was invented for these people —
+  // unlike the fictional cast above, these are real names, so only the
+  // account itself is seeded, not fabricated work history under it.
+  { id: 'u-real-1', firstName: 'Mohammed', lastName: 'Ismail', name: 'Mohammed Ismail', email: 'mohammed.ismail@psu.demo', role: 'GENERAL_MANAGER', site: 'site-townsite', isActive: true }, // General Manager
+  { id: 'u-real-2', firstName: 'Arianto', lastName: '', name: 'Arianto', email: 'arianto@psu.demo', role: 'GENERAL_MANAGER', site: 'site-townsite', isActive: true }, // Deputy General Manager
+  { id: 'u-real-3', firstName: 'Amabo', lastName: 'Che Cyprain', name: 'Amabo Che Cyprain', email: 'amabo.cyprain@psu.demo', role: 'FOOD_SAFETY_MANAGER', site: 'site-townsite', isActive: true }, // Manager QHSE
+  // No department stated for this one ("Asst. Manager", Townsite Office);
+  // placed under Food Safety alongside the QHSE Manager it sits next to in
+  // the source list — move to Housekeeping if that assumption is wrong.
+  { id: 'u-real-4', firstName: 'Mochamad', lastName: 'Sony Gaus', name: 'Mochamad Sony Gaus', email: 'mochamad.gaus@psu.demo', role: 'FOOD_SAFETY_MANAGER', site: 'site-townsite', isActive: true }, // Asst. Manager
+  { id: 'u-real-5', firstName: 'Raden', lastName: 'Robiansyah', name: 'Raden Robiansyah', email: 'raden.robiansyah@psu.demo', role: 'GENERAL_MANAGER', site: 'site-townsite', isActive: true }, // Manager COC (Manager)
+  { id: 'u-real-6', firstName: 'Steigers', lastName: 'Janer Vindy Rawung', name: 'Steigers Janer Vindy Rawung', email: 'steigers.rawung@psu.demo', role: 'GENERAL_MANAGER', site: 'site-townsite', isActive: true }, // Manager HR & GA (Manager)
+  { id: 'u-real-7', firstName: 'Yohana', lastName: 'Merce Wandi', name: 'Yohana Merce Wandi', email: 'yohana.wandi@psu.demo', role: 'FOOD_SAFETY_TECHNICIAN', site: 'site-townsite', isActive: true }, // Nutritionist (Technician)
+  { id: 'u-real-8', firstName: 'Dyno', lastName: 'J.I. Simanjuntak', name: 'Dyno J.I. Simanjuntak', email: 'dyno.simanjuntak@psu.demo', role: 'HOUSEKEEPING_MANAGER', site: 'site-campservices', isActive: true }, // Head of General Services (Manager)
+  { id: 'u-real-9', firstName: 'La', lastName: 'Moa', name: 'La Moa', email: 'la.moa@psu.demo', role: 'HOUSEKEEPING_MANAGER', site: 'site-campservices', isActive: true }, // Asst. Manager
+  { id: 'u-real-10', firstName: 'Lauzi', lastName: '', name: 'Lauzi', email: 'lauzi@psu.demo', role: 'HOUSEKEEPING_MANAGER', site: 'site-campservices', isActive: true }, // Manager
+  { id: 'u-real-11', firstName: 'Surya', lastName: 'Hadi Kusuma', name: 'Surya Hadi Kusuma', email: 'surya.kusuma@psu.demo', role: 'FOOD_SAFETY_SUPERVISOR', site: 'site-lupalelah', isActive: true }, // Executive Chef (Supervisor)
+  { id: 'u-real-12', firstName: 'Ahmad', lastName: 'Sofyan', name: 'Ahmad Sofyan', email: 'ahmad.sofyan@psu.demo', role: 'FOOD_SAFETY_SUPERVISOR', site: 'site-melatibakery', isActive: true }, // Chef de Partie (Supervisor)
+  { id: 'u-real-13', firstName: 'Lingga', lastName: 'Wardhana', name: 'Lingga Wardhana', email: 'lingga.wardhana@psu.demo', role: 'FOOD_SAFETY_MANAGER', site: 'site-melatimess', isActive: true }, // Asst. Manager
+  { id: 'u-real-14', firstName: 'Budiyanto', lastName: 'Catur', name: 'Budiyanto Catur', email: 'budiyanto.catur@psu.demo', role: 'FOOD_SAFETY_MANAGER', site: 'site-mawarmess', isActive: true }, // Manager
+  { id: 'u-real-15', firstName: 'Gregorius', lastName: 'Abraham', name: 'Gregorius Abraham', email: 'gregorius.abraham@psu.demo', role: 'FOOD_SAFETY_TECHNICIAN', site: 'site-townsite', isActive: true }, // QHSE Sup (Technician)
+  { id: 'u-real-16', firstName: 'Sumich', lastName: 'Andrew', name: 'Sumich Andrew', email: 'sumich.andrew@psu.demo', role: 'GENERAL_MANAGER', site: 'site-spcs', isActive: true }, // Manager
 ];
 
 const daysAgo = (n: number, hour = 9, minute = 0): string => {
