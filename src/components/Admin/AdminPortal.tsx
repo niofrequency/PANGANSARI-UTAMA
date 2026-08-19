@@ -203,6 +203,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                       <option value="FOOD_SAFETY_TECHNICIAN">{t('rolesShort.FOOD_SAFETY_TECHNICIAN')}</option>
                       <option value="FOOD_SAFETY_SUPERVISOR">{t('rolesShort.FOOD_SAFETY_SUPERVISOR')}</option>
                       <option value="FOOD_SAFETY_MANAGER">{t('rolesShort.FOOD_SAFETY_MANAGER')}</option>
+                      <option value="GENERAL_MANAGER">{t('rolesShort.GENERAL_MANAGER')}</option>
                       {/* ADMIN intentionally omitted: that role is locked to one
                           account and can't be granted from this screen. */}
                     </select>
@@ -569,6 +570,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                           <option value="FOOD_SAFETY_TECHNICIAN">{t('rolesShort.FOOD_SAFETY_TECHNICIAN')}</option>
                           <option value="FOOD_SAFETY_SUPERVISOR">{t('rolesShort.FOOD_SAFETY_SUPERVISOR')}</option>
                           <option value="FOOD_SAFETY_MANAGER">{t('rolesShort.FOOD_SAFETY_MANAGER')}</option>
+                          <option value="GENERAL_MANAGER">{t('rolesShort.GENERAL_MANAGER')}</option>
                           {/* ADMIN not offered here — locked to one account */}
                         </select>
                       </div>

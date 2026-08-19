@@ -50,6 +50,7 @@ export default function App() {
         return <SupervisorPortal store={store} />;
       case 'HOUSEKEEPING_MANAGER':
       case 'FOOD_SAFETY_MANAGER':
+      case 'GENERAL_MANAGER':
         return <ManagerPortal store={store} />;
       case 'FOOD_SAFETY_TECHNICIAN':
         return <TechnicianPortal store={store} />;
