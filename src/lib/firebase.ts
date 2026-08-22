@@ -48,7 +48,9 @@ export const db: Firestore | null = app ? getFirestore(app) : null;
 // Powers calls to Cloud Functions (see functions/src/index.ts) — e.g. the
 // Admin Portal creating a staff account with a set password, which the
 // browser-only SDK can never do on its own (see that file for why).
-export const functions: Functions | null = app ? getFunctions(app) : null;
+// Region must match the Cloud Function (us-central1). Without this, the
+// client can hit the wrong endpoint and you get opaque CORS / not-found errors.
+export const functions: Functions | null = app ? getFunctions(app, 'us-central1') : null;
 
 // Explicit rather than relying on the SDK default: keeps people logged in
 // across page refreshes and browser restarts (persisted in IndexedDB),
