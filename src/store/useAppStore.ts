@@ -150,16 +150,38 @@ export function useAppStore() {
       return result.ok ? null : result.error;
     }
 
-    // Demo mode: same behavior as before Firebase was wired in.
-    const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (!user) return 'invalid';
-    if (!user.isActive) return 'inactive';
-    const effectiveUser =
-      user.role === 'ADMIN' && user.email.toLowerCase() !== SUPER_ADMIN_EMAIL
-        ? { ...user, role: 'HOUSEKEEPER' as UserRole }
-        : user;
-    setCurrentUser(effectiveUser);
-    return null;
+    // Demo mode
+    const emailLower = email.trim().toLowerCase();
+    const existing = users.find(u => u.email.toLowerCase() === emailLower);
+
+    if (existing) {
+      if (!existing.isActive) return 'inactive';
+      const effectiveUser =
+        existing.role === 'ADMIN' && existing.email.toLowerCase() !== SUPER_ADMIN_EMAIL
+          ? { ...existing, role: 'HOUSEKEEPER' as UserRole }
+          : existing;
+      setCurrentUser(effectiveUser);
+      return null;
+    }
+
+    // Open self-signup in demo mode: create a new local user when name is provided
+    if (firstName && lastName) {
+      const newUser: User = {
+        id: `u-signup-${Date.now()}`,
+        firstName,
+        lastName,
+        name: `${firstName} ${lastName}`.trim(),
+        email: emailLower,
+        role: 'FOOD_SAFETY_TECHNICIAN',
+        site: 'site-1',
+        isActive: true,
+      };
+      setUsers(prev => [...prev, newUser]);
+      setCurrentUser(newUser);
+      return null;
+    }
+
+    return 'invalid';
   };
 
   // Google Sign-In only makes sense in Firebase mode — there's no Google
