@@ -65,6 +65,10 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setAddUserError('');
+    if (!newUser.firstName.trim()) {
+      setAddUserError(t('auth.errorNameRequired'));
+      return;
+    }
     const name = `${newUser.firstName} ${newUser.lastName}`.trim();
 
     if (isFirebaseConfigured && password.length < 6) {
