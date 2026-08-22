@@ -164,13 +164,15 @@ export function useAppStore() {
       return null;
     }
 
-    // Open self-signup in demo mode: create a new local user when name is provided
-    if (firstName && lastName) {
+    // Open self-signup in demo mode: first name required, last name optional
+    if (firstName?.trim()) {
+      const fn = firstName.trim();
+      const ln = (lastName || '').trim();
       const newUser: User = {
         id: `u-signup-${Date.now()}`,
-        firstName,
-        lastName,
-        name: `${firstName} ${lastName}`.trim(),
+        firstName: fn,
+        lastName: ln,
+        name: `${fn} ${ln}`.trim(),
         email: emailLower,
         role: 'FOOD_SAFETY_TECHNICIAN',
         site: 'site-1',
