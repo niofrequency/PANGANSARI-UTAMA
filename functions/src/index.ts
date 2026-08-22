@@ -38,7 +38,7 @@ export const createStaffAccount = onCall(
     const { email, password, firstName, lastName, role, site } =
       request.data || ({} as CreateStaffAccountData);
 
-    if (!email || !password || !firstName || !lastName || !role || !site) {
+    if (!email || !password || !firstName || !role || !site) {
       throw new HttpsError('invalid-argument', 'Missing required fields.');
     }
     if (role === 'ADMIN') {
@@ -49,7 +49,9 @@ export const createStaffAccount = onCall(
     }
 
     const emailLower = String(email).trim().toLowerCase();
-    const name = `${firstName} ${lastName}`.trim();
+    const fn = String(firstName).trim();
+    const ln = String(lastName || '').trim();
+    const name = `${fn} ${ln}`.trim();
 
     let userRecord: admin.auth.UserRecord;
     try {
@@ -69,8 +71,8 @@ export const createStaffAccount = onCall(
     try {
       await admin.firestore().collection('users').doc(emailLower).set({
         name,
-        firstName,
-        lastName,
+        firstName: fn,
+        lastName: ln,
         email: emailLower,
         role,
         site,
