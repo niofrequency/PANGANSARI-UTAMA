@@ -503,7 +503,6 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                       <div>
                         <label className="block text-[10px] font-black text-psu-gray/40 uppercase mb-2 tracking-widest">{t('admin.lastNameLabel')}</label>
                         <input 
-                          required
                           type="text" 
                           value={newUser.lastName}
                           onChange={(e) => setNewUser(p => ({ ...p, lastName: e.target.value }))}
