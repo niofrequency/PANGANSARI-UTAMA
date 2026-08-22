@@ -155,17 +155,19 @@ export async function loginOrRegister(
   }
 
   // Open self-signup: anyone can create an account. Default role is a safe
-  // field role — admin can promote later from the Admin Portal. Name is
-  // required so the staff directory isn't full of blank entries.
-  if (!firstName || !lastName) {
+  // field role — admin can promote later from the Admin Portal. First name
+  // is required; last name is optional.
+  if (!firstName?.trim()) {
     return { ok: false, error: 'invalid' };
   }
   try {
+    const fn = firstName.trim();
+    const ln = (lastName || '').trim();
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     const profile: FirestoreUserProfile = {
-      name: `${firstName} ${lastName}`.trim(),
-      firstName,
-      lastName,
+      name: `${fn} ${ln}`.trim(),
+      firstName: fn,
+      lastName: ln,
       email: emailLower,
       role: 'FOOD_SAFETY_TECHNICIAN',
       site: 'site-1',
