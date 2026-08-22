@@ -214,7 +214,7 @@ export function Login({ onLogin, onLoginWithGoogle }: LoginProps) {
             </motion.div>
           )}
 
-          {isFirebaseConfigured && mode === 'signup' && (
+          {mode === 'signup' && (
             <div className="flex items-start gap-2 p-3 bg-psu-blue/5 text-psu-blue/70 text-[11px] rounded-xl">
               <Info size={13} className="mt-0.5 shrink-0" />
               <span>{t('auth.signupHint')}</span>
