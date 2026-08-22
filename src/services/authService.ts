@@ -154,7 +154,29 @@ export async function loginOrRegister(
     }
   }
 
-  return { ok: false, error: 'no-invite' };
+  // Open self-signup: anyone can create an account. Default role is a safe
+  // field role — admin can promote later from the Admin Portal. Name is
+  // required so the staff directory isn't full of blank entries.
+  if (!firstName || !lastName) {
+    return { ok: false, error: 'invalid' };
+  }
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, email, password);
+    const profile: FirestoreUserProfile = {
+      name: `${firstName} ${lastName}`.trim(),
+      firstName,
+      lastName,
+      email: emailLower,
+      role: 'FOOD_SAFETY_TECHNICIAN',
+      site: 'site-1',
+      isActive: true,
+      uid: cred.user.uid,
+    };
+    await setDoc(ref, profile);
+    return { ok: true, profile };
+  } catch {
+    return { ok: false, error: 'invalid' };
+  }
 }
 
 // Google Sign-In, using the same invite-based activation rule as email
@@ -221,10 +243,20 @@ export async function loginWithGoogle(): Promise<LoginResult> {
     return { ok: true, profile };
   }
 
-  // No invite for this account — don't leave them signed into Firebase
-  // Auth with nothing to show for it.
-  await signOut(auth);
-  return { ok: false, error: 'no-invite' };
+  // Open self-signup via Google — same default role as email signup.
+  const { firstName, lastName } = splitName(firebaseUser.displayName || emailLower.split('@')[0]);
+  const profile: FirestoreUserProfile = {
+    name: firebaseUser.displayName || `${firstName} ${lastName}`.trim(),
+    firstName,
+    lastName,
+    email: emailLower,
+    role: 'FOOD_SAFETY_TECHNICIAN',
+    site: 'site-1',
+    isActive: true,
+    uid: firebaseUser.uid,
+  };
+  await setDoc(ref, profile);
+  return { ok: true, profile };
 }
 
 export async function logout() {
