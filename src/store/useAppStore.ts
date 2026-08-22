@@ -212,10 +212,10 @@ export function useAppStore() {
 
   // If a password is given (Firebase mode), this creates a fully working,
   // already-activated login via the createStaffAccount Cloud Function —
-  // the person can log in immediately with the credentials you hand them,
-  // no self-activation step needed. Without a password, falls back to the
-  // old invite flow (person sets their own password on first Sign Up) —
-  // kept for cases like wanting someone to activate via Google instead.
+  // the person can log in immediately with the credentials you hand them.
+  // If the Cloud Function fails (not deployed, CORS, etc.), we fall back to
+  // an invite-only profile so Add Staff still works — the person then uses
+  // Sign Up with that email to set their own password.
   const addUser = async (
     user: Omit<User, 'id' | 'isActive'>,
     password?: string
@@ -223,7 +223,15 @@ export function useAppStore() {
     if (isFirebaseConfigured) {
       if (password) {
         const result = await createStaffAccount({ ...user, password });
-        return result.ok ? { ok: true } : { ok: false, error: result.error };
+        if (result.ok) return { ok: true };
+        // Hard failures: email already exists or bad input — don't mask them.
+        if (result.error === 'already-exists' || result.error === 'invalid-argument') {
+          return { ok: false, error: result.error };
+        }
+        // Function unreachable / internal → invite fallback (staff Sign Up later).
+        console.warn('createStaffAccount failed, falling back to invite:', result.error);
+        await inviteUser(user);
+        return { ok: true };
       }
       await inviteUser(user);
       return { ok: true };
