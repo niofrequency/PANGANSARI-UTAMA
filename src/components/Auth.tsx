@@ -48,7 +48,7 @@ export function Login({ onLogin, onLoginWithGoogle }: LoginProps) {
       setError(t('auth.errorEmpty'));
       return;
     }
-    if (mode === 'signup' && (!firstName || !lastName)) {
+    if (mode === 'signup' && !firstName.trim()) {
       setError(t('auth.errorNameRequired'));
       return;
     }
