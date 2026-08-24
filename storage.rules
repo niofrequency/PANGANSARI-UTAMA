@@ -1,0 +1,50 @@
+rules_version = '2';
+
+// Deploy with: firebase deploy --only storage
+// (requires the Firebase CLI and `firebase init` once, pointed at this
+// project — same setup as firestore.rules)
+//
+// Only one thing lives in this bucket: photo evidence attached to
+// submissions (Housekeeping checklist items, the Technician's daily log)
+// — see src/services/storageService.ts and PhotoCapture.tsx. Everything
+// else (accounts, submissions themselves) is Firestore or localStorage;
+// see firestore.rules and useAppStore.ts.
+//
+// Layout: submissions/{uid}/{fileName} — one folder per uploader. A
+// signed-in user can only ever write into their own folder, because
+// {uid} is checked against request.auth.uid, which the client can't
+// spoof (it's set by Firebase Auth, not sent by the browser). Read is
+// open to any signed-in staff member, not just the uploader, since a
+// Supervisor, Manager, or the General Manager reviewing someone else's
+// submission needs to see the photo attached to it.
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    match /submissions/{uid}/{fileName} {
+      allow read: if isSignedIn();
+
+      allow write: if isSignedIn()
+        && request.auth.uid == uid
+        // Downscaled client-side before upload (see PhotoCapture.tsx) —
+        // a typical photo lands well under 1MB. 10MB is headroom for a
+        // slow/unusual capture, not an expected size.
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+
+      // Photo evidence is meant to be permanent once attached to a
+      // submission — nothing in this app currently needs to delete one,
+      // so this stays closed rather than silently allowing it.
+      allow delete: if false;
+    }
+
+    // Nothing else is served from this bucket.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

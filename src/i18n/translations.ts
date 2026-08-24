@@ -46,6 +46,8 @@ export const translations = {
     layout: {
       installApp: 'Install App',
       logout: 'Log out',
+      storageQuotaWarning: "Your device's local storage is full — new submissions may not be saved. Ask your Admin to clear old records, or free up space on this device.",
+      storageUnknownWarning: "Something just failed while saving locally. If a submission doesn't show up in History, try again.",
     },
     auth: {
       title: 'FIELDOPS',
@@ -140,6 +142,7 @@ export const translations = {
       sectionOperations: 'Kitchen & Operations',
       fridgeTemp: 'Fridge (°C)',
       coreTemp: 'Core Cooking Temp (°C)',
+      tempInvalid: 'Enter a real reading between -30 and 200°C',
       areaClean: 'Area Cleaned & Sanitized',
       sectionPersonalCheck: 'Personal Wellness & PPE Check',
       notReadyBanner: 'One or more items above need attention — this will be flagged for your supervisor to review.',
@@ -325,6 +328,7 @@ export const translations = {
       positionLabel: 'Position',
       positionPlaceholder: 'e.g. Cook, Steward',
       markPlaceholder: 'v / x',
+      markUnrecognized: 'Not "v" or "x" — counted as Not Good',
       groupWellness: 'Wellness',
       groupPersonalHygiene: 'Personal Hygiene',
       groupPpe: 'PPE',
@@ -437,6 +441,8 @@ export const translations = {
     layout: {
       installApp: 'Pasang Aplikasi',
       logout: 'Keluar',
+      storageQuotaWarning: 'Penyimpanan lokal perangkat Anda sudah penuh — kiriman baru mungkin tidak tersimpan. Minta Admin menghapus data lama, atau kosongkan ruang di perangkat ini.',
+      storageUnknownWarning: 'Terjadi kegagalan saat menyimpan secara lokal. Jika kiriman tidak muncul di Riwayat, coba lagi.',
     },
     auth: {
       title: 'FIELDOPS',
@@ -531,6 +537,7 @@ export const translations = {
       sectionOperations: 'Dapur & Operasional',
       fridgeTemp: 'Suhu Kulkas (°C)',
       coreTemp: 'Suhu Inti Memasak (°C)',
+      tempInvalid: 'Masukkan suhu yang wajar, antara -30 dan 200°C',
       areaClean: 'Area Dibersihkan & Disanitasi',
       sectionPersonalCheck: 'Pemeriksaan Wellness & APD Pribadi',
       notReadyBanner: 'Ada satu atau lebih item di atas yang perlu diperhatikan — ini akan ditandai untuk ditinjau oleh supervisor Anda.',
@@ -711,6 +718,7 @@ export const translations = {
       positionLabel: 'Posisi',
       positionPlaceholder: 'cth. Cook, Steward',
       markPlaceholder: 'v / x',
+      markUnrecognized: 'Bukan "v" atau "x" — dihitung sebagai Not Good',
       groupWellness: 'Wellness',
       groupPersonalHygiene: 'Personal Hygiene',
       groupPpe: 'PPE',

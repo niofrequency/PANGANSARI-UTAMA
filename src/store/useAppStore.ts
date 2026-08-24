@@ -119,27 +119,53 @@ export function useAppStore() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isFirebaseConfigured, currentUser?.id]);
 
+  // Set (and cleared) whenever a localStorage write below fails — almost
+  // always QuotaExceededError once the browser's per-origin storage limit
+  // is hit, which is a real risk here: submissions carry full photos as
+  // base64 and never get pruned. Without this, that write throws inside a
+  // plain useEffect with nothing catching it, which unmounts the whole
+  // app to a blank white screen (see ErrorBoundary.tsx for the last-resort
+  // backstop; this is the first line of defense, since it degrades
+  // gracefully instead of crashing at all) — and worse, whatever the
+  // person just submitted is silently gone, because the write that would
+  // have saved it is the one that failed.
+  const [storageError, setStorageError] = useState<string | null>(null);
+
+  function safeSetItem(key: string, value: string) {
+    try {
+      localStorage.setItem(key, value);
+      setStorageError(null);
+    } catch (e) {
+      console.error(`Failed to save to localStorage (${key}):`, e);
+      setStorageError(
+        e instanceof DOMException && e.name === 'QuotaExceededError'
+          ? 'quota'
+          : 'unknown'
+      );
+    }
+  }
+
   // --- Demo mode: persist everything to localStorage ---
   useEffect(() => {
     if (isFirebaseConfigured) return;
-    localStorage.setItem('psu_current_user_v3', JSON.stringify(currentUser));
+    safeSetItem('psu_current_user_v3', JSON.stringify(currentUser));
   }, [currentUser]);
 
   useEffect(() => {
     if (isFirebaseConfigured) return;
-    localStorage.setItem('psu_users_v3', JSON.stringify(users));
+    safeSetItem('psu_users_v3', JSON.stringify(users));
   }, [users]);
 
   useEffect(() => {
-    localStorage.setItem('psu_submissions_v3', JSON.stringify(submissions));
+    safeSetItem('psu_submissions_v3', JSON.stringify(submissions));
   }, [submissions]);
 
   useEffect(() => {
-    localStorage.setItem('psu_warnings_v3', JSON.stringify(warnings));
+    safeSetItem('psu_warnings_v3', JSON.stringify(warnings));
   }, [warnings]);
 
   useEffect(() => {
-    localStorage.setItem('psu_trainings_v3', JSON.stringify(trainings));
+    safeSetItem('psu_trainings_v3', JSON.stringify(trainings));
   }, [trainings]);
 
   const login = async (email: string, password: string, firstName?: string, lastName?: string): Promise<string | null> => {
@@ -238,6 +264,16 @@ export function useAppStore() {
       await inviteUser(user);
       return { ok: true };
     }
+    // Demo mode has no server to enforce this, so it has to happen here —
+    // without it, Add Staff would silently create a second account on an
+    // email that's already in use. login() always resolves an email to
+    // whichever matching user comes first in the array, so the new
+    // account would be permanently unreachable: nothing tells the admin
+    // it happened, and nothing tells the person trying to log into it
+    // that they're actually landing in someone else's account instead.
+    if (users.some(u => u.email.toLowerCase() === user.email.toLowerCase())) {
+      return { ok: false, error: 'already-exists' };
+    }
     const newUser: User = { ...user, id: `u-${Date.now()}`, isActive: true };
     setUsers(prev => [...prev, newUser]);
     return { ok: true };
@@ -291,6 +327,7 @@ export function useAppStore() {
   return {
     currentUser,
     isAuthResolving,
+    storageError,
     users,
     submissions,
     warnings,

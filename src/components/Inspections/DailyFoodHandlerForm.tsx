@@ -4,7 +4,7 @@ import { ChevronDown, ClipboardCheck, Clock, Plus, Trash2, XCircle, User } from 
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { DAILY_FOOD_HANDLER_GROUPS, DAILY_FOOD_HANDLER_ALL_CRITERIA } from '../../data/dailyFoodHandlerData';
-import { computeReadyToWork, countMarked, isGoodMark, scoreRoster } from '../../data/dailyFoodHandlerScoring';
+import { computeReadyToWork, countMarked, isGoodMark, isUnrecognizedMark, scoreRoster } from '../../data/dailyFoodHandlerScoring';
 import { DailyFoodHandlerRosterEntry, Submission } from '../../types';
 
 interface RowState {
@@ -206,17 +206,24 @@ export function DailyFoodHandlerForm({ onSubmit, onCancel, siteName }: Props) {
                                       <span className="font-bold text-psu-gray">{criterion.labelId}</span>
                                     )}
                                   </span>
-                                  <input
-                                    value={mark || ''}
-                                    onChange={e => setMark(row.key, criterion.id, e.target.value)}
-                                    placeholder={t('dfh.markPlaceholder')}
-                                    maxLength={8}
-                                    className={cn(
-                                      "w-16 shrink-0 text-center p-2 rounded-lg text-xs font-black border-2 uppercase focus:outline-none transition-colors",
-                                      !mark ? "bg-psu-bg border-psu-gray/10 text-psu-gray/60" :
-                                      isGoodMark(mark) ? "bg-psu-green/10 border-psu-green text-psu-green" : "bg-psu-rejected/10 border-psu-rejected text-psu-rejected"
+                                  <div className="flex flex-col items-end gap-1 shrink-0">
+                                    <input
+                                      value={mark || ''}
+                                      onChange={e => setMark(row.key, criterion.id, e.target.value)}
+                                      placeholder={t('dfh.markPlaceholder')}
+                                      maxLength={8}
+                                      className={cn(
+                                        "w-16 text-center p-2 rounded-lg text-xs font-black border-2 uppercase focus:outline-none transition-colors",
+                                        !mark ? "bg-psu-bg border-psu-gray/10 text-psu-gray/60" :
+                                        isGoodMark(mark) ? "bg-psu-green/10 border-psu-green text-psu-green" :
+                                        isUnrecognizedMark(mark) ? "bg-psu-warning/10 border-psu-warning text-psu-warning" :
+                                        "bg-psu-rejected/10 border-psu-rejected text-psu-rejected"
+                                      )}
+                                    />
+                                    {isUnrecognizedMark(mark) && (
+                                      <span className="text-[8.5px] font-bold text-psu-warning text-right leading-tight max-w-[90px]">{t('dfh.markUnrecognized')}</span>
                                     )}
-                                  />
+                                  </div>
                                 </div>
                               );
                             })}

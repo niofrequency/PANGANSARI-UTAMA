@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronDown, ClipboardCheck, Clock, XCircle } from 'lucide-react';
 import { cn } from '../../utils/cn';
@@ -31,6 +31,12 @@ export function FoodSafetyInspectionForm({ onSubmit, onCancel, inspectorName }: 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({ [INSPECTION_SECTIONS[0].key]: true });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showValidation, setShowValidation] = useState(false);
+  // 169 items across 18 collapsed sections is too much to hunt through by
+  // hand for one missed answer — the generic "complete all" banner alone
+  // gave no way to find which section had the gap. On a failed submit
+  // attempt this jumps straight to it instead.
+  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const areaFieldRef = useRef<HTMLInputElement>(null);
 
   const allItems = useMemo(() => INSPECTION_SECTIONS.flatMap(s => s.items), []);
   const totalItems = allItems.length;
@@ -52,6 +58,18 @@ export function FoodSafetyInspectionForm({ onSubmit, onCancel, inspectorName }: 
   const handleSubmit = async () => {
     if (!canSubmit) {
       setShowValidation(true);
+      if (areaAudited.trim().length === 0) {
+        areaFieldRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        areaFieldRef.current?.focus();
+      } else {
+        const firstIncomplete = sectionStats.find(s => s.answered < s.total);
+        if (firstIncomplete) {
+          setExpanded(p => ({ ...p, [firstIncomplete.key]: true }));
+          requestAnimationFrame(() => {
+            sectionRefs.current[firstIncomplete.key]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          });
+        }
+      }
       return;
     }
     setIsSubmitting(true);
@@ -95,10 +113,11 @@ export function FoodSafetyInspectionForm({ onSubmit, onCancel, inspectorName }: 
         <div>
           <label className="block text-[10px] font-black text-psu-gray/40 uppercase tracking-widest mb-2">{t('inspection.areaLabel')}</label>
           <input
+            ref={areaFieldRef}
             value={areaAudited}
             onChange={e => setAreaAudited(e.target.value)}
             placeholder={t('inspection.areaPlaceholder')}
-            className="input-field"
+            className={cn("input-field", showValidation && areaAudited.trim().length === 0 && "ring-2 ring-psu-rejected/40")}
           />
         </div>
         <div className="grid grid-cols-2 gap-4">
@@ -149,8 +168,13 @@ export function FoodSafetyInspectionForm({ onSubmit, onCancel, inspectorName }: 
         {INSPECTION_SECTIONS.map((section, idx) => {
           const stats = sectionStats[idx];
           const isOpen = !!expanded[section.key];
+          const isIncomplete = showValidation && stats.answered < stats.total;
           return (
-            <div key={section.key} className="card p-0 overflow-hidden">
+            <div
+              key={section.key}
+              ref={el => { sectionRefs.current[section.key] = el; }}
+              className={cn("card p-0 overflow-hidden", isIncomplete && "ring-2 ring-psu-rejected/40")}
+            >
               <button
                 onClick={() => toggleSection(section.key)}
                 className="w-full flex items-center justify-between gap-3 p-5 text-left"

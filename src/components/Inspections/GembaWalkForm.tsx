@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronDown, ClipboardCheck, Clock, XCircle } from 'lucide-react';
 import { cn } from '../../utils/cn';
@@ -50,6 +50,11 @@ export function GembaWalkForm({ onSubmit, onCancel, inspectorName }: Props) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({ 'A-1': true });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showValidation, setShowValidation] = useState(false);
+  // Same reasoning as the Food Safety Inspection Checklist form — 59
+  // items across 16 categories is enough that a generic "complete all"
+  // banner leaves you hunting for the one you missed. Jump to it instead.
+  const categoryRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const areaFieldRef = useRef<HTMLInputElement>(null);
 
   const allItems = useMemo(() => GEMBA_SECTIONS.flatMap(s => s.categories.flatMap(c => c.items)), []);
   const totalItems = allItems.length;
@@ -73,6 +78,18 @@ export function GembaWalkForm({ onSubmit, onCancel, inspectorName }: Props) {
   const handleSubmit = async () => {
     if (!canSubmit) {
       setShowValidation(true);
+      if (areaAudited.trim().length === 0) {
+        areaFieldRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        areaFieldRef.current?.focus();
+      } else {
+        const firstIncompleteKey = Object.keys(categoryStats).find(key => categoryStats[key].answered < categoryStats[key].total);
+        if (firstIncompleteKey) {
+          setExpanded(p => ({ ...p, [firstIncompleteKey]: true }));
+          requestAnimationFrame(() => {
+            categoryRefs.current[firstIncompleteKey]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          });
+        }
+      }
       return;
     }
     setIsSubmitting(true);
@@ -132,7 +149,13 @@ export function GembaWalkForm({ onSubmit, onCancel, inspectorName }: Props) {
         </div>
         <div>
           <label className="block text-[10px] font-black text-psu-gray/40 uppercase tracking-widest mb-2">{t('gemba.areaLabel')}</label>
-          <input value={areaAudited} onChange={e => setAreaAudited(e.target.value)} placeholder={t('gemba.areaPlaceholder')} className="input-field" />
+          <input
+            ref={areaFieldRef}
+            value={areaAudited}
+            onChange={e => setAreaAudited(e.target.value)}
+            placeholder={t('gemba.areaPlaceholder')}
+            className={cn("input-field", showValidation && areaAudited.trim().length === 0 && "ring-2 ring-psu-rejected/40")}
+          />
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
@@ -168,8 +191,13 @@ export function GembaWalkForm({ onSubmit, onCancel, inspectorName }: Props) {
           {section.categories.map(cat => {
             const stats = categoryStats[cat.key];
             const isOpen = !!expanded[cat.key];
+            const isIncomplete = showValidation && stats.answered < stats.total;
             return (
-              <div key={cat.key} className="card p-0 overflow-hidden">
+              <div
+                key={cat.key}
+                ref={el => { categoryRefs.current[cat.key] = el; }}
+                className={cn("card p-0 overflow-hidden", isIncomplete && "ring-2 ring-psu-rejected/40")}
+              >
                 <button onClick={() => toggleCategory(cat.key)} className="w-full flex items-center justify-between gap-3 p-5 text-left">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-9 h-9 shrink-0 rounded-xl bg-psu-blue/10 text-psu-blue flex items-center justify-center text-[11px] font-black">

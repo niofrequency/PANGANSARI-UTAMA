@@ -126,7 +126,7 @@ export function HousekeeperPortal({ store }: { store: ReturnType<typeof useAppSt
                       
                       {!item.checked && (
                         <div className="mt-4">
-                          <PhotoCapture onCapture={(url) => handlePhoto(item.id, url)} />
+                          <PhotoCapture uid={currentUser?.id} onCapture={(url) => handlePhoto(item.id, url)} />
                         </div>
                       )}
                     </div>

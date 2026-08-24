@@ -31,10 +31,22 @@ Firebase environment variables below are present. Nothing else changes.
 ## 4. Enable Firestore
 
 1. In the left sidebar: **Build → Firestore Database → Create database**.
-2. Start in **production mode** (the app ships its own security rules — see step 6).
+2. Start in **production mode** (the app ships its own security rules — see step 7).
 3. Pick any region close to your users.
 
-## 5. Add your keys to Vercel
+## 5. Enable Storage
+
+1. In the left sidebar: **Build → Storage → Get started**.
+2. Start in **production mode** here too (same reason as Firestore — the
+   app ships its own rules, see step 7). Same region as Firestore is fine.
+3. This is where photo evidence (Housekeeping checklist photos, the
+   Technician's daily-log photo) gets uploaded once Firebase is
+   configured, instead of being embedded as base64 in each submission —
+   see `src/services/storageService.ts`. Nothing to configure beyond
+   enabling it; the app picks up `VITE_FIREBASE_STORAGE_BUCKET` from the
+   same `firebaseConfig` object as everything else (step 6).
+
+## 6. Add your keys to Vercel
 
 In your Vercel project: **Settings → Environment Variables**, add each of these
 (values come from the `firebaseConfig` object from step 2):
@@ -54,24 +66,28 @@ Apply them to all environments (Production, Preview, Development), then
 (For local development, copy `.env.example` to `.env.local` and fill in the
 same values. `.env.local` is already gitignored.)
 
-## 6. Deploy the Firestore security rules
+## 7. Deploy the security rules
 
-The repo includes `firestore.rules`, which locks down who can read/write
-user profiles (only the designated admin account can assign roles; nobody
-can grant themselves ADMIN). Deploy it with the Firebase CLI:
+The repo includes both `firestore.rules` (locks down who can read/write
+user profiles — only the designated admin account can assign roles;
+nobody can grant themselves ADMIN) and `storage.rules` (locks down photo
+uploads to each uploader's own folder — see the comments in that file).
+`firebase.json` already points at both, so one CLI setup covers them:
 
 ```bash
 npm install -g firebase-tools
 firebase login
-firebase init firestore   # point it at your existing project, keep the existing firestore.rules file
-firebase deploy --only firestore:rules
+firebase init   # point it at your existing project; when asked, select
+                # both Firestore and Storage, and keep the existing
+                # firestore.rules / storage.rules files (don't overwrite)
+firebase deploy --only firestore:rules,storage
 ```
 
 If you skip this step, the app still works, but the security rules
 enforced *only* by the client code are the sole protection — not
 recommended for a real deployment.
 
-## 7. Create your admin account
+## 8. Create your admin account
 
 Once the env vars are live on Vercel:
 
@@ -83,7 +99,7 @@ Once the env vars are live on Vercel:
 3. You're now logged into the Admin Portal. From here, use **Add Staff
    Member** to create profiles (name, role, site) for everyone else.
 
-## 8. How staff activate their accounts
+## 9. How staff activate their accounts
 
 Nobody else can self-register — an admin has to add their email first
 (step 7.3). Once added:
@@ -103,9 +119,9 @@ flow again.
 
 Submissions, warnings, and training-completion records still live in each
 browser's `localStorage` in this version — only user accounts/roles are on
-Firestore. That means submission history won't currently sync across
-devices. If you want those on Firestore too, `src/services/usersService.ts`
-is a template for the pattern (a `subscribe*` live-query function + plain
-async write functions) — the same shape applies to `submissions`,
-`warnings`, and `trainings` collections, plus matching rules added to
-`firestore.rules`.
+Firestore, and only photo evidence is on Storage. That means submission
+history won't currently sync across devices, even in Firebase mode. If you
+want those on Firestore too, `src/services/usersService.ts` is a template
+for the pattern (a `subscribe*` live-query function + plain async write
+functions) — the same shape applies to `submissions`, `warnings`, and
+`trainings` collections, plus matching rules added to `firestore.rules`.

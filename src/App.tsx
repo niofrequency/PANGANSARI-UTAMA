@@ -19,7 +19,7 @@ import { motion, AnimatePresence } from 'motion/react';
 
 export default function App() {
   const store = useAppStore();
-  const { currentUser, logout, isAuthResolving } = store;
+  const { currentUser, logout, isAuthResolving, storageError } = store;
   const { t } = useTranslation();
 
   // Simple routing based on role
@@ -111,7 +111,7 @@ export default function App() {
             exit={{ opacity: 0, y: -10 }}
             className="pb-20"
           >
-            <Layout user={currentUser} onLogout={logout}>
+            <Layout user={currentUser} onLogout={logout} storageError={storageError}>
               {renderPortal()}
             </Layout>
           </motion.div>

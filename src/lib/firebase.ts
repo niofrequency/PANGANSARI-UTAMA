@@ -25,6 +25,7 @@ import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
 import { getAuth, setPersistence, browserLocalPersistence, type Auth } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 import { getFunctions, type Functions } from 'firebase/functions';
+import { getStorage, type FirebaseStorage } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -51,6 +52,12 @@ export const db: Firestore | null = app ? getFirestore(app) : null;
 // Region must match the Cloud Function (us-central1). Without this, the
 // client can hit the wrong endpoint and you get opaque CORS / not-found errors.
 export const functions: Functions | null = app ? getFunctions(app, 'us-central1') : null;
+// Photo evidence (Housekeeping checklist items, the Technician's daily
+// log) uploads here instead of being embedded as base64 in submissions
+// when Firebase is configured — see services/storageService.ts and
+// storage.rules. In demo mode, photos stay as local data URLs; there's no
+// bucket to upload to.
+export const storage: FirebaseStorage | null = app ? getStorage(app) : null;
 
 // Explicit rather than relying on the SDK default: keeps people logged in
 // across page refreshes and browser restarts (persisted in IndexedDB),

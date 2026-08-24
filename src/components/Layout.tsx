@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User } from '../types';
-import { LogOut, MapPin, Download } from 'lucide-react';
+import { LogOut, MapPin, Download, AlertTriangle } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext';
 import { InstallGuide } from './InstallGuide';
 
@@ -8,9 +8,14 @@ interface LayoutProps {
   user: User;
   onLogout: () => void;
   children: React.ReactNode;
+  // Set by useAppStore when a localStorage write just failed (almost
+  // always because the browser's per-origin quota is full) — shown as a
+  // persistent banner so it's not a silent failure, since the effect that
+  // failed is the one that would have saved whatever was just submitted.
+  storageError?: 'quota' | 'unknown' | null;
 }
 
-export function Layout({ user, onLogout, children }: LayoutProps) {
+export function Layout({ user, onLogout, children, storageError }: LayoutProps) {
   const { t, language, toggleLanguage } = useTranslation();
   const [showInstallGuide, setShowInstallGuide] = useState(false);
 
@@ -68,6 +73,13 @@ export function Layout({ user, onLogout, children }: LayoutProps) {
           </button>
         </div>
       </header>
+
+      {storageError && (
+        <div className="bg-psu-warning/10 border-b border-psu-warning/20 text-psu-warning px-4 sm:px-6 py-3 flex items-start gap-2.5 text-xs font-medium">
+          <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+          <span>{storageError === 'quota' ? t('layout.storageQuotaWarning') : t('layout.storageUnknownWarning')}</span>
+        </div>
+      )}
 
       <main className="flex-1 container max-w-6xl mx-auto p-6">
         {children}

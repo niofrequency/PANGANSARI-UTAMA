@@ -2,10 +2,28 @@ import React, { useRef, useState } from 'react';
 import { Camera, Clock, AlertCircle, MapPin } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useTranslation } from '../i18n/LanguageContext';
+import { isFirebaseConfigured } from '../lib/firebase';
+import { uploadSubmissionPhoto } from '../services/storageService';
 
 interface PhotoCaptureProps {
   onCapture: (url: string) => void;
+  // The uploader's Firebase Auth uid. Only used in Firebase mode — pass it
+  // whenever one's available (every portal that renders this already has
+  // currentUser in scope) so the photo uploads to Storage instead of
+  // sitting in localStorage as base64. Omit it (or run in demo mode) and
+  // this behaves exactly as before: the local data URL is the final value.
+  uid?: string;
 }
+
+// A modern phone camera easily produces a 4000x3000+ original — several MB
+// once base64-encoded, and this app stores photos inline in each
+// submission (in localStorage in demo mode, always; see useAppStore.ts).
+// A handful of full-resolution photos is enough to exhaust the browser's
+// storage quota outright. There's nothing here that needs more detail
+// than fits on a phone screen, so every photo is downscaled to this before
+// it's ever stored — still plenty for the timestamp/GPS stamp and for a
+// supervisor reviewing it, at a fraction of the size.
+const MAX_DIMENSION = 1280;
 
 // Draws the captured photo onto a canvas with a real timestamp (and GPS
 // coordinates, when the browser grants location permission) burned into the
@@ -18,16 +36,17 @@ function stampPhoto(file: File, coords: GeolocationCoordinates | null): Promise<
     reader.onload = () => {
       img.onerror = reject;
       img.onload = () => {
+        const scale = Math.min(1, MAX_DIMENSION / Math.max(img.width, img.height));
         const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
         const ctx = canvas.getContext('2d');
         if (!ctx) return reject(new Error('Canvas unavailable'));
-        ctx.drawImage(img, 0, 0);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-        const barHeight = Math.max(28, Math.round(img.height * 0.06));
+        const barHeight = Math.max(28, Math.round(canvas.height * 0.06));
         ctx.fillStyle = 'rgba(0,0,0,0.55)';
-        ctx.fillRect(0, img.height - barHeight, img.width, barHeight);
+        ctx.fillRect(0, canvas.height - barHeight, canvas.width, barHeight);
 
         const fontSize = Math.max(12, Math.round(barHeight * 0.42));
         ctx.fillStyle = '#ffffff';
@@ -36,12 +55,12 @@ function stampPhoto(file: File, coords: GeolocationCoordinates | null): Promise<
 
         const timestamp = new Date().toLocaleString();
         ctx.textAlign = 'left';
-        ctx.fillText(timestamp, 12, img.height - barHeight / 2);
+        ctx.fillText(timestamp, 12, canvas.height - barHeight / 2);
 
         if (coords) {
           const gps = `${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)}`;
           ctx.textAlign = 'right';
-          ctx.fillText(gps, img.width - 12, img.height - barHeight / 2);
+          ctx.fillText(gps, canvas.width - 12, canvas.height - barHeight / 2);
         }
 
         resolve(canvas.toDataURL('image/jpeg', 0.85));
@@ -52,7 +71,7 @@ function stampPhoto(file: File, coords: GeolocationCoordinates | null): Promise<
   });
 }
 
-export function PhotoCapture({ onCapture }: PhotoCaptureProps) {
+export function PhotoCapture({ onCapture, uid }: PhotoCaptureProps) {
   const { t } = useTranslation();
   const [isCapturing, setIsCapturing] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
@@ -74,7 +93,20 @@ export function PhotoCapture({ onCapture }: PhotoCaptureProps) {
       });
       const stamped = await stampPhoto(file, coords);
       setPreview(stamped);
+      // Local data URL first, always — instant preview, and the value
+      // used as-is in demo mode. In Firebase mode this is upgraded below
+      // once the upload finishes; if that fails (offline, etc.) this
+      // local copy is what ends up submitted, not nothing.
       onCapture(stamped);
+
+      if (isFirebaseConfigured && uid) {
+        try {
+          const remoteUrl = await uploadSubmissionPhoto(uid, stamped);
+          onCapture(remoteUrl);
+        } catch (uploadErr) {
+          console.error('Photo upload to Storage failed, keeping local copy:', uploadErr);
+        }
+      }
     } catch (e) {
       setError(t('photoCapture.errorGeneric'));
     } finally {
