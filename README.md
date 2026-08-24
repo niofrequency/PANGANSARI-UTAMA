@@ -62,13 +62,56 @@ A Housekeeping Supervisor/Manager and a Food Safety Supervisor/Manager
 only ever see their own department's submissions — the General Manager
 role is the deliberate exception.
 
+## How it works
+
+Every screen in the app produces one of two kinds of record: something
+that needs a human to review it, or a self-contained audit that doesn't.
+
+**Submit → review → approve (the daily checklists)**
+
+1. A Housekeeper or Food Safety Technician fills out their daily
+   checklist and submits it. Status starts **Pending**.
+2. It lands in their Supervisor's **Field Queue** — scoped to the same
+   department *and* site, so a Housekeeping Supervisor never sees Food
+   Safety submissions or another site's queue, and vice versa.
+3. The Supervisor opens it, sees every item's answer (plus any photo),
+   and **Approves** or **Rejects** (with a reason, sent back to the
+   submitter).
+4. Anything still Pending also shows up in that department's **Manager**
+   under **Escalations** — the same queue, department + site scoped, as
+   a manager-level override.
+5. The **Food Safety Technician's** daily log carries one extra piece: a
+   19-item Wellness / Personal Hygiene / PPE self-check, folded into the
+   same submission. "Ready to Work" is computed live as they answer it;
+   if anything comes back Not Good, the card shows up **red-flagged** in
+   the Supervisor's Field Queue with a warning banner, before they've
+   even opened it.
+
+**Fill → submit → done (the Inspections audits)**
+
+The three Inspections audits (see below) skip the review step entirely —
+a Food Safety Supervisor, Manager, or the General Manager fills one out
+and submits, and it's saved instantly as the record. No second approval,
+same as the paper form it replaces.
+
+**The General Manager and Admin sit outside this**
+
+- **General Manager** — the one role not scoped to a single department:
+  its Escalations queue pulls Pending submissions from *both*
+  departments and every site.
+- **Admin** — never touches a submission at all; the Admin Portal only
+  manages staff accounts and role assignments.
+- **Analytics Dashboard** (both kinds of Manager) — aggregates every
+  submission, every site, every department into one combined score. It's
+  not split by department yet, so "today's score" is one number covering
+  everything.
+
 ## The Inspections system
 
-Three audits, transcribed verbatim from PSU's own QHSE Excel checklists,
-available to Food Safety Supervisors, Managers, and the General Manager
-under the **Inspections** tab. Each is a self-contained record — no
-second reviewer signs off, it's saved as Approved the moment it's
-submitted:
+The three audits behind the "fill → submit → done" flow above, available
+under the **Inspections** tab to Food Safety Supervisors, Managers, and
+the General Manager. Each is transcribed verbatim from one of PSU's own
+QHSE Excel checklists:
 
 | Audit | Structure | Scoring |
 |---|---|---|
