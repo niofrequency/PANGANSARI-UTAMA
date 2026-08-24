@@ -7,13 +7,27 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { DAILY_FOOD_HANDLER_GROUPS, DAILY_FOOD_HANDLER_ALL_CRITERIA } from '../../data/dailyFoodHandlerData';
-import { computeReadyToWork, countMarked, isGoodMark } from '../../data/dailyFoodHandlerScoring';
+import { computeReadyToWork, countMarked, isGoodMark, isUnrecognizedMark } from '../../data/dailyFoodHandlerScoring';
 
 const GROUP_LABEL_KEY: Record<string, string> = {
   wellness: 'dfh.groupWellness',
   personalHygiene: 'dfh.groupPersonalHygiene',
   ppe: 'dfh.groupPpe',
 };
+
+// A generous sanity range, not an official PSU SOP threshold — this app
+// isn't the authority on what's food-safe, it just catches the kind of
+// input that's obviously not a real reading (an empty field left at
+// whatever the last person typed, a stray extra digit, a sign flip) so it
+// isn't recorded as-is with nothing questioning it. Covers a chest freezer
+// on the cold end through a deep fryer on the hot end.
+const MIN_PLAUSIBLE_TEMP_C = -30;
+const MAX_PLAUSIBLE_TEMP_C = 200;
+
+function isPlausibleTemp(value: string): boolean {
+  const n = Number(value);
+  return value.trim() !== '' && Number.isFinite(n) && n >= MIN_PLAUSIBLE_TEMP_C && n <= MAX_PLAUSIBLE_TEMP_C;
+}
 
 export function TechnicianPortal({ store }: { store: ReturnType<typeof useAppStore> }) {
   const { t } = useTranslation();
@@ -44,7 +58,9 @@ export function TechnicianPortal({ store }: { store: ReturnType<typeof useAppSto
   const markedCount = countMarked(wellnessMarks);
   const allMarked = markedCount === totalCriteria;
   const readyToWork = useMemo(() => computeReadyToWork(wellnessMarks), [wellnessMarks]);
-  const canSubmit = allMarked;
+  const fridgeTempValid = isPlausibleTemp(formData.fridgeTemp);
+  const coreTempValid = isPlausibleTemp(formData.cookingTemp);
+  const canSubmit = allMarked && fridgeTempValid && coreTempValid;
 
   const setMark = (criterionId: string, mark: string) => {
     setWellnessMarks(p => ({ ...p, [criterionId]: mark }));
@@ -152,19 +168,33 @@ export function TechnicianPortal({ store }: { store: ReturnType<typeof useAppSto
                   <label className="block text-[10px] font-black text-psu-gray/40 uppercase tracking-widest mb-2">{t('technician.fridgeTemp')}</label>
                   <input
                     type="number"
+                    required
                     value={formData.fridgeTemp}
                     onChange={(e) => setFormData(p => ({ ...p, fridgeTemp: e.target.value }))}
-                    className="w-full bg-psu-bg border border-psu-gray/10 rounded-xl p-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-psu-blue/20"
+                    className={cn(
+                      "w-full bg-psu-bg border rounded-xl p-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-psu-blue/20",
+                      showValidation && !fridgeTempValid ? "border-psu-rejected" : "border-psu-gray/10"
+                    )}
                   />
+                  {showValidation && !fridgeTempValid && (
+                    <p className="text-[10px] text-psu-rejected font-bold mt-1.5">{t('technician.tempInvalid')}</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-[10px] font-black text-psu-gray/40 uppercase tracking-widest mb-2">{t('technician.coreTemp')}</label>
                   <input
                     type="number"
+                    required
                     value={formData.cookingTemp}
                     onChange={(e) => setFormData(p => ({ ...p, cookingTemp: e.target.value }))}
-                    className="w-full bg-psu-bg border border-psu-gray/10 rounded-xl p-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-psu-blue/20"
+                    className={cn(
+                      "w-full bg-psu-bg border rounded-xl p-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-psu-blue/20",
+                      showValidation && !coreTempValid ? "border-psu-rejected" : "border-psu-gray/10"
+                    )}
                   />
+                  {showValidation && !coreTempValid && (
+                    <p className="text-[10px] text-psu-rejected font-bold mt-1.5">{t('technician.tempInvalid')}</p>
+                  )}
                 </div>
               </div>
 
@@ -212,17 +242,24 @@ export function TechnicianPortal({ store }: { store: ReturnType<typeof useAppSto
                                 <span className="font-bold text-psu-gray">{criterion.labelId}</span>
                               )}
                             </span>
-                            <input
-                              value={mark || ''}
-                              onChange={e => setMark(criterion.id, e.target.value)}
-                              placeholder={t('dfh.markPlaceholder')}
-                              maxLength={8}
-                              className={cn(
-                                "w-16 shrink-0 text-center p-2 rounded-lg text-xs font-black border-2 uppercase focus:outline-none transition-colors",
-                                !mark ? "bg-psu-bg border-psu-gray/10 text-psu-gray/60" :
-                                isGoodMark(mark) ? "bg-psu-green/10 border-psu-green text-psu-green" : "bg-psu-rejected/10 border-psu-rejected text-psu-rejected"
+                            <div className="flex flex-col items-end gap-1 shrink-0">
+                              <input
+                                value={mark || ''}
+                                onChange={e => setMark(criterion.id, e.target.value)}
+                                placeholder={t('dfh.markPlaceholder')}
+                                maxLength={8}
+                                className={cn(
+                                  "w-16 text-center p-2 rounded-lg text-xs font-black border-2 uppercase focus:outline-none transition-colors",
+                                  !mark ? "bg-psu-bg border-psu-gray/10 text-psu-gray/60" :
+                                  isGoodMark(mark) ? "bg-psu-green/10 border-psu-green text-psu-green" :
+                                  isUnrecognizedMark(mark) ? "bg-psu-warning/10 border-psu-warning text-psu-warning" :
+                                  "bg-psu-rejected/10 border-psu-rejected text-psu-rejected"
+                                )}
+                              />
+                              {isUnrecognizedMark(mark) && (
+                                <span className="text-[8.5px] font-bold text-psu-warning text-right leading-tight max-w-[90px]">{t('dfh.markUnrecognized')}</span>
                               )}
-                            />
+                            </div>
                           </div>
                         );
                       })}
@@ -246,7 +283,7 @@ export function TechnicianPortal({ store }: { store: ReturnType<typeof useAppSto
 
               <div>
                 <label className="block text-[10px] font-black text-psu-gray/40 uppercase tracking-widest mb-3">{t('technician.photoLabel')}</label>
-                <PhotoCapture onCapture={(url) => setFormData(p => ({ ...p, photo: url }))} />
+                <PhotoCapture uid={currentUser?.id} onCapture={(url) => setFormData(p => ({ ...p, photo: url }))} />
               </div>
 
               <button 

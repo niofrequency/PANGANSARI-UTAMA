@@ -44,23 +44,29 @@ export function SupervisorPortal({ store }: { store: ReturnType<typeof useAppSto
   };
 
   const handleReject = (id: string) => {
-    if (!rejectionReason) {
+    // .trim() matters here specifically because this reason gets shown
+    // back to the person who submitted, as the whole explanation for why
+    // their work was rejected — a lone space used to pass this check
+    // silently and land them a blank-looking rejection.
+    if (!rejectionReason.trim()) {
       alert(t('supervisorHK.rejectionRequired'));
       return;
     }
-    updateSubmissionStatus(id, 'REJECTED', rejectionReason);
+    updateSubmissionStatus(id, 'REJECTED', rejectionReason.trim());
     setSelectedSubmission(null);
     setRejectionReason('');
   };
 
   const handleIssueWarning = () => {
-    if (!warningData.userId || !warningData.reason) return;
+    // Same .trim() reasoning as handleReject — this reason becomes a
+    // permanent mark on someone's record.
+    if (!warningData.userId || !warningData.reason.trim()) return;
     const tech = users.find(u => u.id === warningData.userId);
     addWarning({
       technicianId: warningData.userId,
       technicianName: tech?.name || 'Unknown',
       supervisorId: currentUser!.id,
-      reason: warningData.reason,
+      reason: warningData.reason.trim(),
       severity: warningData.severity,
       timestamp: new Date().toISOString()
     });
@@ -315,7 +321,7 @@ export function SupervisorPortal({ store }: { store: ReturnType<typeof useAppSto
                   <button onClick={() => setShowWarningDialog(false)} className="flex-1 py-3 text-slate-400 font-bold text-xs">{t('common.cancel')}</button>
                   <button 
                     onClick={handleIssueWarning}
-                    disabled={!warningData.userId || !warningData.reason}
+                    disabled={!warningData.userId || !warningData.reason.trim()}
                     className="flex-1 py-3 bg-psu-warning text-white rounded-xl font-black text-xs disabled:opacity-50"
                   >
                     {t('supervisorHK.issueWarning')}

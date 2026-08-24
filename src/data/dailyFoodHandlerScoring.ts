@@ -13,6 +13,21 @@ export function isGoodMark(mark?: string): boolean {
   return (mark || '').trim().toLowerCase() === 'v';
 }
 
+// The flip side of accepting free text: nothing stops someone typing a
+// perfectly reasonable word — "good", "ok", a stray character — that
+// isn't the source's own "v". That silently scores as Not Good, same as
+// a deliberate "x", with nothing distinguishing "I meant Good and typed
+// the wrong thing" from "I meant Not Good" — on a form whose whole point
+// is flagging when someone might not be fit to handle food, so a typo
+// reading as the opposite of what was meant is a real problem, not a
+// cosmetic one. This tells the UI when a mark is filled in but isn't
+// either character the form actually expects, so it can warn instead of
+// quietly treating it as a deliberate "x".
+export function isUnrecognizedMark(mark?: string): boolean {
+  const trimmed = (mark || '').trim().toLowerCase();
+  return trimmed.length > 0 && trimmed !== 'v' && trimmed !== 'x';
+}
+
 // The source template has no formula at all — every cell, including
 // "Ready to Work", is filled in by hand. This app computes "Ready to Work"
 // rather than asking for it separately: a "v" on every one of the 19
