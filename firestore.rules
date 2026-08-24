@@ -3,19 +3,21 @@ rules_version = '2';
 // Deploy with: firebase deploy --only firestore:rules
 // (requires the Firebase CLI and `firebase init` once, pointed at this project)
 //
-// Mirrors the logic in src/services/authService.ts and usersService.ts:
-//   - Anyone signed in can read the staff directory (needed for the
-//     Supervisor "issue warning" dropdown, Admin Portal list, etc).
-//   - A user can only ever write their OWN document, and only to attach
-//     their uid on first login (never to change their own role or
-//     active status — that's an admin-only action).
-//   - Only the designated super-admin account may create/edit other
-//     users' documents, and even they can never set role to ADMIN on
-//     anyone but themselves.
+// Covers every collection in the app's data model (see src/types.ts):
+//   users        — accounts + roles
+//   submissions  — checklist/work-order submissions
+//   warnings     — supervisor-issued warnings
+//   trainings    — training module completion
 //
-// This is enforced here independently of the client-side checks in
-// useAppStore.ts / AdminPortal.tsx, so a modified or malicious client
-// still can't do anything the rules don't allow.
+// NOTE: as of this version, only `users` is actually read/written from
+// Firestore by the client (src/services/authService.ts, usersService.ts) —
+// submissions/warnings/trainings still live in each browser's localStorage
+// (see useAppStore.ts, FIREBASE_SETUP.md). The rules below for those three
+// collections are ready for whenever that migration happens; they're inert
+// until then, not currently exercised by any client code.
+//
+// Open self-signup is allowed: a new user may create their OWN users/{email}
+// doc once, with a non-ADMIN role. Admin still controls role changes after that.
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -34,22 +36,43 @@ service cloud.firestore {
       return isSignedIn() && email() == 'mpigome44@gmail.com';
     }
 
-    function isOwnDoc(userId) {
+    function isOwnUserDoc(userId) {
       return isSignedIn() && userId == email();
     }
 
-    match /users/{userId} {
-      allow read: if isSignedIn();
+    function onlyChanged(allowedKeys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowedKeys);
+    }
 
-      // First-login activation: a user may attach their own uid to their
-      // own (pre-existing, admin-created) doc, but may not change their
-      // role, isActive flag, site, name, or email while doing so.
-      allow update: if isOwnDoc(userId)
-        && request.resource.data.role == resource.data.role
-        && request.resource.data.isActive == resource.data.isActive
-        && request.resource.data.site == resource.data.site
-        && request.resource.data.name == resource.data.name
-        && request.resource.data.email == resource.data.email
+    // ── users ────────────────────────────────────────────────────────
+    match /users/{userId} {
+      // Public single-doc lookup, deliberately not gated on isSignedIn():
+      // loginOrRegister() in authService.ts calls getDoc(users/{email})
+      // BEFORE the person is authenticated, to check whether an invite
+      // exists for that email at all. Without this exact rule, that first
+      // read throws "Missing or insufficient permissions" on every login
+      // attempt — it's not wrapped in try/catch client-side, so it
+      // surfaces as an uncaught crash, not a friendly error message.
+      // Listing the whole collection still requires sign-in.
+      allow get: if true;
+      allow list: if isSignedIn();
+
+      // Open self-signup: a signed-in user creates THEIR OWN doc once
+      // (right after createUserWithEmailAndPassword, when no invite
+      // existed for their email). Cannot self-assign ADMIN. Cannot
+      // create a doc for a different email than their own.
+      allow create: if isOwnUserDoc(userId)
+        && request.resource.data.email == email()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.role != 'ADMIN'
+        && request.resource.data.isActive == true;
+
+      // First-login activation (invite path): a user may attach their own
+      // uid to their own (pre-existing, admin-created) doc, optionally
+      // correcting their name at the same time — but nothing else. Role,
+      // isActive, site, and email changes are admin-only.
+      allow update: if isOwnUserDoc(userId)
+        && onlyChanged(['uid', 'firstName', 'lastName', 'name'])
         && resource.data.uid == null
         && request.resource.data.uid == request.auth.uid;
 
@@ -61,9 +84,49 @@ service cloud.firestore {
       allow delete: if isSuperAdmin() && userId != 'mpigome44@gmail.com';
     }
 
-    // Everything else (submissions, warnings, trainings) still lives in
-    // localStorage in this version of the app — see FIREBASE_SETUP.md if
-    // you extend the store to move those into Firestore too, and add
-    // matching rules for them here before you do.
+    // ── submissions (not yet used by the client — see note above) ─────
+    match /submissions/{submissionId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == 'PENDING';
+
+      // A reviewer (not the submitter) may change status/rejectionReason
+      // only — never rewrite someone else's submitted answers.
+      allow update: if isSignedIn()
+        && request.auth.uid != resource.data.userId
+        && onlyChanged(['status', 'rejectionReason']);
+
+      allow delete: if false;
+    }
+
+    // ── warnings (not yet used by the client — see note above) ────────
+    match /warnings/{warningId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && request.resource.data.supervisorId == request.auth.uid;
+
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ── trainings (not yet used by the client — see note above) ───────
+    match /trainings/{moduleId} {
+      allow read: if isSignedIn();
+
+      allow create, delete: if isSuperAdmin();
+
+      // Admin can edit anything; anyone signed in may mark themselves
+      // complete (append their own uid to completedBy) but nothing else.
+      allow update: if isSuperAdmin()
+        || (
+          isSignedIn()
+          && onlyChanged(['completedBy'])
+          && request.resource.data.completedBy.size() == resource.data.completedBy.size() + 1
+          && request.resource.data.completedBy.toSet().difference(resource.data.completedBy.toSet()) == [request.auth.uid].toSet()
+        );
+    }
   }
 }
