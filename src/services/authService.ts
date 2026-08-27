@@ -85,9 +85,14 @@ export async function loginOrRegister(
     if (data.isActive === false) return { ok: false, error: 'inactive' };
 
     if (data.uid) {
-      // Already activated — normal sign-in.
+      // Already activated — normal sign-in. Use emailLower, not the raw
+      // `email` argument: Firebase Auth was created with emailLower too
+      // (see below), so signing in with anything that differs only by
+      // case or stray whitespace from what was typed at signup would
+      // otherwise risk a mismatch. Always go through the same normalized
+      // string both times.
       try {
-        await signInWithEmailAndPassword(auth, email, password);
+        await signInWithEmailAndPassword(auth, emailLower, password);
         return { ok: true, profile: data };
       } catch {
         return { ok: false, error: 'invalid' };
@@ -98,14 +103,31 @@ export async function loginOrRegister(
       // on the Sign Up form, save it now — it's more authoritative than
       // whatever the admin guessed when creating the invite.
       try {
-        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        const cred = await createUserWithEmailAndPassword(auth, emailLower, password);
         const nameUpdate =
           firstName && lastName
             ? { firstName, lastName, name: `${firstName} ${lastName}`.trim() }
             : {};
         await updateDoc(ref, { uid: cred.user.uid, ...nameUpdate });
         return { ok: true, profile: { ...data, ...nameUpdate, uid: cred.user.uid } };
-      } catch {
+      } catch (err: any) {
+        // The Auth account can already exist here if a previous attempt got
+        // as far as creating it but failed before updateDoc — e.g. a
+        // dropped connection, or the Firestore write getting rejected.
+        // Without this fallback that person is stuck forever: every future
+        // login re-tries createUserWithEmailAndPassword, which always fails
+        // with "already exists", and they see a generic invalid-credentials
+        // error with no way out. Try signing in with what they just typed
+        // instead, and finish the activation (write the uid) if it works.
+        if (err?.code === 'auth/email-already-exists' || err?.code === 'auth/credential-already-in-use') {
+          try {
+            const cred = await signInWithEmailAndPassword(auth, emailLower, password);
+            await updateDoc(ref, { uid: cred.user.uid });
+            return { ok: true, profile: { ...data, uid: cred.user.uid } };
+          } catch {
+            return { ok: false, error: 'invalid' };
+          }
+        }
         return { ok: false, error: 'invalid' };
       }
     }
@@ -117,7 +139,7 @@ export async function loginOrRegister(
     const fn = firstName || 'Admin';
     const ln = lastName || '';
     try {
-      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      const cred = await createUserWithEmailAndPassword(auth, emailLower, password);
       const profile: FirestoreUserProfile = {
         name: `${fn} ${ln}`.trim(),
         firstName: fn,
@@ -135,7 +157,7 @@ export async function loginOrRegister(
       // Firestore doc got deleted. Fall back to a normal sign-in and
       // re-create the profile doc if that succeeds.
       try {
-        const cred = await signInWithEmailAndPassword(auth, email, password);
+        const cred = await signInWithEmailAndPassword(auth, emailLower, password);
         const profile: FirestoreUserProfile = {
           name: `${fn} ${ln}`.trim(),
           firstName: fn,
@@ -160,23 +182,40 @@ export async function loginOrRegister(
   if (!firstName?.trim()) {
     return { ok: false, error: 'invalid' };
   }
+  const fn = firstName.trim();
+  const ln = (lastName || '').trim();
+  const buildProfile = (uid: string): FirestoreUserProfile => ({
+    name: `${fn} ${ln}`.trim(),
+    firstName: fn,
+    lastName: ln,
+    email: emailLower,
+    role: 'FOOD_SAFETY_TECHNICIAN',
+    site: 'site-1',
+    isActive: true,
+    uid,
+  });
   try {
-    const fn = firstName.trim();
-    const ln = (lastName || '').trim();
-    const cred = await createUserWithEmailAndPassword(auth, email, password);
-    const profile: FirestoreUserProfile = {
-      name: `${fn} ${ln}`.trim(),
-      firstName: fn,
-      lastName: ln,
-      email: emailLower,
-      role: 'FOOD_SAFETY_TECHNICIAN',
-      site: 'site-1',
-      isActive: true,
-      uid: cred.user.uid,
-    };
+    const cred = await createUserWithEmailAndPassword(auth, emailLower, password);
+    const profile = buildProfile(cred.user.uid);
     await setDoc(ref, profile);
     return { ok: true, profile };
-  } catch {
+  } catch (err: any) {
+    // Same recovery as above: if the Auth account exists but no Firestore
+    // doc does (setDoc failed on a prior attempt, or the doc was deleted),
+    // every retry through this branch would otherwise fail forever with
+    // "email already exists" and a generic, unhelpful error — this is the
+    // exact "I signed up, logged out, now I can't log back in" trap. Try
+    // signing in with what they just typed and rebuild the missing doc.
+    if (err?.code === 'auth/email-already-exists' || err?.code === 'auth/credential-already-in-use') {
+      try {
+        const cred = await signInWithEmailAndPassword(auth, emailLower, password);
+        const profile = buildProfile(cred.user.uid);
+        await setDoc(ref, profile);
+        return { ok: true, profile };
+      } catch {
+        return { ok: false, error: 'invalid' };
+      }
+    }
     return { ok: false, error: 'invalid' };
   }
 }
