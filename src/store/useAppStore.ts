@@ -247,22 +247,28 @@ export function useAppStore() {
   const addUser = async (
     user: Omit<User, 'id' | 'isActive'>,
     password?: string
-  ): Promise<{ ok: boolean; error?: string }> => {
+  ): Promise<{ ok: boolean; error?: string; activated?: boolean }> => {
     if (isFirebaseConfigured) {
       if (password) {
         const result = await createStaffAccount({ ...user, password });
-        if (result.ok) return { ok: true };
+        // activated: true — the password shown to the admin is real and
+        // works right now. Callers MUST check this before telling the
+        // admin the account is ready to hand over: this return value is
+        // the only signal that the fallback below happened instead.
+        if (result.ok) return { ok: true, activated: true };
         // Hard failures: email already exists or bad input — don't mask them.
         if (result.error === 'already-exists' || result.error === 'invalid-argument') {
           return { ok: false, error: result.error };
         }
-        // Function unreachable / internal → invite fallback (staff Sign Up later).
+        // Function unreachable / internal → invite fallback (staff Sign Up
+        // later). The password the admin just generated was NEVER set
+        // anywhere — activated: false says so.
         console.warn('createStaffAccount failed, falling back to invite:', result.error);
         await inviteUser(user);
-        return { ok: true };
+        return { ok: true, activated: false };
       }
       await inviteUser(user);
-      return { ok: true };
+      return { ok: true, activated: false };
     }
     // Demo mode has no server to enforce this, so it has to happen here —
     // without it, Add Staff would silently create a second account on an
@@ -276,7 +282,7 @@ export function useAppStore() {
     }
     const newUser: User = { ...user, id: `u-${Date.now()}`, isActive: true };
     setUsers(prev => [...prev, newUser]);
-    return { ok: true };
+    return { ok: true, activated: true };
   };
 
   const updateUserRole = (userId: string, role: UserRole) => {
