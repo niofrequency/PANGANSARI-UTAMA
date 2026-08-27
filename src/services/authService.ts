@@ -33,14 +33,78 @@ import {
   type User as FirebaseUser,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, onSnapshot } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
+import { httpsCallable } from 'firebase/functions';
+import { auth, db, functions } from '../lib/firebase';
 import { User, UserRole } from '../types';
 
 export const SUPER_ADMIN_EMAIL = 'mpigome44@gmail.com';
 
+// Calls the reclaimAbandonedSignup Cloud Function (functions/src/index.ts)
+// — clears an orphaned Firebase Auth account (one whose Firestore profile
+// was deleted, so nothing in the app claims it any more) so self-signup can
+// create a fresh account instead of failing forever with "email already in
+// use." Best-effort: if it's unreachable or the account isn't actually
+// reclaimable (still active, or deliberately deactivated by an admin), this
+// just returns false and the caller falls back to trying a normal sign-in.
+async function tryReclaimAbandonedSignup(emailLower: string): Promise<boolean> {
+  if (!functions) return false;
+  try {
+    const callable = httpsCallable(functions, 'reclaimAbandonedSignup');
+    const result = await callable({ email: emailLower });
+    return Boolean((result.data as { reclaimed?: boolean } | undefined)?.reclaimed);
+  } catch (err) {
+    console.error('reclaimAbandonedSignup call failed:', err);
+    return false;
+  }
+}
+
 export type LoginResult =
   | { ok: true; profile: FirestoreUserProfile }
-  | { ok: false; error: 'invalid' | 'inactive' | 'no-invite' | 'popup-closed' };
+  | {
+      ok: false;
+      error:
+        | 'invalid'
+        | 'inactive'
+        | 'no-invite'
+        | 'popup-closed'
+        | 'weak-password'
+        | 'invalid-email'
+        | 'signup-disabled'
+        | 'network'
+        | 'too-many-requests';
+    };
+
+// Turns a raw Firebase Auth error into one of the specific LoginResult
+// codes above when it's something the person can actually act on or that
+// points at a real setup problem — everything else still collapses to the
+// generic 'invalid', but always logged first. Without this, every failure
+// from createUserWithEmailAndPassword (a too-short password, the
+// Email/Password sign-in provider not being enabled in the Firebase
+// Console, a dropped connection, Firebase's own abuse-rate-limiting) showed
+// the exact same "Invalid credentials, or this account has been
+// deactivated" banner — which is actively misleading on a first-ever
+// signup, since there's no prior credential or account to speak of.
+function mapAuthError(err: any, context: string): LoginResult {
+  console.error(`${context}:`, err?.code, err?.message);
+  switch (err?.code) {
+    case 'auth/weak-password':
+      return { ok: false, error: 'weak-password' };
+    case 'auth/invalid-email':
+      return { ok: false, error: 'invalid-email' };
+    case 'auth/operation-not-allowed':
+      // The Email/Password provider is off in Firebase Console →
+      // Authentication → Sign-in method. This blocks EVERY signup, new
+      // account or not — if signups are failing for brand-new emails too,
+      // check this first.
+      return { ok: false, error: 'signup-disabled' };
+    case 'auth/network-request-failed':
+      return { ok: false, error: 'network' };
+    case 'auth/too-many-requests':
+      return { ok: false, error: 'too-many-requests' };
+    default:
+      return { ok: false, error: 'invalid' };
+  }
+}
 
 interface FirestoreUserProfile {
   name: string;
@@ -119,7 +183,7 @@ export async function loginOrRegister(
         // with "already exists", and they see a generic invalid-credentials
         // error with no way out. Try signing in with what they just typed
         // instead, and finish the activation (write the uid) if it works.
-        if (err?.code === 'auth/email-already-exists' || err?.code === 'auth/credential-already-in-use') {
+        if (err?.code === 'auth/email-already-in-use' || err?.code === 'auth/credential-already-in-use') {
           try {
             const cred = await signInWithEmailAndPassword(auth, emailLower, password);
             await updateDoc(ref, { uid: cred.user.uid });
@@ -128,7 +192,7 @@ export async function loginOrRegister(
             return { ok: false, error: 'invalid' };
           }
         }
-        return { ok: false, error: 'invalid' };
+        return mapAuthError(err, 'loginOrRegister: invite activation failed');
       }
     }
   }
@@ -201,12 +265,31 @@ export async function loginOrRegister(
     return { ok: true, profile };
   } catch (err: any) {
     // Same recovery as above: if the Auth account exists but no Firestore
-    // doc does (setDoc failed on a prior attempt, or the doc was deleted),
-    // every retry through this branch would otherwise fail forever with
-    // "email already exists" and a generic, unhelpful error — this is the
-    // exact "I signed up, logged out, now I can't log back in" trap. Try
-    // signing in with what they just typed and rebuild the missing doc.
-    if (err?.code === 'auth/email-already-exists' || err?.code === 'auth/credential-already-in-use') {
+    // doc does (setDoc failed on a prior attempt, or the profile was
+    // deleted), every retry through this branch would otherwise fail
+    // forever with "email already in use" and a generic, unhelpful error —
+    // this is the exact "I signed up, logged out, now I can't log back in"
+    // trap.
+    if (err?.code === 'auth/email-already-in-use' || err?.code === 'auth/credential-already-in-use') {
+      // First choice: the account is genuinely orphaned (no active or
+      // deactivated profile claims it), so clear it server-side and create
+      // a brand new one with whatever password they just typed. This is
+      // what makes a *deleted* profile's email reusable — without it,
+      // they'd be stuck unless they happened to remember a password that
+      // was never actually reset.
+      if (await tryReclaimAbandonedSignup(emailLower)) {
+        try {
+          const cred = await createUserWithEmailAndPassword(auth, emailLower, password);
+          const profile = buildProfile(cred.user.uid);
+          await setDoc(ref, profile);
+          return { ok: true, profile };
+        } catch {
+          return { ok: false, error: 'invalid' };
+        }
+      }
+      // Not reclaimable (a live profile still claims it, or the reclaim
+      // call failed) — fall back to a normal sign-in, in case they simply
+      // forgot they already had an account and typed the right password.
       try {
         const cred = await signInWithEmailAndPassword(auth, emailLower, password);
         const profile = buildProfile(cred.user.uid);
@@ -216,7 +299,7 @@ export async function loginOrRegister(
         return { ok: false, error: 'invalid' };
       }
     }
-    return { ok: false, error: 'invalid' };
+    return mapAuthError(err, 'loginOrRegister: self-signup failed');
   }
 }
 

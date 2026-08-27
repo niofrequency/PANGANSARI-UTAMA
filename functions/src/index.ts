@@ -88,3 +88,54 @@ export const createStaffAccount = onCall(
     return { success: true, uid: userRecord.uid };
   }
 );
+
+// Fixes a real lockout: if a Firestore users/{email} profile gets deleted
+// (Admin Portal's delete button, or manually in the Firebase Console) but
+// nobody deletes the matching Firebase Auth account too — the client SDK
+// can't do that for anyone but the currently-signed-in user — that email is
+// stuck forever. Self-signup always fails with "email already exists," and
+// the person has no way back in without knowing a password that was never
+// actually reset. This callable clears the orphaned Auth account so the
+// client's normal self-signup flow can just try again from a clean slate.
+//
+// No auth required to call this — it runs before the person has any
+// session — but that's safe: it only ever deletes an Auth account that
+// nothing in the app currently claims. An ACTIVE profile (a real signed-in
+// person) or a DEACTIVATED one (an admin's deliberate lockout) both refuse
+// the reclaim below, so this can never be used to bypass either.
+export const reclaimAbandonedSignup = onCall(
+  { region: 'us-central1', invoker: 'public', cors: true },
+  async (request) => {
+    const email = String(request.data?.email || '').trim().toLowerCase();
+    if (!email) {
+      throw new HttpsError('invalid-argument', 'Missing email.');
+    }
+
+    let authUser: admin.auth.UserRecord;
+    try {
+      authUser = await admin.auth().getUserByEmail(email);
+    } catch {
+      // No Auth account at all for this email — nothing to reclaim, the
+      // normal self-signup path will just create one from scratch.
+      return { reclaimed: false, reason: 'no-account' };
+    }
+
+    const docSnap = await admin.firestore().collection('users').doc(email).get();
+    if (!docSnap.exists) {
+      // Auth account exists, but nothing in Firestore claims it — genuinely
+      // orphaned (deleted profile, or a signup that crashed between
+      // createUser and the Firestore write). Safe to clear.
+      await admin.auth().deleteUser(authUser.uid);
+      return { reclaimed: true };
+    }
+
+    const data = docSnap.data() || {};
+    if (data.isActive === false) {
+      // Deliberately deactivated by an admin — not ours to override here.
+      return { reclaimed: false, reason: 'deactivated' };
+    }
+    // A live profile still claims this account (active, or an unactivated
+    // invite waiting for its owner) — leave it alone.
+    return { reclaimed: false, reason: 'active' };
+  }
+);

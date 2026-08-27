@@ -1,10 +1,19 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" translate="no">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PSU FieldOps</title>
     <meta name="description" content="Pangansari Utama (PSU) Field Operations Management" />
+    <!-- The app has its own EN/ID toggle (see i18n/LanguageContext) — Chrome's
+         built-in page translator is not just redundant, it actively crashes
+         the app: it rewrites text nodes directly in the DOM outside of
+         React's control, and the next time React re-renders that same
+         subtree it finds nodes that no longer match what it rendered,
+         throwing "Failed to execute 'insertBefore'/'removeChild' on 'Node'"
+         (a well-known React/Chrome-translate conflict). This meta tag stops
+         Chrome from offering or running translation on this page at all. -->
+    <meta name="google" content="notranslate" />
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#8DC63F" />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
@@ -17,7 +26,7 @@
     </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root" class="notranslate" translate="no"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
