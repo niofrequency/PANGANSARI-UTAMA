@@ -60,7 +60,51 @@ async function tryReclaimAbandonedSignup(emailLower: string): Promise<boolean> {
 
 export type LoginResult =
   | { ok: true; profile: FirestoreUserProfile }
-  | { ok: false; error: 'invalid' | 'inactive' | 'no-invite' | 'popup-closed' };
+  | {
+      ok: false;
+      error:
+        | 'invalid'
+        | 'inactive'
+        | 'no-invite'
+        | 'popup-closed'
+        | 'weak-password'
+        | 'invalid-email'
+        | 'signup-disabled'
+        | 'network'
+        | 'too-many-requests';
+    };
+
+// Turns a raw Firebase Auth error into one of the specific LoginResult
+// codes above when it's something the person can actually act on or that
+// points at a real setup problem — everything else still collapses to the
+// generic 'invalid', but always logged first. Without this, every failure
+// from createUserWithEmailAndPassword (a too-short password, the
+// Email/Password sign-in provider not being enabled in the Firebase
+// Console, a dropped connection, Firebase's own abuse-rate-limiting) showed
+// the exact same "Invalid credentials, or this account has been
+// deactivated" banner — which is actively misleading on a first-ever
+// signup, since there's no prior credential or account to speak of.
+function mapAuthError(err: any, context: string): LoginResult {
+  console.error(`${context}:`, err?.code, err?.message);
+  switch (err?.code) {
+    case 'auth/weak-password':
+      return { ok: false, error: 'weak-password' };
+    case 'auth/invalid-email':
+      return { ok: false, error: 'invalid-email' };
+    case 'auth/operation-not-allowed':
+      // The Email/Password provider is off in Firebase Console →
+      // Authentication → Sign-in method. This blocks EVERY signup, new
+      // account or not — if signups are failing for brand-new emails too,
+      // check this first.
+      return { ok: false, error: 'signup-disabled' };
+    case 'auth/network-request-failed':
+      return { ok: false, error: 'network' };
+    case 'auth/too-many-requests':
+      return { ok: false, error: 'too-many-requests' };
+    default:
+      return { ok: false, error: 'invalid' };
+  }
+}
 
 interface FirestoreUserProfile {
   name: string;
@@ -148,7 +192,7 @@ export async function loginOrRegister(
             return { ok: false, error: 'invalid' };
           }
         }
-        return { ok: false, error: 'invalid' };
+        return mapAuthError(err, 'loginOrRegister: invite activation failed');
       }
     }
   }
@@ -255,7 +299,7 @@ export async function loginOrRegister(
         return { ok: false, error: 'invalid' };
       }
     }
-    return { ok: false, error: 'invalid' };
+    return mapAuthError(err, 'loginOrRegister: self-signup failed');
   }
 }
 

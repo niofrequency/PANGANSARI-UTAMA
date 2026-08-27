@@ -38,6 +38,11 @@ export function Login({ onLogin, onLoginWithGoogle }: LoginProps) {
       case 'inactive': return t('auth.errorInactive');
       case 'no-invite': return t('auth.errorNoInvite');
       case 'popup-closed': return t('auth.errorPopupClosed');
+      case 'weak-password': return t('auth.errorWeakPassword');
+      case 'invalid-email': return t('auth.errorInvalidEmail');
+      case 'signup-disabled': return t('auth.errorSignupDisabled');
+      case 'network': return t('auth.errorNetwork');
+      case 'too-many-requests': return t('auth.errorTooManyRequests');
       default: return t('auth.errorInvalid');
     }
   };
