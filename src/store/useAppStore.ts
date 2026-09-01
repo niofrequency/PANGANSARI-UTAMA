@@ -34,15 +34,22 @@ export function useAppStore() {
   // v3: bumped again for the same reason, in reverse — mockData.ts went
   // from empty (INITIAL_USERS = []) to real seed data in this version.
   // Anyone who'd ever opened the app in demo mode before that change
-  // already has an empty `psu_users_v3` array saved, which is truthy and
+  // already has an empty `psu_users_v4` array saved, which is truthy and
   // so permanently shadows the new INITIAL_USERS fallback below — the new
   // seed accounts would silently never appear for them. The v3 key forces
-  // everyone back onto the fallback once. Do not change these key names
+  // everyone back onto the fallback once.
+  //
+  // v4: same reason again, back the other way — all the demo/mock seed
+  // data (fictional cast, real-roster duplicate, sample submissions,
+  // warnings, trainings) was deleted from mockData.ts, since real accounts
+  // now live in Firebase. Anyone still on localStorage/demo mode with a
+  // populated `psu_users_v4` from before that change would otherwise keep
+  // seeing that stale mock roster forever. Do not change these key names
   // again without a good reason; every bump wipes local data for anyone
   // still on localStorage (demo) mode.
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     if (isFirebaseConfigured) return null; // resolved async by watchAuthAndProfile below
-    const saved = localStorage.getItem('psu_current_user_v3');
+    const saved = localStorage.getItem('psu_current_user_v4');
     return saved ? JSON.parse(saved) : null;
   });
 
@@ -58,31 +65,32 @@ export function useAppStore() {
 
   const [users, setUsers] = useState<User[]>(() => {
     if (isFirebaseConfigured) return []; // populated by subscribeUsers below
-    const saved = localStorage.getItem('psu_users_v3');
+    const saved = localStorage.getItem('psu_users_v4');
     return saved ? JSON.parse(saved) : INITIAL_USERS;
   });
 
   const [submissions, setSubmissions] = useState<Submission[]>(() => {
-    const saved = localStorage.getItem('psu_submissions_v3');
+    const saved = localStorage.getItem('psu_submissions_v4');
     return saved ? JSON.parse(saved) : INITIAL_SUBMISSIONS;
   });
 
   const [warnings, setWarnings] = useState<Warning[]>(() => {
-    const saved = localStorage.getItem('psu_warnings_v3');
+    const saved = localStorage.getItem('psu_warnings_v4');
     return saved ? JSON.parse(saved) : INITIAL_WARNINGS;
   });
 
   const [trainings, setTrainings] = useState<TrainingModule[]>(() => {
-    const saved = localStorage.getItem('psu_trainings_v3');
+    const saved = localStorage.getItem('psu_trainings_v4');
     return saved ? JSON.parse(saved) : TRAINING_MODULES;
   });
 
-  // One-time cleanup: remove the old (pre-v2 and v2) keys so they don't sit
-  // around unused forever in people's browsers.
+  // One-time cleanup: remove the old (pre-v2, v2, and v3) keys so they
+  // don't sit around unused forever in people's browsers.
   useEffect(() => {
     [
       'psu_current_user', 'psu_users', 'psu_submissions', 'psu_warnings', 'psu_trainings',
       'psu_current_user_v2', 'psu_users_v2', 'psu_submissions_v2', 'psu_warnings_v2', 'psu_trainings_v2',
+      'psu_current_user_v3', 'psu_users_v3', 'psu_submissions_v3', 'psu_warnings_v3', 'psu_trainings_v3',
     ].forEach((key) => localStorage.removeItem(key));
   }, []);
 
@@ -148,24 +156,24 @@ export function useAppStore() {
   // --- Demo mode: persist everything to localStorage ---
   useEffect(() => {
     if (isFirebaseConfigured) return;
-    safeSetItem('psu_current_user_v3', JSON.stringify(currentUser));
+    safeSetItem('psu_current_user_v4', JSON.stringify(currentUser));
   }, [currentUser]);
 
   useEffect(() => {
     if (isFirebaseConfigured) return;
-    safeSetItem('psu_users_v3', JSON.stringify(users));
+    safeSetItem('psu_users_v4', JSON.stringify(users));
   }, [users]);
 
   useEffect(() => {
-    safeSetItem('psu_submissions_v3', JSON.stringify(submissions));
+    safeSetItem('psu_submissions_v4', JSON.stringify(submissions));
   }, [submissions]);
 
   useEffect(() => {
-    safeSetItem('psu_warnings_v3', JSON.stringify(warnings));
+    safeSetItem('psu_warnings_v4', JSON.stringify(warnings));
   }, [warnings]);
 
   useEffect(() => {
-    safeSetItem('psu_trainings_v3', JSON.stringify(trainings));
+    safeSetItem('psu_trainings_v4', JSON.stringify(trainings));
   }, [trainings]);
 
   const login = async (email: string, password: string, firstName?: string, lastName?: string): Promise<string | null> => {
