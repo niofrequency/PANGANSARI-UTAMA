@@ -36,7 +36,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
   const [addUserError, setAddUserError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
-  const [justCreated, setJustCreated] = useState<{ name: string; email: string; password: string; activated: boolean } | null>(null);
+  const [justCreated, setJustCreated] = useState<{ name: string; email: string; password: string } | null>(null);
   const [inviteCopied, setInviteCopied] = useState(false);
 
   // Activity tab state
@@ -77,7 +77,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
     }
 
     setIsCreatingUser(true);
-    const result = await addUser({ ...newUser, name }, isFirebaseConfigured ? password : undefined);
+    const result = await addUser({ ...newUser, name }, password);
     setIsCreatingUser(false);
 
     if (!result.ok) {
@@ -88,13 +88,10 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
     }
 
     if (isFirebaseConfigured) {
-      // result.activated tells us which actually happened — the Cloud
-      // Function can silently fail (not deployed, CORS, etc.) and fall
-      // back to an invite-only profile. Showing the "account ready, here's
-      // the working password" message in that case would be a lie: the
-      // password below was never set anywhere, and login with it will
-      // fail until the person activates via Sign Up themselves.
-      setJustCreated({ name, email: newUser.email, password, activated: result.activated !== false });
+      // createStaffAccountDirect either fully succeeds (real Auth account +
+      // profile, password works right now) or returns ok: false above —
+      // there's no more silent partial state to account for here.
+      setJustCreated({ name, email: newUser.email, password });
     } else {
       setShowAddModal(false);
     }
@@ -103,9 +100,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
   };
 
   const credentialsMessage = justCreated
-    ? justCreated.activated
-      ? t('admin.credentialsMessage', { url: window.location.origin, email: justCreated.email, password: justCreated.password })
-      : t('admin.inviteOnlyMessage', { url: window.location.origin, email: justCreated.email })
+    ? t('admin.credentialsMessage', { url: window.location.origin, email: justCreated.email, password: justCreated.password })
     : '';
 
   const copyInviteMessage = async () => {
@@ -446,19 +441,12 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
               {justCreated ? (
                 <>
                   <div className="flex flex-col items-center mb-8 text-center">
-                    <div className={cn(
-                      "w-16 h-16 rounded-2xl flex items-center justify-center mb-4",
-                      justCreated.activated ? "bg-psu-green/10 text-psu-green" : "bg-psu-warning/10 text-psu-warning"
-                    )}>
-                      {justCreated.activated ? <Check size={32} /> : <AlertTriangle size={32} />}
+                    <div className="w-16 h-16 bg-psu-green/10 rounded-2xl flex items-center justify-center text-psu-green mb-4">
+                      <Check size={32} />
                     </div>
-                    <h3 className="text-xl font-bold tracking-tight text-psu-gray">
-                      {justCreated.activated ? t('admin.accountReadyTitle') : t('admin.inviteOnlyTitle')}
-                    </h3>
+                    <h3 className="text-xl font-bold tracking-tight text-psu-gray">{t('admin.accountReadyTitle')}</h3>
                     <p className="text-xs text-psu-gray/50 font-medium mt-2 leading-relaxed">
-                      {justCreated.activated
-                        ? t('admin.accountReadyBody', { name: justCreated.name })
-                        : t('admin.inviteOnlyBody', { name: justCreated.name })}
+                      {t('admin.accountReadyBody', { name: justCreated.name })}
                     </p>
                   </div>
 

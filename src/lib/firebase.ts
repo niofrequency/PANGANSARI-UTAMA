@@ -27,7 +27,10 @@ import { getFirestore, type Firestore } from 'firebase/firestore';
 import { getFunctions, type Functions } from 'firebase/functions';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
 
-const firebaseConfig = {
+// Exported (not just used locally) so adminCreateAccount.ts can spin up its
+// own secondary Firebase App instance with the same project config — see
+// that file for why creating a staff login needs a second instance at all.
+export const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
@@ -46,11 +49,11 @@ export const app: FirebaseApp | null = isFirebaseConfigured
 
 export const auth: Auth | null = app ? getAuth(app) : null;
 export const db: Firestore | null = app ? getFirestore(app) : null;
-// Powers calls to Cloud Functions (see functions/src/index.ts) — e.g. the
-// Admin Portal creating a staff account with a set password, which the
-// browser-only SDK can never do on its own (see that file for why).
-// Region must match the Cloud Function (us-central1). Without this, the
-// client can hit the wrong endpoint and you get opaque CORS / not-found errors.
+// Powers calls to Cloud Functions (see functions/src/index.ts) — e.g.
+// reclaimAbandonedSignup, called from authService.ts when a self-signup
+// hits an orphaned Auth account. Region must match the Cloud Functions
+// (us-central1). Without this, the client can hit the wrong endpoint and
+// you get opaque CORS / not-found errors.
 export const functions: Functions | null = app ? getFunctions(app, 'us-central1') : null;
 // Photo evidence (Housekeeping checklist items, the Technician's daily
 // log) uploads here instead of being embedded as base64 in submissions
