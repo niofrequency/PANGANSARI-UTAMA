@@ -113,7 +113,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
   const openResetModal = (user: User) => {
     setResetTarget(user);
     setResetEmail(user.email);
-    setResetPassword('');
+    setResetPassword(generatePassword());
     setShowResetPassword(false);
     setResetError('');
     setResetSuccess(false);
@@ -815,7 +815,17 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                     </div>
 
                     <div>
-                      <label className="block text-[10px] font-black text-psu-gray/40 uppercase mb-2 tracking-widest">{t('admin.resetNewPasswordLabel')}</label>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-[10px] font-black text-psu-gray/40 uppercase tracking-widest">{t('admin.resetNewPasswordLabel')}</label>
+                        <button
+                          type="button"
+                          onClick={() => setResetPassword(generatePassword())}
+                          className="flex items-center gap-1 text-[9px] font-black text-psu-blue uppercase tracking-widest"
+                        >
+                          <RefreshCw size={11} />
+                          {t('admin.regenerate')}
+                        </button>
+                      </div>
                       <div className="relative">
                         <input
                           type={showResetPassword ? 'text' : 'password'}
