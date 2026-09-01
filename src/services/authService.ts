@@ -71,8 +71,34 @@ export type LoginResult =
         | 'invalid-email'
         | 'signup-disabled'
         | 'network'
-        | 'too-many-requests';
+        | 'too-many-requests'
+        | 'profile-setup-failed';
     };
+
+// Runs a Firestore write (setDoc/updateDoc) that follows a Firebase Auth
+// call that just succeeded — account created, or password verified. Right
+// after that Auth call, there's a well-known race in the Firebase web SDK:
+// the freshly-issued ID token can take a moment to propagate to Firestore's
+// client, so the very next write can get rejected even though the same
+// rule would allow it a beat later. Retrying once after a short delay
+// covers that window without making a genuinely-denied write (wrong rule,
+// wrong data) take any longer to fail for real.
+async function writeProfileWithRetry(write: () => Promise<void>): Promise<boolean> {
+  try {
+    await write();
+    return true;
+  } catch (err) {
+    console.error('Profile write failed, retrying once:', err);
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    try {
+      await write();
+      return true;
+    } catch (err2) {
+      console.error('Profile write failed again after retry:', err2);
+      return false;
+    }
+  }
+}
 
 // Turns a raw Firebase Auth error into one of the specific LoginResult
 // codes above when it's something the person can actually act on or that
@@ -166,34 +192,39 @@ export async function loginOrRegister(
       // using whatever password they just typed. If they entered a name
       // on the Sign Up form, save it now — it's more authoritative than
       // whatever the admin guessed when creating the invite.
+      const nameUpdate =
+        firstName && lastName
+          ? { firstName, lastName, name: `${firstName} ${lastName}`.trim() }
+          : {};
+      let cred;
       try {
-        const cred = await createUserWithEmailAndPassword(auth, emailLower, password);
-        const nameUpdate =
-          firstName && lastName
-            ? { firstName, lastName, name: `${firstName} ${lastName}`.trim() }
-            : {};
-        await updateDoc(ref, { uid: cred.user.uid, ...nameUpdate });
-        return { ok: true, profile: { ...data, ...nameUpdate, uid: cred.user.uid } };
+        cred = await createUserWithEmailAndPassword(auth, emailLower, password);
       } catch (err: any) {
         // The Auth account can already exist here if a previous attempt got
-        // as far as creating it but failed before updateDoc — e.g. a
-        // dropped connection, or the Firestore write getting rejected.
+        // as far as creating it but failed before the updateDoc below — e.g.
+        // the Firestore write hitting the propagation race explained above.
         // Without this fallback that person is stuck forever: every future
         // login re-tries createUserWithEmailAndPassword, which always fails
-        // with "already exists", and they see a generic invalid-credentials
+        // with "already exists", and they'd see a generic invalid-credentials
         // error with no way out. Try signing in with what they just typed
         // instead, and finish the activation (write the uid) if it works.
         if (err?.code === 'auth/email-already-in-use' || err?.code === 'auth/credential-already-in-use') {
           try {
-            const cred = await signInWithEmailAndPassword(auth, emailLower, password);
-            await updateDoc(ref, { uid: cred.user.uid });
-            return { ok: true, profile: { ...data, uid: cred.user.uid } };
+            cred = await signInWithEmailAndPassword(auth, emailLower, password);
           } catch {
             return { ok: false, error: 'invalid' };
           }
+        } else {
+          return mapAuthError(err, 'loginOrRegister: invite activation failed');
         }
-        return mapAuthError(err, 'loginOrRegister: invite activation failed');
       }
+      // Auth succeeded — from here on the credentials are proven correct,
+      // no matter what happens to the Firestore write below. Never let a
+      // failure here read as "wrong password."
+      const uid = cred.user.uid;
+      const wrote = await writeProfileWithRetry(() => updateDoc(ref, { uid, ...nameUpdate }));
+      if (!wrote) return { ok: false, error: 'profile-setup-failed' };
+      return { ok: true, profile: { ...data, ...nameUpdate, uid } };
     }
   }
 
@@ -202,42 +233,34 @@ export async function loginOrRegister(
     // created one. Create both the Auth account and its Firestore profile.
     const fn = firstName || 'Admin';
     const ln = lastName || '';
+    let cred;
     try {
-      const cred = await createUserWithEmailAndPassword(auth, emailLower, password);
-      const profile: FirestoreUserProfile = {
-        name: `${fn} ${ln}`.trim(),
-        firstName: fn,
-        lastName: ln,
-        email: emailLower,
-        role: 'ADMIN',
-        site: '',
-        isActive: true,
-        uid: cred.user.uid,
-      };
-      await setDoc(ref, profile);
-      return { ok: true, profile };
+      cred = await createUserWithEmailAndPassword(auth, emailLower, password);
     } catch {
       // The Auth account may already exist from an earlier bootstrap whose
-      // Firestore doc got deleted. Fall back to a normal sign-in and
-      // re-create the profile doc if that succeeds.
+      // Firestore doc got deleted or never wrote (the propagation race
+      // explained above). Fall back to a normal sign-in.
       try {
-        const cred = await signInWithEmailAndPassword(auth, emailLower, password);
-        const profile: FirestoreUserProfile = {
-          name: `${fn} ${ln}`.trim(),
-          firstName: fn,
-          lastName: ln,
-          email: emailLower,
-          role: 'ADMIN',
-          site: '',
-          isActive: true,
-          uid: cred.user.uid,
-        };
-        await setDoc(ref, profile);
-        return { ok: true, profile };
+        cred = await signInWithEmailAndPassword(auth, emailLower, password);
       } catch {
         return { ok: false, error: 'invalid' };
       }
     }
+    // Auth succeeded either way — the credentials are proven correct from
+    // here on.
+    const profile: FirestoreUserProfile = {
+      name: `${fn} ${ln}`.trim(),
+      firstName: fn,
+      lastName: ln,
+      email: emailLower,
+      role: 'ADMIN',
+      site: '',
+      isActive: true,
+      uid: cred.user.uid,
+    };
+    const wrote = await writeProfileWithRetry(() => setDoc(ref, profile));
+    if (!wrote) return { ok: false, error: 'profile-setup-failed' };
+    return { ok: true, profile };
   }
 
   // Open self-signup: anyone can create an account. Default role is a safe
@@ -258,18 +281,17 @@ export async function loginOrRegister(
     isActive: true,
     uid,
   });
+  let cred;
   try {
-    const cred = await createUserWithEmailAndPassword(auth, emailLower, password);
-    const profile = buildProfile(cred.user.uid);
-    await setDoc(ref, profile);
-    return { ok: true, profile };
+    cred = await createUserWithEmailAndPassword(auth, emailLower, password);
   } catch (err: any) {
-    // Same recovery as above: if the Auth account exists but no Firestore
-    // doc does (setDoc failed on a prior attempt, or the profile was
-    // deleted), every retry through this branch would otherwise fail
-    // forever with "email already in use" and a generic, unhelpful error —
-    // this is the exact "I signed up, logged out, now I can't log back in"
-    // trap.
+    // The Auth account can already exist here even on a "first" signup —
+    // e.g. this exact email already ran this branch once, the Auth account
+    // was created, but the Firestore write below failed (the propagation
+    // race explained above) or the profile was later deleted. Without this
+    // recovery, every retry re-fails forever with "email already in use"
+    // and a generic, unhelpful error — this is the exact "I signed up,
+    // logged out, now I can't log back in" trap.
     if (err?.code === 'auth/email-already-in-use' || err?.code === 'auth/credential-already-in-use') {
       // First choice: the account is genuinely orphaned (no active or
       // deactivated profile claims it), so clear it server-side and create
@@ -279,28 +301,32 @@ export async function loginOrRegister(
       // was never actually reset.
       if (await tryReclaimAbandonedSignup(emailLower)) {
         try {
-          const cred = await createUserWithEmailAndPassword(auth, emailLower, password);
-          const profile = buildProfile(cred.user.uid);
-          await setDoc(ref, profile);
-          return { ok: true, profile };
+          cred = await createUserWithEmailAndPassword(auth, emailLower, password);
+        } catch {
+          return { ok: false, error: 'invalid' };
+        }
+      } else {
+        // Not reclaimable (a live profile still claims it, or the reclaim
+        // call failed) — fall back to a normal sign-in, in case they
+        // simply forgot they already had an account and typed the right
+        // password.
+        try {
+          cred = await signInWithEmailAndPassword(auth, emailLower, password);
         } catch {
           return { ok: false, error: 'invalid' };
         }
       }
-      // Not reclaimable (a live profile still claims it, or the reclaim
-      // call failed) — fall back to a normal sign-in, in case they simply
-      // forgot they already had an account and typed the right password.
-      try {
-        const cred = await signInWithEmailAndPassword(auth, emailLower, password);
-        const profile = buildProfile(cred.user.uid);
-        await setDoc(ref, profile);
-        return { ok: true, profile };
-      } catch {
-        return { ok: false, error: 'invalid' };
-      }
+    } else {
+      return mapAuthError(err, 'loginOrRegister: self-signup failed');
     }
-    return mapAuthError(err, 'loginOrRegister: self-signup failed');
   }
+  // Auth succeeded, one way or another — the credentials are proven
+  // correct from here on. Never let a failure below this line read as
+  // "wrong password."
+  const profile = buildProfile(cred.user.uid);
+  const wrote = await writeProfileWithRetry(() => setDoc(ref, profile));
+  if (!wrote) return { ok: false, error: 'profile-setup-failed' };
+  return { ok: true, profile };
 }
 
 // Google Sign-In, using the same invite-based activation rule as email
