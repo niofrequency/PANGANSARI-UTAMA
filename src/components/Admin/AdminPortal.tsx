@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { AnalyticsDashboard } from '../Dashboard/AnalyticsDashboard';
-import { 
+import {
   Users, UserPlus, Shield, Trash2, XCircle, Search, Activity as ActivityIcon,
-  User as UserIcon, AlertTriangle, Copy, Check, Eye, EyeOff, RefreshCw
+  User as UserIcon, AlertTriangle, Copy, Check, Eye, EyeOff, RefreshCw, KeyRound
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
@@ -25,7 +25,7 @@ function generatePassword(length = 10): string {
 
 export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }) {
   const { t } = useTranslation();
-  const { users, sites, submissions, warnings, addUser, updateUserRole, deleteUser } = store;
+  const { users, sites, submissions, warnings, addUser, updateUserRole, updateUserSite, resetUserCredentials, deleteUser } = store;
   const [activeTab, setActiveTab] = useState<'USERS' | 'ACTIVITY' | 'ANALYTICS'>('USERS');
   const [search, setSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -38,6 +38,17 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [justCreated, setJustCreated] = useState<{ name: string; email: string; password: string } | null>(null);
   const [inviteCopied, setInviteCopied] = useState(false);
+
+  // Reset Login modal — lets the admin type a new email and/or password
+  // for someone else's existing account (see adminResetCredentials.ts /
+  // the Cloud Function of the same name for why this needs a server call).
+  const [resetTarget, setResetTarget] = useState<User | null>(null);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetPassword, setResetPassword] = useState('');
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [resetError, setResetError] = useState('');
+  const [resetSuccess, setResetSuccess] = useState(false);
 
   // Activity tab state
   const [activitySegment, setActivitySegment] = useState<'SUBMISSIONS' | 'WARNINGS'>('SUBMISSIONS');
@@ -97,6 +108,53 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
     }
     setNewUser({ firstName: '', lastName: '', email: '', role: 'HOUSEKEEPER', site: 'site-1' });
     setPassword(generatePassword());
+  };
+
+  const openResetModal = (user: User) => {
+    setResetTarget(user);
+    setResetEmail(user.email);
+    setResetPassword('');
+    setShowResetPassword(false);
+    setResetError('');
+    setResetSuccess(false);
+  };
+
+  const closeResetModal = () => {
+    setResetTarget(null);
+  };
+
+  const handleResetCredentials = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetTarget) return;
+    setResetError('');
+
+    const newEmail = resetEmail.trim().toLowerCase();
+    const emailChanged = newEmail !== resetTarget.email.toLowerCase();
+    const passwordChanged = resetPassword.length > 0;
+
+    if (!emailChanged && !passwordChanged) {
+      setResetError(t('admin.resetNothingToChange'));
+      return;
+    }
+    if (passwordChanged && resetPassword.length < 6) {
+      setResetError(t('admin.passwordTooShort'));
+      return;
+    }
+
+    setIsResetting(true);
+    const result = await resetUserCredentials(resetTarget.id, {
+      newEmail: emailChanged ? newEmail : undefined,
+      newPassword: passwordChanged ? resetPassword : undefined,
+    });
+    setIsResetting(false);
+
+    if (!result.ok) {
+      setResetError(
+        result.error === 'already-exists' ? t('admin.emailAlreadyExists') : t('admin.createAccountFailed')
+      );
+      return;
+    }
+    setResetSuccess(true);
   };
 
   const credentialsMessage = justCreated
@@ -196,7 +254,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <select 
+                    <select
                       value={user.role}
                       disabled={user.email.toLowerCase() === SUPER_ADMIN_EMAIL}
                       onChange={(e) => updateUserRole(user.id, e.target.value as UserRole)}
@@ -212,8 +270,17 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                       {/* ADMIN intentionally omitted: that role is locked to one
                           account and can't be granted from this screen. */}
                     </select>
+                    {user.email.toLowerCase() !== SUPER_ADMIN_EMAIL && isFirebaseConfigured && (
+                      <button
+                        onClick={() => openResetModal(user)}
+                        className="p-2 rounded-xl transition-all shrink-0 text-psu-blue bg-psu-blue/5 hover:bg-psu-blue/10"
+                        aria-label={t('admin.resetLoginButton')}
+                      >
+                        <KeyRound size={18} />
+                      </button>
+                    )}
                     {user.email.toLowerCase() !== SUPER_ADMIN_EMAIL && (
-                      <button 
+                      <button
                         onClick={() => { setDeleteTarget(user); setDeleteConfirmText(''); }}
                         className="p-2 rounded-xl transition-all shrink-0 text-psu-rejected bg-psu-rejected/5 hover:bg-psu-rejected/10"
                         aria-label={t('admin.deleteButton')}
@@ -222,6 +289,18 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                       </button>
                     )}
                   </div>
+
+                  {user.email.toLowerCase() !== SUPER_ADMIN_EMAIL && (
+                    <select
+                      value={user.site}
+                      onChange={(e) => updateUserSite(user.id, e.target.value)}
+                      className="w-full text-[9px] bg-psu-bg border border-psu-gray/10 rounded-md px-2 py-1.5 font-black uppercase tracking-tighter outline-none focus:ring-2 focus:ring-psu-blue/20 truncate"
+                    >
+                      {sites.map(site => (
+                        <option key={site.id} value={site.id}>{site.name}</option>
+                      ))}
+                    </select>
+                  )}
                 </div>
               ))}
             </div>
@@ -673,6 +752,117 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                   {t('admin.deleteButton')}
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {resetTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-psu-gray/60 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white w-full max-w-sm rounded-[32px] p-8 shadow-2xl max-h-[90vh] overflow-y-auto"
+            >
+              {resetSuccess ? (
+                <>
+                  <div className="flex flex-col items-center mb-6 text-center">
+                    <div className="w-16 h-16 bg-psu-green/10 rounded-2xl flex items-center justify-center text-psu-green mb-4">
+                      <Check size={28} />
+                    </div>
+                    <h3 className="text-lg font-bold tracking-tight text-psu-gray">{t('admin.resetSuccessTitle')}</h3>
+                    <p className="text-xs text-psu-gray/60 font-medium mt-2 leading-relaxed">
+                      {t('admin.resetSuccessBody', { name: resetTarget.name })}
+                    </p>
+                  </div>
+                  <div className="bg-psu-bg border border-psu-gray/10 rounded-2xl p-4 mb-6 text-xs text-psu-gray space-y-1">
+                    <p><span className="font-black uppercase text-[9px] text-psu-gray/40 tracking-widest mr-2">{t('auth.emailLabel')}</span>{resetEmail.trim().toLowerCase()}</p>
+                    {resetPassword && (
+                      <p><span className="font-black uppercase text-[9px] text-psu-gray/40 tracking-widest mr-2">{t('auth.passwordLabel')}</span>{resetPassword}</p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={closeResetModal}
+                    className="w-full py-4 bg-psu-green text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-psu-green/20 active:scale-95 transition-all"
+                  >
+                    {t('common.close')}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="flex flex-col items-center mb-8 text-center">
+                    <div className="w-16 h-16 bg-psu-blue/10 rounded-2xl flex items-center justify-center text-psu-blue mb-4">
+                      <KeyRound size={28} />
+                    </div>
+                    <h3 className="text-lg font-bold tracking-tight text-psu-gray">{t('admin.resetLoginTitle')}</h3>
+                    <p className="text-xs text-psu-gray/60 font-medium mt-2 leading-relaxed">
+                      {t('admin.resetLoginBody', { name: resetTarget.name })}
+                    </p>
+                  </div>
+
+                  <form onSubmit={handleResetCredentials} className="space-y-5">
+                    <div>
+                      <label className="block text-[10px] font-black text-psu-gray/40 uppercase mb-2 tracking-widest">{t('auth.emailLabel')}</label>
+                      <input
+                        type="email"
+                        value={resetEmail}
+                        onChange={(e) => setResetEmail(e.target.value)}
+                        className="w-full p-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-psu-blue/20 transition-all"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-black text-psu-gray/40 uppercase mb-2 tracking-widest">{t('admin.resetNewPasswordLabel')}</label>
+                      <div className="relative">
+                        <input
+                          type={showResetPassword ? 'text' : 'password'}
+                          minLength={6}
+                          value={resetPassword}
+                          onChange={(e) => setResetPassword(e.target.value)}
+                          placeholder={t('admin.resetNewPasswordPlaceholder')}
+                          className="w-full p-4 pr-12 bg-psu-bg border border-psu-gray/10 rounded-2xl text-sm font-mono font-medium focus:outline-none focus:ring-2 focus:ring-psu-blue/20 transition-all"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowResetPassword(s => !s)}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-psu-gray/30"
+                          aria-label={showResetPassword ? t('auth.hidePassword') : t('auth.showPassword')}
+                        >
+                          {showResetPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-psu-gray/40 font-medium mt-2">{t('admin.resetNewPasswordNote')}</p>
+                    </div>
+
+                    {resetError && (
+                      <div className="flex items-start gap-2 p-3 bg-psu-rejected/5 text-psu-rejected text-xs rounded-xl">
+                        <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                        <span>{resetError}</span>
+                      </div>
+                    )}
+
+                    <div className="flex gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={closeResetModal}
+                        className="flex-1 py-4 text-psu-gray/40 font-black text-[10px] uppercase tracking-widest"
+                      >
+                        {t('common.cancel')}
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isResetting}
+                        className="flex-[2] py-4 bg-psu-blue text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-psu-blue/20 active:scale-95 transition-all disabled:opacity-60"
+                      >
+                        {isResetting ? t('common.loading') : t('admin.resetLoginButton')}
+                      </button>
+                    </div>
+                  </form>
+                </>
+              )}
             </motion.div>
           </div>
         )}

@@ -81,6 +81,12 @@ export async function updateUserRoleDoc(email: string, role: UserRole): Promise<
   await updateDoc(doc(db, 'users', emailLower), { role });
 }
 
+export async function updateUserSiteDoc(email: string, site: string): Promise<void> {
+  if (!db) return;
+  const emailLower = email.trim().toLowerCase();
+  await updateDoc(doc(db, 'users', emailLower), { site });
+}
+
 export async function toggleUserActiveDoc(email: string, isActive: boolean): Promise<void> {
   if (!db) return;
   const emailLower = email.trim().toLowerCase();

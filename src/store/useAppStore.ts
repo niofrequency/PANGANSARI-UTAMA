@@ -3,8 +3,9 @@ import { User, Submission, UserRole, Site, Warning, TrainingModule } from '../ty
 import { INITIAL_USERS, INITIAL_SUBMISSIONS, INITIAL_WARNINGS, SITES, TRAINING_MODULES } from '../data/mockData';
 import { isFirebaseConfigured } from '../lib/firebase';
 import { loginOrRegister, loginWithGoogle as loginWithGoogleService, logout as firebaseLogout, watchAuthAndProfile, SUPER_ADMIN_EMAIL } from '../services/authService';
-import { subscribeUsers, updateUserRoleDoc, toggleUserActiveDoc, deleteUserDoc } from '../services/usersService';
+import { subscribeUsers, updateUserRoleDoc, updateUserSiteDoc, toggleUserActiveDoc, deleteUserDoc } from '../services/usersService';
 import { createStaffAccountDirect } from '../services/adminCreateAccount';
+import { resetStaffCredentials } from '../services/adminResetCredentials';
 
 // This store has two modes: 
 //
@@ -290,6 +291,38 @@ export function useAppStore() {
     }));
   };
 
+  const updateUserSite = (userId: string, site: string) => {
+    if (isFirebaseConfigured) {
+      const target = users.find(u => u.id === userId);
+      if (target) updateUserSiteDoc(target.email, site);
+      return;
+    }
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, site } : u));
+  };
+
+  // Admin-typed login reset (new email and/or new password for someone
+  // ELSE's account) — Firebase mode only, and always goes through the
+  // adminResetCredentials Cloud Function, since changing a different
+  // account's credentials has no client-only path (see that function's
+  // comment for why). Requires it to actually be deployed.
+  const resetUserCredentials = async (
+    userId: string,
+    updates: { newEmail?: string; newPassword?: string }
+  ): Promise<{ ok: boolean; error?: string }> => {
+    if (!isFirebaseConfigured) {
+      return { ok: false, error: 'not-configured' };
+    }
+    const target = users.find(u => u.id === userId);
+    if (!target) return { ok: false, error: 'unknown' };
+    const result = await resetStaffCredentials({
+      uid: target.id,
+      currentEmail: target.email,
+      ...updates,
+    });
+    if (result.ok) return { ok: true };
+    return { ok: false, error: result.error };
+  };
+
   const toggleUserActive = (userId: string) => {
     if (isFirebaseConfigured) {
       const target = users.find(u => u.id === userId);
@@ -338,6 +371,8 @@ export function useAppStore() {
     updateSubmissionStatus,
     addUser,
     updateUserRole,
+    updateUserSite,
+    resetUserCredentials,
     toggleUserActive,
     deleteUser,
     addWarning,
