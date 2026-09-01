@@ -235,3 +235,95 @@ export const createUserProfile = functionsV1.auth.user().onCreate(async (user) =
     }
   }
 });
+
+interface AdminResetCredentialsData {
+  uid: string;
+  currentEmail: string;
+  newEmail?: string;
+  newPassword?: string;
+}
+
+// Lets the super-admin type a new email and/or password for someone else's
+// account directly in the Admin Portal. There's no client-only way to do
+// this: Firebase Auth's browser SDK can only ever change the CURRENTLY
+// signed-in user's own credentials (or send a password-reset email the
+// person has to click themselves) — overwriting a different account's
+// email or password takes the Admin SDK, which only runs server-side. This
+// is the one Admin Portal feature in this app that genuinely can't avoid
+// needing a Cloud Function the way createStaffAccountDirect avoided it for
+// account creation.
+export const adminResetCredentials = onCall(
+  { region: 'us-central1', invoker: 'public', cors: true },
+  async (request) => {
+    const callerEmail = request.auth?.token?.email?.toLowerCase();
+    if (!request.auth || !callerEmail) {
+      throw new HttpsError('unauthenticated', 'You must be signed in.');
+    }
+    if (callerEmail !== SUPER_ADMIN_EMAIL) {
+      throw new HttpsError('permission-denied', 'Only the admin account can reset staff credentials.');
+    }
+
+    const { uid, currentEmail, newEmail, newPassword } =
+      request.data || ({} as AdminResetCredentialsData);
+
+    if (!uid || !currentEmail) {
+      throw new HttpsError('invalid-argument', 'Missing uid or currentEmail.');
+    }
+    const currentEmailLower = String(currentEmail).trim().toLowerCase();
+    const newEmailLower = newEmail ? String(newEmail).trim().toLowerCase() : undefined;
+
+    // Manage your own login the normal way (it's how you're authenticated
+    // right now) — routing it through this admin tool risks locking
+    // yourself out with no one left to fix it.
+    if (currentEmailLower === SUPER_ADMIN_EMAIL) {
+      throw new HttpsError('invalid-argument', "Can't reset the admin account's own credentials from here.");
+    }
+    if (!newEmailLower && !newPassword) {
+      throw new HttpsError('invalid-argument', 'Provide a new email, a new password, or both.');
+    }
+    if (newPassword && newPassword.length < 6) {
+      throw new HttpsError('invalid-argument', 'Password must be at least 6 characters.');
+    }
+
+    const authUpdate: { email?: string; password?: string } = {};
+    if (newEmailLower && newEmailLower !== currentEmailLower) authUpdate.email = newEmailLower;
+    if (newPassword) authUpdate.password = newPassword;
+
+    if (Object.keys(authUpdate).length > 0) {
+      try {
+        await admin.auth().updateUser(uid, authUpdate);
+      } catch (err: any) {
+        if (err.code === 'auth/email-already-exists') {
+          throw new HttpsError('already-exists', 'Another account already uses that email.');
+        }
+        if (err.code === 'auth/user-not-found') {
+          throw new HttpsError('not-found', "That account's login couldn't be found.");
+        }
+        console.error('adminResetCredentials: updateUser failed', err);
+        throw new HttpsError('internal', 'Failed to update the login. Please try again.');
+      }
+    }
+
+    // Firestore docs are keyed by email (see authService.ts), so changing
+    // the email means migrating the profile to a new doc id, not just
+    // editing a field.
+    if (authUpdate.email) {
+      const oldRef = admin.firestore().collection('users').doc(currentEmailLower);
+      const oldSnap = await oldRef.get();
+      const oldData = oldSnap.exists ? oldSnap.data() || {} : {};
+      try {
+        await admin.firestore().collection('users').doc(newEmailLower!).set({
+          ...oldData,
+          email: newEmailLower,
+          uid,
+        });
+        await oldRef.delete();
+      } catch (err) {
+        console.error('adminResetCredentials: Firestore migration failed', err);
+        throw new HttpsError('internal', 'Login was updated, but saving the new profile location failed. Please try again.');
+      }
+    }
+
+    return { success: true };
+  }
+);
