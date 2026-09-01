@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { LogIn, UserPlus, Mail, Lock, AlertCircle, Info } from 'lucide-react';
+import { LogIn, UserPlus, Mail, Lock, AlertCircle, Info, Eye, EyeOff } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext';
 import { isFirebaseConfigured } from '../lib/firebase';
 import { cn } from '../utils/cn';
@@ -28,6 +28,7 @@ export function Login({ onLogin, onLoginWithGoogle }: LoginProps) {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
@@ -43,6 +44,7 @@ export function Login({ onLogin, onLoginWithGoogle }: LoginProps) {
       case 'signup-disabled': return t('auth.errorSignupDisabled');
       case 'network': return t('auth.errorNetwork');
       case 'too-many-requests': return t('auth.errorTooManyRequests');
+      case 'profile-setup-failed': return t('auth.errorProfileSetupFailed');
       default: return t('auth.errorInvalid');
     }
   };
@@ -198,12 +200,20 @@ export function Login({ onLogin, onLoginWithGoogle }: LoginProps) {
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-psu-gray/30" size={18} />
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-12 pr-4 py-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-psu-green/20 transition-all"
+                  className="w-full pl-12 pr-12 py-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-psu-green/20 transition-all"
                   placeholder={t('auth.passwordPlaceholder')}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(s => !s)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-psu-gray/30"
+                  aria-label={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
             </div>
           </div>
