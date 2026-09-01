@@ -3,8 +3,8 @@ import { User, Submission, UserRole, Site, Warning, TrainingModule } from '../ty
 import { INITIAL_USERS, INITIAL_SUBMISSIONS, INITIAL_WARNINGS, SITES, TRAINING_MODULES } from '../data/mockData';
 import { isFirebaseConfigured } from '../lib/firebase';
 import { loginOrRegister, loginWithGoogle as loginWithGoogleService, logout as firebaseLogout, watchAuthAndProfile, SUPER_ADMIN_EMAIL } from '../services/authService';
-import { subscribeUsers, inviteUser, updateUserRoleDoc, toggleUserActiveDoc, deleteUserDoc } from '../services/usersService';
-import { createStaffAccount } from '../services/adminFunctions';
+import { subscribeUsers, updateUserRoleDoc, toggleUserActiveDoc, deleteUserDoc } from '../services/usersService';
+import { createStaffAccountDirect } from '../services/adminCreateAccount';
 
 // This store has two modes: 
 //
@@ -238,37 +238,21 @@ export function useAppStore() {
     setSubmissions(prev => prev.map(s => s.id === id ? { ...s, status, rejectionReason: reason } : s));
   };
 
-  // If a password is given (Firebase mode), this creates a fully working,
-  // already-activated login via the createStaffAccount Cloud Function —
-  // the person can log in immediately with the credentials you hand them.
-  // If the Cloud Function fails (not deployed, CORS, etc.), we fall back to
-  // an invite-only profile so Add Staff still works — the person then uses
-  // Sign Up with that email to set their own password.
+  // In Firebase mode this always creates a fully-working, already-activated
+  // login on the spot — no invite-only fallback. createStaffAccountDirect
+  // creates the Firebase Auth account and the Firestore profile straight
+  // from the browser (see that file for how it avoids kicking the admin
+  // out of their own session), so it doesn't depend on a Cloud Function
+  // being deployed at all. The person can log in immediately with
+  // whatever password you hand them.
   const addUser = async (
     user: Omit<User, 'id' | 'isActive'>,
-    password?: string
-  ): Promise<{ ok: boolean; error?: string; activated?: boolean }> => {
+    password: string
+  ): Promise<{ ok: boolean; error?: string }> => {
     if (isFirebaseConfigured) {
-      if (password) {
-        const result = await createStaffAccount({ ...user, password });
-        // activated: true — the password shown to the admin is real and
-        // works right now. Callers MUST check this before telling the
-        // admin the account is ready to hand over: this return value is
-        // the only signal that the fallback below happened instead.
-        if (result.ok) return { ok: true, activated: true };
-        // Hard failures: email already exists or bad input — don't mask them.
-        if (result.error === 'already-exists' || result.error === 'invalid-argument') {
-          return { ok: false, error: result.error };
-        }
-        // Function unreachable / internal → invite fallback (staff Sign Up
-        // later). The password the admin just generated was NEVER set
-        // anywhere — activated: false says so.
-        console.warn('createStaffAccount failed, falling back to invite:', result.error);
-        await inviteUser(user);
-        return { ok: true, activated: false };
-      }
-      await inviteUser(user);
-      return { ok: true, activated: false };
+      const result = await createStaffAccountDirect({ ...user, password });
+      if (result.ok) return { ok: true };
+      return { ok: false, error: result.error };
     }
     // Demo mode has no server to enforce this, so it has to happen here —
     // without it, Add Staff would silently create a second account on an
@@ -282,7 +266,7 @@ export function useAppStore() {
     }
     const newUser: User = { ...user, id: `u-${Date.now()}`, isActive: true };
     setUsers(prev => [...prev, newUser]);
-    return { ok: true, activated: true };
+    return { ok: true };
   };
 
   const updateUserRole = (userId: string, role: UserRole) => {
