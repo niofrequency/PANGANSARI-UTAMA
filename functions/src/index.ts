@@ -1,4 +1,9 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
+// Auth triggers (functions.auth.user().onCreate) are 1st-gen only — there's
+// no 2nd-gen equivalent yet, so this one import stays on the v1 namespace
+// while everything else in this file uses v2. Both coexist fine in the
+// same Cloud Functions deployment.
+import * as functionsV1 from 'firebase-functions/v1';
 import * as admin from 'firebase-admin';
 
 admin.initializeApp();
@@ -139,3 +144,94 @@ export const reclaimAbandonedSignup = onCall(
     return { reclaimed: false, reason: 'active' };
   }
 );
+
+// Best-effort split for a single display-name string — first token is the
+// first name, the rest is the last name. Mirrors splitName() in
+// src/services/authService.ts; duplicated here because Cloud Functions is a
+// separate TypeScript project and can't import client source directly.
+function splitDisplayName(fullName: string): { firstName: string; lastName: string } {
+  const trimmed = fullName.trim();
+  if (!trimmed) return { firstName: '', lastName: '' };
+  const parts = trimmed.split(/\s+/);
+  return { firstName: parts[0], lastName: parts.slice(1).join(' ') };
+}
+
+// The guaranteed backstop for "the profile doc gets created/linked when a
+// Firebase Auth account exists." authService.ts on the client already
+// writes this doc itself right after signup (with a retry — see
+// writeProfileWithRetry there), and that fast path is what most people
+// experience: instant login, no waiting on this trigger at all. This
+// function exists for when that client write never lands — a closed tab,
+// a lost connection, anything — because unlike a client-side write, this
+// one doesn't depend on the person's browser, network, or session still
+// being around. It runs the moment Firebase Auth finishes creating the
+// account, server-side, via the Admin SDK, which isn't subject to the
+// client ID-token-propagation race that motivated the retry in the first
+// place.
+//
+// Fully idempotent with the client's own write: if the client already got
+// there first, this just no-ops (or, for the invite path, only fills in
+// `uid` if it's still missing) — it never overwrites a name or role a
+// human already corrected.
+export const createUserProfile = functionsV1.auth.user().onCreate(async (user) => {
+  const emailLower = (user.email || '').toLowerCase();
+  if (!emailLower) return; // no email on this account (shouldn't happen for email/password or Google sign-in) — nothing to link
+
+  // Give the client's own write (authService.ts, the fast path almost
+  // everyone hits) a head start. Both this trigger and the client can only
+  // ever agree on identical role/site/uid defaults for a brand-new
+  // self-signup, but the client has the one thing this trigger has to
+  // guess at — the person's actual typed name — so letting it land first
+  // avoids this trigger overwriting a correct name with a
+  // displayName/email-derived approximation on the rare occasion both
+  // would otherwise race to create the doc at the same moment.
+  await new Promise((resolve) => setTimeout(resolve, 1200));
+
+  const ref = admin.firestore().collection('users').doc(emailLower);
+
+  // Small retry, same reasoning as writeProfileWithRetry on the client:
+  // covers a transient Firestore hiccup without giving up on the very
+  // first blip. Two attempts, short gap.
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const snap = await ref.get();
+
+      if (snap.exists) {
+        const data = snap.data() || {};
+        if (!data.uid) {
+          // Pre-existing invite (admin-created via Add Staff's fallback
+          // path, or a re-run of the super-admin bootstrap) — link it.
+          await ref.update({ uid: user.uid });
+        }
+        // If uid is already set, either the client's own write already
+        // finished, or something else already claimed this doc — either
+        // way, nothing for this trigger to do.
+        return;
+      }
+
+      // No profile at all: a genuine open self-signup (or first-time
+      // Google sign-in) with no admin invite. Recreate the same default
+      // profile authService.ts's client-side self-signup branch builds —
+      // FOOD_SAFETY_TECHNICIAN / site-1 — except for the one bootstrap
+      // exception, mirrored here too so the very first admin account
+      // still comes out right even if this trigger is what creates it.
+      const isSuperAdmin = emailLower === SUPER_ADMIN_EMAIL;
+      const { firstName, lastName } = splitDisplayName(user.displayName || emailLower.split('@')[0]);
+      await ref.set({
+        name: user.displayName || `${firstName} ${lastName}`.trim(),
+        firstName,
+        lastName,
+        email: emailLower,
+        role: isSuperAdmin ? 'ADMIN' : 'FOOD_SAFETY_TECHNICIAN',
+        site: isSuperAdmin ? '' : 'site-1',
+        isActive: true,
+        uid: user.uid,
+      });
+      return;
+    } catch (err) {
+      console.error(`createUserProfile: attempt ${attempt} failed for ${emailLower}:`, err);
+      if (attempt === 2) return; // give up quietly — the client-side write is still the primary path
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+  }
+});
