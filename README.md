@@ -20,20 +20,14 @@ stored in your browser's `localStorage`. Good for trying things out.
 
 ### Logging in (demo mode)
 
-Demo-mode login only checks the email address — **any password works**.
-Two crews are seeded out of the box:
+Demo mode starts as an empty shell — no seeded accounts, submissions,
+warnings, or training modules. Demo-mode login only checks the email
+address (**any password works**), so use the Sign Up tab to create your
+first account, or add one directly in `src/data/mockData.ts`
+(`INITIAL_USERS`) if you want something pre-populated on first load.
 
-- A small **fictional demo crew** (`dewi.manager@psu.demo`,
-  `hendra.supervisor@psu.demo`, `made.technician@psu.demo`, etc.) with a
-  few days of sample submission history already in place, so every screen
-  has something to look at on first load.
-- The **real PSU staff roster**, seeded as accounts only (no invented
-  work history under real names) — see `src/data/mockData.ts` for the
-  full list, or use `DEMO_PASSWORD` exported from that file if you want
-  one consistent password to hand out.
-
-Add, remove, or edit any of these directly in `src/data/mockData.ts` —
-see the comments at the top of that file (`SITES`, `INITIAL_USERS`).
+`SITES` in that same file is the one part that isn't demo content — edit
+it with your real site/location list either way.
 
 ## Deploying for real use (Vercel + Firebase)
 
