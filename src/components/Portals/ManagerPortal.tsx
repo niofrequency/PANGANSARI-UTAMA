@@ -29,6 +29,28 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
     s => s.status === 'PENDING' && (isGeneralManager || (s.siteId === currentUser?.site && s.type === (isFoodSafety ? 'FOOD_SAFETY' : 'HOUSEKEEPING')))
   );
 
+  // The Dashboard tab used to get the raw, unfiltered store data — every
+  // site's submissions, blended together, regardless of who was looking at
+  // it. That meant a Housekeeping Manager at one site saw every other
+  // site's scores too, not just their own, even though Escalations (above)
+  // was already correctly site-scoped. Same site-only rule as Escalations,
+  // minus the department filter (the Dashboard's whole point is one
+  // combined score, not split by department yet — see the note in the
+  // system-map artifact). GENERAL_MANAGER keeps seeing everything,
+  // consistent with Escalations.
+  const dashboardSubmissions = isGeneralManager
+    ? submissions
+    : submissions.filter(s => s.siteId === currentUser?.site);
+  const dashboardSites = isGeneralManager
+    ? sites
+    : sites.filter(s => s.id === currentUser?.site);
+  // Warning has no siteId of its own (see types.ts) — it's tied to a
+  // technician, so their site has to be looked up via the user list
+  // instead of read straight off the warning.
+  const dashboardWarnings = isGeneralManager
+    ? warnings
+    : warnings.filter(w => users.find(u => u.id === w.technicianId)?.site === currentUser?.site);
+
   const tabs = [
     { id: 'DASHBOARD' as const, icon: LayoutDashboard, label: t('manager.tabAnalytics') },
     { id: 'ESCALATIONS' as const, icon: CheckSquare, label: t('manager.tabEscalations') },
@@ -69,7 +91,7 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
                 <Settings size={18} />
               </button>
             </div>
-            <AnalyticsDashboard submissions={submissions} warnings={warnings} sites={sites} users={users} />
+            <AnalyticsDashboard submissions={dashboardSubmissions} warnings={dashboardWarnings} sites={dashboardSites} users={users} />
           </motion.div>
         )}
 
