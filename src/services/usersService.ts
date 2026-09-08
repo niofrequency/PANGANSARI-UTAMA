@@ -3,7 +3,7 @@
 // lowercased email so authService can look a profile up directly without
 // a query. See authService.ts for how accounts actually get activated.
 
-import { collection, doc, deleteDoc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, doc, deleteDoc, getDoc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { User, UserRole } from '../types';
 import { SUPER_ADMIN_EMAIL } from './authService';
@@ -17,6 +17,7 @@ interface FirestoreUserDoc {
   site: string;
   isActive: boolean;
   uid: string | null;
+  staffCode?: string;
 }
 
 // Live-subscribes to the users collection. Returns an unsubscribe function.
@@ -39,6 +40,7 @@ export function subscribeUsers(onChange: (users: User[]) => void): () => void {
           role: data.role,
           site: data.site,
           isActive: data.isActive,
+          staffCode: data.staffCode,
         };
       });
       onChange(users);
@@ -105,4 +107,44 @@ export async function deleteUserDoc(email: string): Promise<void> {
   if (!db) return;
   const emailLower = email.trim().toLowerCase();
   await deleteDoc(doc(db, 'users', emailLower));
+}
+
+export type SetStaffIdentityResult = { ok: true } | { ok: false; error: 'staffcode-taken' | 'not-configured' };
+
+// Sets (or replaces) a user's Scan-to-Job Staff ID + PIN. Writes two
+// places: the staffCodes/{CODE} lookup index (see authService.ts's
+// loginByStaffCode for why that index exists at all) and the staffCode +
+// pinHash fields on their own users/{email} doc. Neither write is
+// atomic with the other (no transaction — this app's Firestore usage
+// elsewhere doesn't use them either, see the email-migration comment in
+// functions/src/index.ts's adminResetCredentials for the same tradeoff),
+// but a half-finished attempt just means the admin retries; it can't lock
+// anyone out of an account that was already working.
+export async function setStaffIdentityDoc(
+  email: string,
+  staffCode: string,
+  pinHash: string,
+  previousStaffCode?: string
+): Promise<SetStaffIdentityResult> {
+  if (!db) return { ok: false, error: 'not-configured' };
+  const emailLower = email.trim().toLowerCase();
+  const codeUpper = staffCode.trim().toUpperCase();
+
+  const mapRef = doc(db, 'staffCodes', codeUpper);
+  const mapSnap = await getDoc(mapRef);
+  if (mapSnap.exists() && (mapSnap.data() as { email?: string }).email !== emailLower) {
+    return { ok: false, error: 'staffcode-taken' };
+  }
+
+  await setDoc(mapRef, { email: emailLower });
+  await updateDoc(doc(db, 'users', emailLower), { staffCode: codeUpper, pinHash });
+
+  if (previousStaffCode && previousStaffCode.trim().toUpperCase() !== codeUpper) {
+    // Best-effort cleanup of the old index entry — leaving it behind would
+    // just be dead weight (it no longer matches anyone's staffCode field),
+    // not a security hole, so a failure here isn't worth surfacing.
+    await deleteDoc(doc(db, 'staffCodes', previousStaffCode.trim().toUpperCase())).catch(() => {});
+  }
+
+  return { ok: true };
 }

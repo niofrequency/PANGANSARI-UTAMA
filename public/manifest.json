@@ -3,6 +3,7 @@
   "short_name": "FieldOps",
   "description": "Pangansari Utama (PSU) Field Operations Management",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#F7F8F7",
   "theme_color": "#8DC63F",

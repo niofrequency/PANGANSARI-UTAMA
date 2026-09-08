@@ -20,14 +20,46 @@ stored in your browser's `localStorage`. Good for trying things out.
 
 ### Logging in (demo mode)
 
-Demo mode starts as an empty shell — no seeded accounts, submissions,
-warnings, or training modules. Demo-mode login only checks the email
-address (**any password works**), so use the Sign Up tab to create your
-first account, or add one directly in `src/data/mockData.ts`
-(`INITIAL_USERS`) if you want something pre-populated on first load.
+Demo mode starts as an empty shell — no seeded submissions, warnings, or
+training modules. Demo-mode email login only checks the email address
+(**any password works**), so use the Sign Up tab to create your first
+account, or add one directly in `src/data/mockData.ts` (`INITIAL_USERS`)
+if you want something pre-populated on first load.
 
-`SITES` in that same file is the one part that isn't demo content — edit
-it with your real site/location list either way.
+`SITES` in that same file is one part that isn't demo content — edit it
+with your real site/location list either way.
+
+The other exception is three minimal seed accounts for trying the
+**Scan-to-Job** flow (see below) with zero setup — no fictional roster,
+just enough to log in as:
+
+| Name | Role | Staff ID | PIN |
+|---|---|---|---|
+| Budi Santoso | Food Safety Technician | `FS01` | `1234` |
+| Siti Aminah | Food Safety Technician | `FS02` | `1234` |
+| Andi Wijaya | Housekeeper | `HK01` | `1234` |
+
+### Scan-to-Job (Staff ID + PIN)
+
+Frontline staff can skip email login entirely: scan a job QR (or open its
+`/go` link directly), then type a **Staff ID + 4-digit PIN** instead of an
+email and password. The QR never carries identity, a PIN, or a token —
+only where the job is (`site` + `action`) — see
+`PSU_QR_JobDeepLink_PRD.md` for the full spec.
+
+Try these locally (append to your dev URL, e.g. `http://localhost:3000`):
+
+```
+/go?s=site-1&a=fridge              → Staff ID gate → fridge temp section
+/go?s=site-1&a=wellness            → Staff ID gate → wellness/PPE section
+/go?s=site-1&a=room&r=12&b=A       → Staff ID gate → UN.00.65 for Barak A, Kamar 12
+```
+
+Log in with any of the three demo accounts above (the technician codes
+only make sense for `fridge`/`core`/`clean`/`wellness`; the housekeeper
+code only for `a=room`). An Admin can issue real Staff IDs from the
+Admin Portal's Personnel tab ("Staff ID" button on each user), and print
+QR cards for a site from the new **Print QR** tab.
 
 ## Deploying for real use (Vercel + Firebase)
 
