@@ -49,7 +49,19 @@ export function StaffIdGate({ pendingJob, sites, loginByStaffCode, onSuccess, on
   };
 
   const handleSubmit = async () => {
-    if (!staffCode.trim() || pin.length !== 4 || isSubmitting) return;
+    if (isSubmitting) return;
+    // Tapping Log In (or the button being merely disabled) with an
+    // incomplete form used to just do nothing visible at all — which reads
+    // exactly like a broken button. Always give a reason instead of
+    // silently refusing.
+    if (!staffCode.trim()) {
+      setError(t('staffIdGate.errorEnterStaffId'));
+      return;
+    }
+    if (pin.length !== 4) {
+      setError(t('staffIdGate.errorEnterPin'));
+      return;
+    }
     setIsSubmitting(true);
     setError('');
     const result = await loginByStaffCode(staffCode, pin);
@@ -186,7 +198,7 @@ export function StaffIdGate({ pendingJob, sites, loginByStaffCode, onSuccess, on
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={isSubmitting || !staffCode.trim() || pin.length !== 4}
+          disabled={isSubmitting}
           className="w-full bg-psu-green text-white font-bold py-4 rounded-2xl shadow-lg shadow-psu-green/20 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 mb-4"
         >
           <LogIn size={18} />
