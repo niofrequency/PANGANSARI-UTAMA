@@ -22,6 +22,16 @@ export interface User {
   role: UserRole;
   site: string;
   isActive: boolean;
+  // Short login code for the Scan-to-Job flow (StaffIdGate.tsx) — an
+  // alternative to email/password for frontline staff scanning a job QR.
+  // Unique, uppercase, 3-12 chars [A-Z0-9]. Optional: most office roles
+  // never get one, and even FOOD_SAFETY_TECHNICIAN / HOUSEKEEPER accounts
+  // only have one once an Admin sets it (see AdminPortal's "Staff ID"
+  // action). The matching PIN is never carried on this type — see
+  // useAppStore.ts's setStaffIdentity()/loginByStaffCode() and
+  // authService.ts for where it's handled (hashed in Firebase mode,
+  // demo-only plaintext `pin` field on the raw seed data in mockData.ts).
+  staffCode?: string;
 }
 
 export interface Site {
@@ -104,6 +114,16 @@ export interface Submission {
     checkedBy?: string; // "Checked by, (SPV)" in the source
     acknowledgedBy?: string; // "Acknowledge by, (Area Owner)"
     verifiedBy?: string; // "Verified by, (HSSE Representative)"
+    // Scan-to-Job (deepLink.ts / StaffIdGate.tsx) — set when this
+    // submission was reached via a job QR rather than the normal tab
+    // navigation. qrAction mirrors the `a=` deep-link param.
+    source?: 'qr';
+    qrAction?: 'fridge' | 'core' | 'clean' | 'wellness' | 'room';
+    // HOUSEKEEPING (UN.00.65 room-cleaning checklist) only
+    formId?: 'UN.00.65';
+    barak?: string;
+    roomId?: string;
+    qrRoomId?: string;
   };
 }
 

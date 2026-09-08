@@ -3,7 +3,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { AnalyticsDashboard } from '../Dashboard/AnalyticsDashboard';
 import {
   Users, UserPlus, Shield, Trash2, XCircle, Search, Activity as ActivityIcon,
-  User as UserIcon, AlertTriangle, Copy, Check, Eye, EyeOff, RefreshCw, KeyRound
+  User as UserIcon, AlertTriangle, Copy, Check, Eye, EyeOff, RefreshCw, KeyRound, Hash, Printer,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
@@ -11,6 +11,12 @@ import { UserRole, Submission, User } from '../../types';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { SUPER_ADMIN_EMAIL } from '../../services/authService';
 import { isFirebaseConfigured } from '../../lib/firebase';
+import { PrintQrPanel } from './PrintQrPanel';
+
+// 4-digit PIN, no letters — matches StaffIdGate.tsx's numeric keypad.
+function generatePin(): string {
+  return String(Math.floor(1000 + Math.random() * 9000));
+}
 
 // Avoids visually-ambiguous characters (0/O, 1/l/I) since this password  
 // gets read aloud, typed by hand, or copy-pasted into a text message.
@@ -25,8 +31,8 @@ function generatePassword(length = 10): string {
 
 export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }) {
   const { t } = useTranslation();
-  const { users, sites, submissions, warnings, addUser, updateUserRole, updateUserSite, resetUserCredentials, deleteUser } = store;
-  const [activeTab, setActiveTab] = useState<'USERS' | 'ACTIVITY' | 'ANALYTICS'>('USERS');
+  const { users, sites, submissions, warnings, addUser, updateUserRole, updateUserSite, resetUserCredentials, setStaffIdentity, deleteUser } = store;
+  const [activeTab, setActiveTab] = useState<'USERS' | 'ACTIVITY' | 'ANALYTICS' | 'PRINT'>('USERS');
   const [search, setSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [newUser, setNewUser] = useState({ firstName: '', lastName: '', email: '', role: 'HOUSEKEEPER' as UserRole, site: 'site-1' });
@@ -49,6 +55,16 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
   const [isResetting, setIsResetting] = useState(false);
   const [resetError, setResetError] = useState('');
   const [resetSuccess, setResetSuccess] = useState(false);
+
+  // Staff ID modal — sets/changes a user's Scan-to-Job Staff ID + PIN (see
+  // StaffIdGate.tsx). Available in both Firebase and demo mode, unlike
+  // Reset Login above (which genuinely needs a Cloud Function).
+  const [staffIdTarget, setStaffIdTarget] = useState<User | null>(null);
+  const [staffIdCode, setStaffIdCode] = useState('');
+  const [staffIdPin, setStaffIdPin] = useState('');
+  const [isSavingStaffId, setIsSavingStaffId] = useState(false);
+  const [staffIdError, setStaffIdError] = useState('');
+  const [staffIdSuccess, setStaffIdSuccess] = useState(false);
 
   // Activity tab state
   const [activitySegment, setActivitySegment] = useState<'SUBMISSIONS' | 'WARNINGS'>('SUBMISSIONS');
@@ -157,6 +173,39 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
     setResetSuccess(true);
   };
 
+  const openStaffIdModal = (user: User) => {
+    setStaffIdTarget(user);
+    setStaffIdCode(user.staffCode || '');
+    setStaffIdPin(generatePin());
+    setStaffIdError('');
+    setStaffIdSuccess(false);
+  };
+
+  const closeStaffIdModal = () => setStaffIdTarget(null);
+
+  const handleSaveStaffId = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!staffIdTarget) return;
+    setStaffIdError('');
+    const code = staffIdCode.trim().toUpperCase();
+    if (!/^[A-Z0-9]{3,12}$/.test(code)) {
+      setStaffIdError(t('admin.staffIdInvalidCode'));
+      return;
+    }
+    if (!/^\d{4}$/.test(staffIdPin)) {
+      setStaffIdError(t('admin.staffIdInvalidPin'));
+      return;
+    }
+    setIsSavingStaffId(true);
+    const result = await setStaffIdentity(staffIdTarget.id, code, staffIdPin);
+    setIsSavingStaffId(false);
+    if (!result.ok) {
+      setStaffIdError(result.error === 'staffcode-taken' ? t('admin.staffIdTaken') : t('admin.createAccountFailed'));
+      return;
+    }
+    setStaffIdSuccess(true);
+  };
+
   const credentialsMessage = justCreated
     ? t('admin.credentialsMessage', { url: window.location.origin, email: justCreated.email, password: justCreated.password })
     : '';
@@ -196,6 +245,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
           { id: 'USERS', icon: Users, label: t('admin.tabPersonnel') },
           { id: 'ACTIVITY', icon: ActivityIcon, label: t('admin.tabActivity') },
           { id: 'ANALYTICS', icon: Shield, label: t('admin.tabAnalytics') },
+          { id: 'PRINT', icon: Printer, label: t('admin.tabPrint') },
         ].map(tab => (
           <button
             key={tab.id}
@@ -250,6 +300,9 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                     <div className="min-w-0 flex-1">
                       <h4 className="text-sm font-bold text-psu-gray truncate">{user.name}</h4>
                       <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5 truncate">{t(`roles.${user.role}`)} • {user.email}</p>
+                      {user.staffCode && (
+                        <p className="text-[9px] text-psu-green font-black uppercase tracking-widest mt-0.5">{t('admin.staffIdLabelShort')} {user.staffCode}</p>
+                      )}
                     </div>
                   </div>
 
@@ -277,6 +330,15 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                         aria-label={t('admin.resetLoginButton')}
                       >
                         <KeyRound size={18} />
+                      </button>
+                    )}
+                    {user.email.toLowerCase() !== SUPER_ADMIN_EMAIL && (
+                      <button
+                        onClick={() => openStaffIdModal(user)}
+                        className="p-2 rounded-xl transition-all shrink-0 text-psu-green bg-psu-green/5 hover:bg-psu-green/10"
+                        aria-label={t('admin.staffIdButton')}
+                      >
+                        <Hash size={18} />
                       </button>
                     )}
                     {user.email.toLowerCase() !== SUPER_ADMIN_EMAIL && (
@@ -431,6 +493,16 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
           >
             <h2 className="text-xl font-bold tracking-tight text-psu-gray mb-6 px-2">{t('admin.tabAnalytics')}</h2>
             <AnalyticsDashboard submissions={submissions} warnings={warnings} sites={sites} users={users} />
+          </motion.div>
+        )}
+
+        {activeTab === 'PRINT' && (
+          <motion.div
+            key="print"
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+          >
+            <PrintQrPanel sites={sites} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -868,6 +940,116 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                         className="flex-[2] py-4 bg-psu-blue text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-psu-blue/20 active:scale-95 transition-all disabled:opacity-60"
                       >
                         {isResetting ? t('common.loading') : t('admin.resetLoginButton')}
+                      </button>
+                    </div>
+                  </form>
+                </>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {staffIdTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-psu-gray/60 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white w-full max-w-sm rounded-[32px] p-8 shadow-2xl max-h-[90vh] overflow-y-auto"
+            >
+              {staffIdSuccess ? (
+                <>
+                  <div className="flex flex-col items-center mb-6 text-center">
+                    <div className="w-16 h-16 bg-psu-green/10 rounded-2xl flex items-center justify-center text-psu-green mb-4">
+                      <Check size={28} />
+                    </div>
+                    <h3 className="text-lg font-bold tracking-tight text-psu-gray">{t('admin.staffIdSuccessTitle')}</h3>
+                    <p className="text-xs text-psu-gray/60 font-medium mt-2 leading-relaxed">
+                      {t('admin.staffIdSuccessBody', { name: staffIdTarget.name })}
+                    </p>
+                  </div>
+                  <div className="bg-psu-bg border border-psu-gray/10 rounded-2xl p-4 mb-6 text-xs text-psu-gray space-y-1">
+                    <p><span className="font-black uppercase text-[9px] text-psu-gray/40 tracking-widest mr-2">{t('staffIdGate.staffIdLabel')}</span>{staffIdCode.trim().toUpperCase()}</p>
+                    <p><span className="font-black uppercase text-[9px] text-psu-gray/40 tracking-widest mr-2">PIN</span>{staffIdPin}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={closeStaffIdModal}
+                    className="w-full py-4 bg-psu-green text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-psu-green/20 active:scale-95 transition-all"
+                  >
+                    {t('common.close')}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="flex flex-col items-center mb-8 text-center">
+                    <div className="w-16 h-16 bg-psu-green/10 rounded-2xl flex items-center justify-center text-psu-green mb-4">
+                      <Hash size={28} />
+                    </div>
+                    <h3 className="text-lg font-bold tracking-tight text-psu-gray">{t('admin.staffIdTitle')}</h3>
+                    <p className="text-xs text-psu-gray/60 font-medium mt-2 leading-relaxed">
+                      {t('admin.staffIdBody', { name: staffIdTarget.name })}
+                    </p>
+                  </div>
+
+                  <form onSubmit={handleSaveStaffId} className="space-y-5">
+                    <div>
+                      <label className="block text-[10px] font-black text-psu-gray/40 uppercase mb-2 tracking-widest">{t('staffIdGate.staffIdLabel')}</label>
+                      <input
+                        type="text"
+                        value={staffIdCode}
+                        onChange={(e) => setStaffIdCode(e.target.value.toUpperCase().slice(0, 12))}
+                        placeholder={t('staffIdGate.staffIdPlaceholder')}
+                        className="w-full p-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-sm font-mono font-bold tracking-widest uppercase focus:outline-none focus:ring-2 focus:ring-psu-green/20 transition-all"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-[10px] font-black text-psu-gray/40 uppercase tracking-widest">PIN</label>
+                        <button
+                          type="button"
+                          onClick={() => setStaffIdPin(generatePin())}
+                          className="flex items-center gap-1 text-[9px] font-black text-psu-green uppercase tracking-widest"
+                        >
+                          <RefreshCw size={11} />
+                          {t('admin.regenerate')}
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={4}
+                        value={staffIdPin}
+                        onChange={(e) => setStaffIdPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                        className="w-full p-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-sm font-mono font-bold tracking-[0.5em] text-center focus:outline-none focus:ring-2 focus:ring-psu-green/20 transition-all"
+                      />
+                      <p className="text-[10px] text-psu-gray/40 font-medium mt-2">{t('admin.staffIdPinNote')}</p>
+                    </div>
+
+                    {staffIdError && (
+                      <div className="flex items-start gap-2 p-3 bg-psu-rejected/5 text-psu-rejected text-xs rounded-xl">
+                        <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                        <span>{staffIdError}</span>
+                      </div>
+                    )}
+
+                    <div className="flex gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={closeStaffIdModal}
+                        className="flex-1 py-4 text-psu-gray/40 font-black text-[10px] uppercase tracking-widest"
+                      >
+                        {t('common.cancel')}
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isSavingStaffId}
+                        className="flex-[2] py-4 bg-psu-green text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-psu-green/20 active:scale-95 transition-all disabled:opacity-60"
+                      >
+                        {isSavingStaffId ? t('common.loading') : t('admin.staffIdSaveButton')}
                       </button>
                     </div>
                   </form>

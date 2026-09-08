@@ -2,10 +2,18 @@ import { useState, useEffect } from 'react';
 import { User, Submission, UserRole, Site, Warning, TrainingModule } from '../types';
 import { INITIAL_USERS, INITIAL_SUBMISSIONS, INITIAL_WARNINGS, SITES, TRAINING_MODULES } from '../data/mockData';
 import { isFirebaseConfigured } from '../lib/firebase';
-import { loginOrRegister, loginWithGoogle as loginWithGoogleService, logout as firebaseLogout, watchAuthAndProfile, SUPER_ADMIN_EMAIL } from '../services/authService';
-import { subscribeUsers, updateUserRoleDoc, updateUserSiteDoc, toggleUserActiveDoc, deleteUserDoc } from '../services/usersService';
+import {
+  loginOrRegister,
+  loginWithGoogle as loginWithGoogleService,
+  loginByStaffCode as loginByStaffCodeService,
+  logout as firebaseLogout,
+  watchAuthAndProfile,
+  SUPER_ADMIN_EMAIL,
+} from '../services/authService';
+import { subscribeUsers, updateUserRoleDoc, updateUserSiteDoc, setStaffIdentityDoc, toggleUserActiveDoc, deleteUserDoc } from '../services/usersService';
 import { createStaffAccountDirect } from '../services/adminCreateAccount';
 import { resetStaffCredentials } from '../services/adminResetCredentials';
+import { hashPin, isValidPin, isValidStaffCode } from '../utils/pinHash';
 
 // This store has two modes: 
 //
@@ -64,6 +72,14 @@ export function useAppStore() {
   // auth check has actually resolved.
   const [isAuthResolving, setIsAuthResolving] = useState(isFirebaseConfigured);
 
+  // True while currentUser was set by loginByStaffCode (Scan-to-Job) rather
+  // than a real Firebase Auth sign-in. These sessions have no ID token, so
+  // the users-collection subscription below (which needs isSignedIn() per
+  // firestore.rules) is skipped for them rather than left to fail with a
+  // logged permission-denied on every one — see loginByStaffCode's comment
+  // in authService.ts for why that's an accepted tradeoff, not a bug.
+  const [pinSessionActive, setPinSessionActive] = useState(false);
+
   const [users, setUsers] = useState<User[]>(() => {
     if (isFirebaseConfigured) return []; // populated by subscribeUsers below
     const saved = localStorage.getItem('psu_users_v4');
@@ -119,14 +135,14 @@ export function useAppStore() {
 
   useEffect(() => {
     if (!isFirebaseConfigured) return;
-    if (!currentUser) {
+    if (!currentUser || pinSessionActive) {
       setUsers([]);
       return;
     }
     const unsubUsers = subscribeUsers(setUsers);
     return () => unsubUsers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isFirebaseConfigured, currentUser?.id]);
+  }, [isFirebaseConfigured, currentUser?.id, pinSessionActive]);
 
   // Set (and cleared) whenever a localStorage write below fails — almost
   // always QuotaExceededError once the browser's per-origin storage limit
@@ -230,7 +246,45 @@ export function useAppStore() {
     return result.ok ? null : result.error;
   };
 
+  // Scan-to-Job login (StaffIdGate.tsx): Staff ID + 4-digit PIN instead of
+  // email/password. See authService.ts's loginByStaffCode for why this
+  // deliberately never touches Firebase Auth.
+  const loginByStaffCode = async (
+    staffCode: string,
+    pin: string
+  ): Promise<{ ok: boolean; error?: 'unknown-id' | 'wrong-pin' | 'inactive' }> => {
+    const codeUpper = staffCode.trim().toUpperCase();
+
+    if (isFirebaseConfigured) {
+      const result = await loginByStaffCodeService(codeUpper, pin);
+      if (!result.ok) return result;
+      const p = result.profile;
+      setPinSessionActive(true);
+      setCurrentUser({
+        id: p.uid || codeUpper,
+        name: p.name,
+        firstName: p.firstName || '',
+        lastName: p.lastName || '',
+        email: p.email,
+        role: p.role,
+        site: p.site,
+        isActive: p.isActive,
+        staffCode: p.staffCode,
+      });
+      return { ok: true };
+    }
+
+    // Demo mode
+    const match = users.find((u) => u.staffCode?.toUpperCase() === codeUpper);
+    if (!match) return { ok: false, error: 'unknown-id' };
+    if (!match.isActive) return { ok: false, error: 'inactive' };
+    if ((match as any).pin !== pin) return { ok: false, error: 'wrong-pin' };
+    setCurrentUser(match);
+    return { ok: true };
+  };
+
   const logout = () => {
+    setPinSessionActive(false);
     if (isFirebaseConfigured) {
       firebaseLogout();
       return;
@@ -323,6 +377,35 @@ export function useAppStore() {
     return { ok: false, error: result.error };
   };
 
+  // Admin sets/changes a user's Scan-to-Job Staff ID + PIN. Firebase mode
+  // hashes the PIN before it's ever sent to Firestore (see pinHash.ts);
+  // demo mode has no server to hash for, so it's stored as-is on the local
+  // user object (see the `pin` comment on mockData.ts's demo seed).
+  const setStaffIdentity = async (
+    userId: string,
+    staffCode: string,
+    pin: string
+  ): Promise<{ ok: boolean; error?: 'invalid-code' | 'invalid-pin' | 'staffcode-taken' | 'unknown' | 'not-configured' }> => {
+    const codeUpper = staffCode.trim().toUpperCase();
+    if (!isValidStaffCode(codeUpper)) return { ok: false, error: 'invalid-code' };
+    if (!isValidPin(pin)) return { ok: false, error: 'invalid-pin' };
+
+    const target = users.find((u) => u.id === userId);
+    if (!target) return { ok: false, error: 'unknown' };
+
+    if (isFirebaseConfigured) {
+      const pinHash = await hashPin(codeUpper, pin);
+      const result = await setStaffIdentityDoc(target.email, codeUpper, pinHash, target.staffCode);
+      return result;
+    }
+
+    if (users.some((u) => u.id !== userId && u.staffCode?.toUpperCase() === codeUpper)) {
+      return { ok: false, error: 'staffcode-taken' };
+    }
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, staffCode: codeUpper, pin } as User : u)));
+    return { ok: true };
+  };
+
   const toggleUserActive = (userId: string) => {
     if (isFirebaseConfigured) {
       const target = users.find(u => u.id === userId);
@@ -366,6 +449,7 @@ export function useAppStore() {
     sites: SITES,
     login,
     loginWithGoogle,
+    loginByStaffCode,
     logout,
     addSubmission,
     updateSubmissionStatus,
@@ -373,6 +457,7 @@ export function useAppStore() {
     updateUserRole,
     updateUserSite,
     resetUserCredentials,
+    setStaffIdentity,
     toggleUserActive,
     deleteUser,
     addWarning,

@@ -84,6 +84,22 @@ service cloud.firestore {
       allow delete: if isSuperAdmin() && userId != 'mpigome44@gmail.com';
     }
 
+    // ── staffCodes ───────────────────────────────────────────────────
+    // Scan-to-Job login (StaffIdGate.tsx / authService.ts's
+    // loginByStaffCode): a small public-read index, {CODE} -> { email },
+    // so a Staff ID can be resolved to a users/{email} profile before the
+    // person is authenticated — the same reason users/{userId} allows a
+    // public `get` above. Never stores a PIN or its hash; that lives only
+    // on the users/{email} doc it points to (see usersService.ts's
+    // setStaffIdentityDoc). Only the super-admin can create/change/remove
+    // entries — staff codes are assigned by an Admin, not chosen by
+    // whoever gets to a signup form first.
+    match /staffCodes/{code} {
+      allow get: if true;
+      allow list: if isSignedIn();
+      allow create, update, delete: if isSuperAdmin();
+    }
+
     // ── submissions (not yet used by the client — see note above) ─────
     match /submissions/{submissionId} {
       allow read: if isSignedIn();

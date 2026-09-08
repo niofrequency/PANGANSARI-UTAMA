@@ -1,13 +1,17 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { PhotoCapture } from '../PhotoCapture';
 import { TrainingsTab } from '../TrainingsTab';
-import { ClipboardCheck, History, GraduationCap, CheckCircle2, Clock, XCircle, AlertTriangle, MapPin, Check, X } from 'lucide-react';
+import { ClipboardCheck, History, GraduationCap, CheckCircle2, Clock, XCircle, AlertTriangle, MapPin, Check, X, MapPinOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { DAILY_FOOD_HANDLER_GROUPS, DAILY_FOOD_HANDLER_ALL_CRITERIA } from '../../data/dailyFoodHandlerData';
 import { computeReadyToWork, countMarked, isGoodMark } from '../../data/dailyFoodHandlerScoring';
+import { DeepLinkJob, parseDeepLinkFromUrl } from '../../lib/deepLink';
+import { ScanJobButton } from '../QrScanner';
+
+type DeepLinkStartAt = 'fridge' | 'core' | 'clean' | 'wellness';
 
 const GROUP_LABEL_KEY: Record<string, string> = {
   wellness: 'dfh.groupWellness',
@@ -29,14 +33,33 @@ function isPlausibleTemp(value: string): boolean {
   return value.trim() !== '' && Number.isFinite(n) && n >= MIN_PLAUSIBLE_TEMP_C && n <= MAX_PLAUSIBLE_TEMP_C;
 }
 
-export function TechnicianPortal({ store }: { store: ReturnType<typeof useAppStore> }) {
+interface TechnicianPortalProps {
+  store: ReturnType<typeof useAppStore>;
+  // Scan-to-Job (deepLink.ts): which section to jump to and highlight when
+  // this technician arrived via a job QR, the site the QR was scanned at
+  // (blocks the whole log if it doesn't match this technician's own site —
+  // see PRD "Wrong site blocks the job"), and a callback to clear the
+  // pending job once it's actually been submitted.
+  startAt?: DeepLinkStartAt;
+  expectedSite?: string;
+  onDeepLinkHandled?: () => void;
+  onScanJob?: (job: DeepLinkJob) => void;
+}
+
+export function TechnicianPortal({ store, startAt, expectedSite, onDeepLinkHandled, onScanJob }: TechnicianPortalProps) {
   const { t } = useTranslation();
   const { currentUser, submissions, addSubmission, trainings, completeTraining, warnings, sites } = store;
   const [activeTab, setActiveTab] = useState<'TASKS' | 'HISTORY' | 'TRAINING'>('TASKS');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showValidation, setShowValidation] = useState(false);
+  const [highlightSection, setHighlightSection] = useState<DeepLinkStartAt | null>(null);
   const currentSite = sites.find(s => s.id === currentUser?.site);
   const currentSiteName = currentSite?.name || currentUser?.site || '';
+  const fridgeRef = useRef<HTMLDivElement>(null);
+  const coreRef = useRef<HTMLDivElement>(null);
+  const cleanRef = useRef<HTMLDivElement>(null);
+  const wellnessRef = useRef<HTMLDivElement>(null);
+  const siteMismatch = Boolean(expectedSite && currentUser && currentUser.site !== expectedSite);
   const [formData, setFormData] = useState({
     fridgeTemp: '4',
     cookingTemp: '75',
@@ -64,6 +87,40 @@ export function TechnicianPortal({ store }: { store: ReturnType<typeof useAppSto
 
   const setMark = (criterionId: string, mark: string) => {
     setWellnessMarks(p => ({ ...p, [criterionId]: mark }));
+  };
+
+  // Scanning a job QR jumps here on the exact section it's for — force the
+  // Tasks tab open and scroll/highlight it. Doesn't touch canSubmit: the
+  // rest of today's log still has to be filled in before submitting (see
+  // PRD "Scanning fridge still requires the full current technician log").
+  useEffect(() => {
+    if (!startAt || siteMismatch) return;
+    setActiveTab('TASKS');
+    setHighlightSection(startAt);
+    const refs: Record<DeepLinkStartAt, React.RefObject<HTMLDivElement>> = {
+      fridge: fridgeRef,
+      core: coreRef,
+      clean: cleanRef,
+      wellness: wellnessRef,
+    };
+    const target = refs[startAt].current;
+    if (target) {
+      const timer = setTimeout(() => target.scrollIntoView({ behavior: 'smooth', block: 'center' }), 150);
+      const clearHighlight = setTimeout(() => setHighlightSection(null), 3000);
+      return () => {
+        clearTimeout(timer);
+        clearTimeout(clearHighlight);
+      };
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startAt, siteMismatch]);
+
+  const highlightClass = (section: DeepLinkStartAt) =>
+    highlightSection === section ? 'ring-4 ring-psu-blue/30 rounded-2xl' : '';
+
+  const handleScanned = (rawValue: string) => {
+    const job = parseDeepLinkFromUrl(rawValue);
+    if (job) onScanJob?.(job);
   };
 
   const handleSubmit = async () => {
@@ -97,6 +154,7 @@ export function TechnicianPortal({ store }: { store: ReturnType<typeof useAppSto
         ...wellnessItems,
       ],
       score: Math.round((goodCount / totalCriteria) * 100),
+      ...(startAt ? { meta: { source: 'qr' as const, qrAction: startAt } } : {}),
     });
 
     setFormData({ fridgeTemp: '4', cookingTemp: '75', areaClean: false, photo: null });
@@ -104,7 +162,32 @@ export function TechnicianPortal({ store }: { store: ReturnType<typeof useAppSto
     setShowValidation(false);
     setIsSubmitting(false);
     setActiveTab('HISTORY');
+    if (startAt) onDeepLinkHandled?.();
   };
+
+  // A job QR scanned for a different site than this technician's own —
+  // block the whole log rather than silently ignoring the mismatch (see
+  // PRD "Wrong site (s= on QR != user.site): block the job").
+  if (siteMismatch) {
+    const scannedSiteName = sites.find(s => s.id === expectedSite)?.name || expectedSite;
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 text-center">
+        <div className="w-16 h-16 bg-psu-rejected/10 rounded-2xl flex items-center justify-center text-psu-rejected mb-4">
+          <MapPinOff size={28} />
+        </div>
+        <h2 className="text-lg font-bold text-psu-gray">{t('deepLink.wrongLocationTitle')}</h2>
+        <p className="mt-2 text-sm text-psu-gray/60 max-w-xs">
+          {t('deepLink.wrongLocationBody', { site: scannedSiteName || '', mySite: currentSiteName })}
+        </p>
+        <button
+          onClick={() => onDeepLinkHandled?.()}
+          className="mt-6 px-6 py-3 bg-psu-gray text-white rounded-2xl font-black text-[10px] uppercase tracking-widest"
+        >
+          {t('deepLink.continueToMyPortal')}
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -154,17 +237,25 @@ export function TechnicianPortal({ store }: { store: ReturnType<typeof useAppSto
             animate={{ opacity: 1, scale: 1 }}
             className="space-y-6"
           >
-            <div className="flex items-center justify-between px-2">
+            <div className="flex items-center justify-between px-2 gap-3">
               <h2 className="text-xl font-bold tracking-tight text-psu-gray">{t('technician.dailyLogTitle')}</h2>
-              <div className="flex items-center gap-1 text-[10px] font-black text-psu-gray/40 uppercase tracking-widest">
-                <MapPin size={12} /> {currentSiteName}
+              <div className="flex items-center gap-3 shrink-0">
+                <div className="flex items-center gap-1 text-[10px] font-black text-psu-gray/40 uppercase tracking-widest">
+                  <MapPin size={12} /> {currentSiteName}
+                </div>
+                <ScanJobButton
+                  onScanned={handleScanned}
+                  label={t('technician.scanJobButton')}
+                  iconOnly
+                  className="w-9 h-9 rounded-xl bg-white border border-psu-gray/10 text-psu-gray/50 flex items-center justify-center active:scale-95 transition-all"
+                />
               </div>
             </div>
 
             <div className="card space-y-8">
               <h4 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em] border-b border-psu-gray/5 pb-2 -mb-2">{t('technician.sectionOperations')}</h4>
               <div className="grid grid-cols-2 gap-4">
-                <div>
+                <div ref={fridgeRef} className={cn("p-2 -m-2 transition-all", highlightClass('fridge'))}>
                   <label className="block text-[10px] font-black text-psu-gray/40 uppercase tracking-widest mb-2">{t('technician.fridgeTemp')}</label>
                   <input
                     type="number"
@@ -180,7 +271,7 @@ export function TechnicianPortal({ store }: { store: ReturnType<typeof useAppSto
                     <p className="text-[10px] text-psu-rejected font-bold mt-1.5">{t('technician.tempInvalid')}</p>
                   )}
                 </div>
-                <div>
+                <div ref={coreRef} className={cn("p-2 -m-2 transition-all", highlightClass('core'))}>
                   <label className="block text-[10px] font-black text-psu-gray/40 uppercase tracking-widest mb-2">{t('technician.coreTemp')}</label>
                   <input
                     type="number"
@@ -198,7 +289,7 @@ export function TechnicianPortal({ store }: { store: ReturnType<typeof useAppSto
                 </div>
               </div>
 
-              <div className="space-y-3">
+              <div ref={cleanRef} className={cn("space-y-3 p-2 -m-2 transition-all", highlightClass('clean'))}>
                 <label className="flex items-center justify-between p-4 bg-psu-bg/50 border border-psu-gray/5 rounded-2xl cursor-pointer hover:bg-psu-bg transition-colors">
                   <span className="text-sm font-bold text-psu-gray">{t('technician.areaClean')}</span>
                   <div className="relative inline-flex items-center cursor-pointer">
@@ -213,7 +304,7 @@ export function TechnicianPortal({ store }: { store: ReturnType<typeof useAppSto
                 </label>
               </div>
 
-              <div className="space-y-5 pt-2">
+              <div ref={wellnessRef} className={cn("space-y-5 pt-2 p-2 -m-2 transition-all", highlightClass('wellness'))}>
                 <div className="flex items-center justify-between border-b border-psu-gray/5 pb-2">
                   <h4 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em]">{t('technician.sectionPersonalCheck')}</h4>
                   {allMarked && (
