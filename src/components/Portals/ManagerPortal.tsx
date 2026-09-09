@@ -7,6 +7,7 @@ import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { InspectionsTab } from '../Inspections/InspectionsTab';
 import { OpsLogsTab } from '../OpsLogs/OpsLogsTab';
+import { userCanSeeSite } from '../../lib/siteScope';
 
 export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore> }) {
   const { t } = useTranslation();
@@ -19,38 +20,34 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
   const isFoodSafety = currentUser?.role === 'FOOD_SAFETY_MANAGER' || isGeneralManager;
   const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'ESCALATIONS' | 'OPS_LOGS' | 'INSPECTIONS'>('DASHBOARD');
 
-  // Site-scoped *and* department-scoped, same as the Supervisor's Field
-  // Queue — a Housekeeping Manager's Escalations is HOUSEKEEPING
-  // submissions only, a Food Safety Manager's is FOOD_SAFETY only. This
-  // used to filter by status alone, which let either Manager approve or
-  // reject the other department's — and every site's — pending work.
-  // GENERAL_MANAGER is the deliberate exception: no site or department
-  // filter at all, since that role is meant to see everything.
+  // Site-scoped (Home Site by default, or wider if the Admin gave this
+  // Manager a Site Access override — see lib/siteScope.ts) *and*
+  // department-scoped, same as the Supervisor's Field Queue — a
+  // Housekeeping Manager's Escalations is HOUSEKEEPING submissions only,
+  // a Food Safety Manager's is FOOD_SAFETY only. This used to filter by
+  // status alone, which let either Manager approve or reject the other
+  // department's — and every site's — pending work. GENERAL_MANAGER is
+  // the deliberate exception: no department filter at all (site scope
+  // still applies, but defaults to 'ALL' for that role — see
+  // siteScope.ts), since that role is meant to see everything.
   const escalations = submissions.filter(
-    s => s.status === 'PENDING' && (isGeneralManager || (s.siteId === currentUser?.site && s.type === (isFoodSafety ? 'FOOD_SAFETY' : 'HOUSEKEEPING')))
+    s => s.status === 'PENDING' && userCanSeeSite(currentUser, s.siteId) && (isGeneralManager || s.type === (isFoodSafety ? 'FOOD_SAFETY' : 'HOUSEKEEPING'))
   );
 
   // The Dashboard tab used to get the raw, unfiltered store data — every
   // site's submissions, blended together, regardless of who was looking at
   // it. That meant a Housekeeping Manager at one site saw every other
   // site's scores too, not just their own, even though Escalations (above)
-  // was already correctly site-scoped. Same site-only rule as Escalations,
+  // was already correctly site-scoped. Same site scope as Escalations,
   // minus the department filter (the Dashboard's whole point is one
   // combined score, not split by department yet — see the note in the
-  // system-map artifact). GENERAL_MANAGER keeps seeing everything,
-  // consistent with Escalations.
-  const dashboardSubmissions = isGeneralManager
-    ? submissions
-    : submissions.filter(s => s.siteId === currentUser?.site);
-  const dashboardSites = isGeneralManager
-    ? sites
-    : sites.filter(s => s.id === currentUser?.site);
+  // system-map artifact).
+  const dashboardSubmissions = submissions.filter(s => userCanSeeSite(currentUser, s.siteId));
+  const dashboardSites = sites.filter(s => userCanSeeSite(currentUser, s.id));
   // Warning has no siteId of its own (see types.ts) — it's tied to a
   // technician, so their site has to be looked up via the user list
   // instead of read straight off the warning.
-  const dashboardWarnings = isGeneralManager
-    ? warnings
-    : warnings.filter(w => users.find(u => u.id === w.technicianId)?.site === currentUser?.site);
+  const dashboardWarnings = warnings.filter(w => userCanSeeSite(currentUser, users.find(u => u.id === w.technicianId)?.site));
 
   const tabs = [
     { id: 'DASHBOARD' as const, icon: LayoutDashboard, label: t('manager.tabAnalytics') },
@@ -178,13 +175,13 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
             {(isGeneralManager || !isFoodSafety) && (
               <div className="space-y-3">
                 {isGeneralManager && <h3 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em] px-2">{t('roles.HOUSEKEEPING_MANAGER')}</h3>}
-                <OpsLogsTab store={store} department="HOUSEKEEPING" tier="manager" unscoped={isGeneralManager} />
+                <OpsLogsTab store={store} department="HOUSEKEEPING" tier="manager" />
               </div>
             )}
             {isFoodSafety && (
               <div className="space-y-3">
                 {isGeneralManager && <h3 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em] px-2">{t('roles.FOOD_SAFETY_MANAGER')}</h3>}
-                <OpsLogsTab store={store} department="FOOD_SAFETY" tier="manager" unscoped={isGeneralManager} />
+                <OpsLogsTab store={store} department="FOOD_SAFETY" tier="manager" />
               </div>
             )}
           </motion.div>

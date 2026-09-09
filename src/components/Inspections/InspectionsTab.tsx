@@ -11,6 +11,7 @@ import { GembaWalkForm } from './GembaWalkForm';
 import { GembaWalkReportView } from './GembaWalkReportView';
 import { DailyFoodHandlerForm } from './DailyFoodHandlerForm';
 import { DailyFoodHandlerReportView } from './DailyFoodHandlerReportView';
+import { userCanSeeSite } from '../../lib/siteScope';
 
 type AuditType = 'FOOD_SAFETY_INSPECTION' | 'GEMBA_WALK' | 'DAILY_FOOD_HANDLER';
 
@@ -41,15 +42,13 @@ export function InspectionsTab({ store }: { store: ReturnType<typeof useAppStore
   const [selected, setSelected] = useState<Submission | null>(null);
   const currentSite = sites.find(s => s.id === currentUser?.site);
   const currentSiteName = currentSite?.name || currentUser?.site || '';
-  // Same exception as Escalations and the Dashboard (ManagerPortal.tsx):
-  // General Manager is site-wide leadership, so its Inspections history
-  // shouldn't stop at its own site either — it used to be the one screen
-  // GM could open that was still quietly filtered down to one location.
-  const isGeneralManager = currentUser?.role === 'GENERAL_MANAGER';
 
+  // Site-scoped per lib/siteScope.ts — Home Site by default, 'ALL' for
+  // GENERAL_MANAGER unless the Admin overrides it, or wider still if the
+  // Admin gave this Supervisor/Manager a Site Access override.
   const myAudits = submissions
     .filter((s): s is Submission & { type: AuditType } =>
-      (s.type === 'FOOD_SAFETY_INSPECTION' || s.type === 'GEMBA_WALK' || s.type === 'DAILY_FOOD_HANDLER') && (isGeneralManager || s.siteId === currentUser?.site)
+      (s.type === 'FOOD_SAFETY_INSPECTION' || s.type === 'GEMBA_WALK' || s.type === 'DAILY_FOOD_HANDLER') && userCanSeeSite(currentUser, s.siteId)
     )
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
@@ -181,7 +180,10 @@ export function InspectionsTab({ store }: { store: ReturnType<typeof useAppStore
                     <h4 className="text-sm font-bold text-psu-gray truncate">{s.meta?.areaAudited || defaultTitle}</h4>
                     <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5">
                       {new Date(s.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} · {scoreText} · {typeLabel}
-                      {isGeneralManager && s.siteName ? ` · ${s.siteName}` : ''}
+                      {/* Site shown once this view can span more than one
+                          site — GENERAL_MANAGER by default, or anyone the
+                          Admin gave a Site Access override to. */}
+                      {(currentUser?.role === 'GENERAL_MANAGER' || currentUser?.assignedSites) && s.siteName ? ` · ${s.siteName}` : ''}
                     </p>
                   </div>
                 </div>

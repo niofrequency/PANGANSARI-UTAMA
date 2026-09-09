@@ -28,6 +28,15 @@ export interface User {
   role: UserRole;
   site: string;
   isActive: boolean;
+  // Which sites this person can review/manage in their portal — Field
+  // Queue, Escalations, Dashboard, Ops Logs (see lib/siteScope.ts).
+  // Unset (the default) means "just `site` above," same as before this
+  // field existed. 'ALL' means every site, the way GENERAL_MANAGER and
+  // ADMIN already behaved. Only meaningful for the Supervisor/Manager/GM
+  // roles listed in siteScope.ts's SITE_SCOPED_ROLES — frontline roles
+  // (Housekeeper, Technician, Laundry Staff, Janitor) always work at
+  // their single `site` above regardless of this.
+  assignedSites?: string[] | 'ALL';
   // Short login code for the Scan-to-Job flow (StaffIdGate.tsx) — an
   // alternative to email/password for frontline staff scanning a job QR.
   // Unique, uppercase, 3-12 chars [A-Z0-9]. Optional: most office roles

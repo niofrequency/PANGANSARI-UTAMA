@@ -7,6 +7,7 @@ import { Submission } from '../../types';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { InspectionsTab } from '../Inspections/InspectionsTab';
 import { OpsLogsTab } from '../OpsLogs/OpsLogsTab';
+import { userCanSeeSite } from '../../lib/siteScope';
 import { DAILY_FOOD_HANDLER_ALL_CRITERIA } from '../../data/dailyFoodHandlerData';
 
 // A Food Safety Technician's daily log folds in a personal wellness/hygiene/
@@ -29,14 +30,16 @@ export function SupervisorPortal({ store }: { store: ReturnType<typeof useAppSto
   const [showWarningDialog, setShowWarningDialog] = useState(false);
   const [warningData, setWarningData] = useState({ userId: '', reason: '', severity: 'LOW' as any });
 
-  // Site-scoped *and* department-scoped: a Housekeeping Supervisor's queue
-  // is HOUSEKEEPING submissions only, a Food Safety Supervisor's is
-  // FOOD_SAFETY only (the two departments' only PENDING-capable types —
-  // the three Inspections audits are auto-approved and never land here).
-  // Missing the type filter used to let either Supervisor see and act on
-  // the other department's queue entirely.
+  // Site-scoped (Home Site by default, or wider if the Admin gave this
+  // Supervisor a Site Access override — see lib/siteScope.ts) *and*
+  // department-scoped: a Housekeeping Supervisor's queue is HOUSEKEEPING
+  // submissions only, a Food Safety Supervisor's is FOOD_SAFETY only (the
+  // two departments' only PENDING-capable types — the three Inspections
+  // audits are auto-approved and never land here). Missing the type
+  // filter used to let either Supervisor see and act on the other
+  // department's queue entirely.
   const pending = submissions.filter(
-    s => s.status === 'PENDING' && s.siteId === currentUser?.site && s.type === (isFoodSafety ? 'FOOD_SAFETY' : 'HOUSEKEEPING')
+    s => s.status === 'PENDING' && userCanSeeSite(currentUser, s.siteId) && s.type === (isFoodSafety ? 'FOOD_SAFETY' : 'HOUSEKEEPING')
   );
 
   const handleApprove = (id: string) => {
@@ -133,7 +136,13 @@ export function SupervisorPortal({ store }: { store: ReturnType<typeof useAppSto
               </div>
               <div>
                 <h4 className="text-sm font-bold text-psu-gray">{s.userName}</h4>
-                <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5">{s.type} • {new Date(s.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                {/* Site shown alongside type once this Supervisor has a
+                    Site Access override covering more than one site — see
+                    lib/siteScope.ts — otherwise it's always the same site
+                    and just noise. */}
+                <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5">
+                  {s.type}{currentUser?.assignedSites ? ` · ${s.siteName}` : ''} • {new Date(s.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </p>
                 {flagged && (
                   <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-psu-rejected bg-psu-rejected/10 px-2 py-0.5 rounded-full mt-1">
                     <AlertTriangle size={10} /> {t('supervisorHK.notReadyFlag')}

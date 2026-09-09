@@ -10,7 +10,7 @@ import {
   watchAuthAndProfile,
   SUPER_ADMIN_EMAIL,
 } from '../services/authService';
-import { subscribeUsers, updateUserRoleDoc, updateUserSiteDoc, setStaffIdentityDoc, toggleUserActiveDoc, deleteUserDoc } from '../services/usersService';
+import { subscribeUsers, updateUserRoleDoc, updateUserSiteDoc, updateUserAssignedSitesDoc, setStaffIdentityDoc, toggleUserActiveDoc, deleteUserDoc } from '../services/usersService';
 import { createStaffAccountDirect } from '../services/adminCreateAccount';
 import { resetStaffCredentials } from '../services/adminResetCredentials';
 import { isValidStaffCode } from '../utils/staffCode';
@@ -391,6 +391,18 @@ export function useAppStore() {
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, site } : u));
   };
 
+  // Site Access (lib/siteScope.ts) — which sites a Supervisor/Manager/GM
+  // reviews, separate from `site` above (their unchanged home site).
+  // null clears the override back to "Home Site only."
+  const updateUserAssignedSites = (userId: string, assignedSites: string[] | 'ALL' | null) => {
+    if (isFirebaseConfigured) {
+      const target = users.find(u => u.id === userId);
+      if (target) updateUserAssignedSitesDoc(target.email, assignedSites);
+      return;
+    }
+    setUsers(prev => prev.map(u => u.id === userId ? { ...u, assignedSites: assignedSites ?? undefined } : u));
+  };
+
   // Admin-typed login reset (new email and/or new password for someone
   // ELSE's account) — Firebase mode only, and always goes through the
   // adminResetCredentials Cloud Function, since changing a different
@@ -489,6 +501,7 @@ export function useAppStore() {
     addUser,
     updateUserRole,
     updateUserSite,
+    updateUserAssignedSites,
     resetUserCredentials,
     setStaffIdentity,
     toggleUserActive,
