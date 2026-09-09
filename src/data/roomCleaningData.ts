@@ -39,9 +39,8 @@ export const ROOM_CLEANING_GROUPS: RoomCleaningGroupDef[] = [
   { key: '6', titleId: 'Linens & Blanket', titleEn: 'Linens & Blanket' },
 ];
 
-// Groups where the room boy must attach at least one photo per submission
-// (not necessarily one per item) — see PRD "UI" section.
-export const PHOTO_REQUIRED_GROUPS: RoomCleaningGroupKey[] = ['3', '5', '6'];
+// One proof photo per submission (not per section) — see
+// HousekeeperPortal.tsx.
 
 export const ROOM_CLEANING_ITEMS: RoomCleaningItem[] = [
   // 1 — Umum / General

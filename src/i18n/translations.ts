@@ -118,8 +118,8 @@ export const translations = {
         no_linen: 'No linen available',
         broken: 'Broken / needs repair',
       },
-      groupPhotoLabel: 'Photo for this section',
-      photoRequired: 'A photo is required for this section.',
+      groupPhotoLabel: 'Photo (proof of cleaning)',
+      photoRequired: 'A photo is required before submitting.',
     },
     supervisorHK: {
       queueTitle: 'Field Queue',
@@ -690,8 +690,8 @@ export const translations = {
         no_linen: 'Tidak ada linen',
         broken: 'Rusak / perlu perbaikan',
       },
-      groupPhotoLabel: 'Foto untuk bagian ini',
-      photoRequired: 'Foto wajib untuk bagian ini.',
+      groupPhotoLabel: 'Foto (bukti pembersihan)',
+      photoRequired: 'Foto wajib diisi sebelum mengirim.',
     },
     supervisorHK: {
       queueTitle: 'Antrean Lapangan',
