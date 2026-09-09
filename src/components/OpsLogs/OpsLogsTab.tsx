@@ -7,8 +7,6 @@ import { ClipboardList, ChevronRight, CheckCircle2, XCircle, Clock, Stamp } from
 import { Submission, OpsLogType } from '../../types';
 import { OPS_LOG_DEFS, OpsDepartment } from '../../data/opsLogsCatalog';
 import { SignoffProgress, nextSignoffStep } from './opsHelpers';
-import { TempControlForm } from './TempControlForm';
-import { DishwashForm } from './DishwashForm';
 import { MessHallHygieneForm } from './MessHallHygieneForm';
 import { CookingServiceForm } from './CookingServiceForm';
 import { HotPackedMealForm } from './HotPackedMealForm';
@@ -18,8 +16,6 @@ import { LaundryShopForm } from './LaundryShopForm';
 import { RestroomForm } from './RestroomForm';
 
 const FORM_COMPONENTS: Record<OpsLogType, ComponentType<{ store: ReturnType<typeof useAppStore>; onCancel: () => void; onSubmitted: () => void }>> = {
-  TEMP_CONTROL: TempControlForm,
-  DISHWASH_TEMP: DishwashForm,
   MESS_HALL_HYGIENE: MessHallHygieneForm,
   COOKING_SERVICE: CookingServiceForm,
   HOT_PACKED_MEAL: HotPackedMealForm,

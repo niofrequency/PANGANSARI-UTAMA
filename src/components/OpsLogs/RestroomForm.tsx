@@ -10,7 +10,9 @@ import { Clock } from 'lucide-react';
 // slot (08/11/16). Two groups of points, each with its own mark set.
 export function RestroomForm({ store, onCancel, onSubmitted }: {
   store: ReturnType<typeof useAppStore>;
-  onCancel: () => void;
+  // Optional: omitted on the dedicated Bathroom Janitor portal, where
+  // this is the only screen there is — nothing to cancel back to.
+  onCancel?: () => void;
   onSubmitted: () => void;
 }) {
   const { t, language } = useTranslation();
@@ -135,9 +137,11 @@ export function RestroomForm({ store, onCancel, onSubmitted }: {
       ))}
 
       <div className="flex gap-3">
-        <button onClick={onCancel} className="flex-1 py-4 text-psu-gray/40 font-black text-[10px] uppercase tracking-widest">
-          {t('common.cancel')}
-        </button>
+        {onCancel && (
+          <button onClick={onCancel} className="flex-1 py-4 text-psu-gray/40 font-black text-[10px] uppercase tracking-widest">
+            {t('common.cancel')}
+          </button>
+        )}
         <button
           onClick={handleSubmit}
           disabled={isSubmitting}

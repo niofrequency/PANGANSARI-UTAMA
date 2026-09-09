@@ -4,7 +4,7 @@ import { PhotoCapture } from '../PhotoCapture';
 import { TrainingsTab } from '../TrainingsTab';
 import {
   ClipboardList, History, GraduationCap, CheckCircle2, Clock, XCircle, MapPin, MapPinOff,
-  Check, Sparkles, BedDouble, Bath, Sofa, UtensilsCrossed, Shirt, WashingMachine, Toilet, ChevronLeft,
+  Check, Sparkles, BedDouble, Bath, Sofa, UtensilsCrossed, Shirt,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
@@ -16,8 +16,6 @@ import {
 import { wasDoneWithinDays, wasDoneThisCalendarMonth } from '../../data/roomCleaningCadence';
 import { DeepLinkJob, parseDeepLinkFromUrl } from '../../lib/deepLink';
 import { ScanJobButton } from '../QrScanner';
-import { LaundryShopForm } from '../OpsLogs/LaundryShopForm';
-import { RestroomForm } from '../OpsLogs/RestroomForm';
 
 const GROUP_ICON: Record<RoomCleaningGroupKey, typeof Sparkles> = {
   '1': Sparkles,
@@ -58,7 +56,6 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
 
   const [barak, setBarak] = useState(startBarak || '');
   const [roomId, setRoomId] = useState(startRoom || '');
-  const [openGroup, setOpenGroup] = useState<RoomCleaningGroupKey | null>(null);
   const [checklistState, setChecklistState] = useState<Record<string, ItemState>>({});
   const [groupPhotos, setGroupPhotos] = useState<Partial<Record<RoomCleaningGroupKey, string>>>({});
 
@@ -70,16 +67,6 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
   }, [startBarak, startRoom]);
 
   const cameFromQr = startBarak !== undefined || startRoom !== undefined;
-
-  // Which task card is open on the Tasks tab: the picker (Room Cleaning /
-  // Laundry Shop / Toilet), or one of the three. A room-scan QR is always
-  // for Room Cleaning, so it skips the picker entirely — same "the QR
-  // decides" precedent as TechnicianPortal's startAt.
-  const [mode, setMode] = useState<'PICKER' | 'ROOM_CLEANING' | 'LAUNDRY' | 'TOILET'>(cameFromQr ? 'ROOM_CLEANING' : 'PICKER');
-  useEffect(() => {
-    if (cameFromQr) setMode('ROOM_CLEANING');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startBarak, startRoom]);
 
   const myHistory = submissions.filter(s => s.userId === currentUser?.id);
 
@@ -175,11 +162,9 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
 
     setChecklistState({});
     setGroupPhotos({});
-    setOpenGroup(null);
     setShowValidation(false);
     setIsSubmitting(false);
     setActiveTab('HISTORY');
-    setMode('PICKER');
     if (cameFromQr) onDeepLinkHandled?.();
   };
 
@@ -239,23 +224,7 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
             className="space-y-6"
           >
             <div className="flex items-center justify-between px-2 gap-3">
-              <div className="flex items-center gap-2 min-w-0">
-                {mode !== 'PICKER' && !cameFromQr && (
-                  <button
-                    onClick={() => setMode('PICKER')}
-                    className="w-8 h-8 rounded-xl bg-white border border-psu-gray/10 text-psu-gray/50 flex items-center justify-center shrink-0"
-                    aria-label={t('common.cancel')}
-                  >
-                    <ChevronLeft size={16} />
-                  </button>
-                )}
-                <h2 className="text-xl font-bold tracking-tight text-psu-gray truncate">
-                  {mode === 'PICKER' ? t('housekeeper.tabTasks')
-                    : mode === 'LAUNDRY' ? t('ops.laundryShop.title')
-                    : mode === 'TOILET' ? t('ops.restroom.title')
-                    : t('housekeeper.today')}
-                </h2>
-              </div>
+              <h2 className="text-xl font-bold tracking-tight text-psu-gray truncate">{t('housekeeper.today')}</h2>
               <div className="flex items-center gap-3 shrink-0">
                 <div className="flex items-center gap-1 text-[10px] font-black text-psu-gray/40 uppercase tracking-widest">
                   <MapPin size={12} /> {currentSiteName}
@@ -269,41 +238,6 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
               </div>
             </div>
 
-            {mode === 'PICKER' && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <button onClick={() => setMode('ROOM_CLEANING')} className="card text-left flex items-start gap-4 hover:border-psu-green/20 transition-all active:scale-98">
-                  <div className="w-12 h-12 rounded-2xl bg-psu-green/10 text-psu-green flex items-center justify-center shrink-0"><Sparkles size={22} /></div>
-                  <div>
-                    <h4 className="text-sm font-bold text-psu-gray">{t('housekeeper.roomCleaningCard')}</h4>
-                    <p className="text-[10px] text-psu-gray/40 font-medium mt-1">UN.00.65</p>
-                  </div>
-                </button>
-                <button onClick={() => setMode('LAUNDRY')} className="card text-left flex items-start gap-4 hover:border-psu-green/20 transition-all active:scale-98">
-                  <div className="w-12 h-12 rounded-2xl bg-psu-blue/10 text-psu-blue flex items-center justify-center shrink-0"><WashingMachine size={22} /></div>
-                  <div>
-                    <h4 className="text-sm font-bold text-psu-gray">{t('ops.laundryShop.title')}</h4>
-                    <p className="text-[10px] text-psu-gray/40 font-medium mt-1">{t('ops.laundryShop.desc')}</p>
-                  </div>
-                </button>
-                <button onClick={() => setMode('TOILET')} className="card text-left flex items-start gap-4 hover:border-psu-green/20 transition-all active:scale-98">
-                  <div className="w-12 h-12 rounded-2xl bg-psu-warning/10 text-psu-warning flex items-center justify-center shrink-0"><Toilet size={22} /></div>
-                  <div>
-                    <h4 className="text-sm font-bold text-psu-gray">{t('ops.restroom.title')}</h4>
-                    <p className="text-[10px] text-psu-gray/40 font-medium mt-1">{t('ops.restroom.desc')}</p>
-                  </div>
-                </button>
-              </div>
-            )}
-
-            {mode === 'LAUNDRY' && (
-              <LaundryShopForm store={store} onCancel={() => setMode('PICKER')} onSubmitted={() => { setMode('PICKER'); setActiveTab('HISTORY'); }} />
-            )}
-            {mode === 'TOILET' && (
-              <RestroomForm store={store} onCancel={() => setMode('PICKER')} onSubmitted={() => { setMode('PICKER'); setActiveTab('HISTORY'); }} />
-            )}
-
-            {mode === 'ROOM_CLEANING' && (
-            <>
             {/* BARAK + NO. KAMAR */}
             <div className="card grid grid-cols-2 gap-4">
               <div>
@@ -334,134 +268,96 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
               </div>
             </div>
 
-            {/* Six group tiles */}
-            <div className="grid grid-cols-3 gap-3">
+            {/* One flat, continuous checklist — same shape as the paper
+                form itself (a single numbered list with section labels),
+                not a set of tap-to-open tiles. */}
+            <div className="card space-y-7">
               {ROOM_CLEANING_GROUPS.map(group => {
-                const items = itemsForGroup(group.key);
-                const requiredIds = items.filter(isRequiredToday).map(i => i.id);
-                const answeredCount = requiredIds.filter(isAnswered).length;
-                const needsPhoto = PHOTO_REQUIRED_GROUPS.includes(group.key);
-                const photoOk = !needsPhoto || Boolean(groupPhotos[group.key]);
-                const complete = requiredIds.length > 0 && answeredCount === requiredIds.length && photoOk;
-                const missing = showValidation && !complete;
                 const Icon = GROUP_ICON[group.key];
                 return (
-                  <button
-                    key={group.key}
-                    onClick={() => setOpenGroup(openGroup === group.key ? null : group.key)}
-                    className={cn(
-                      "card flex flex-col items-center gap-2 py-5 transition-all",
-                      openGroup === group.key ? "ring-2 ring-psu-green/40" : "",
-                      missing ? "border-psu-rejected/40" : ""
+                  <div key={group.key} className="space-y-3">
+                    <h4 className="flex items-center gap-2 text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em] border-b border-psu-gray/5 pb-2">
+                      <Icon size={14} className="text-psu-gray/25" />
+                      {group.key}. {language === 'id' ? group.titleId : group.titleEn}
+                    </h4>
+
+                    {itemsForGroup(group.key).map(item => {
+                      const due = isRequiredToday(item);
+                      const state = checklistState[item.id];
+                      const missing = showValidation && ((item.cadence === 'daily' && !state?.checked) || (item.cadence !== 'daily' && due && !isAnswered(item.id)));
+                      return (
+                        <div key={item.id} className={cn("p-3 -mx-1 rounded-2xl transition-all", missing && "bg-psu-rejected/5")}>
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold text-psu-gray">{item.labelId}</p>
+                              <p className="text-[10px] text-psu-gray/40 italic">{item.labelEn}</p>
+                              {item.cadence !== 'daily' && (
+                                <span className={cn(
+                                  "inline-block mt-1.5 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md",
+                                  due ? "bg-psu-warning/10 text-psu-warning" : "bg-psu-gray/5 text-psu-gray/30"
+                                )}>
+                                  {item.cadence === 'weekly' ? t('housekeeper.cadenceWeekly') : t('housekeeper.cadenceMonthly')}
+                                  {' · '}
+                                  {due ? t('housekeeper.due') : t('housekeeper.notDue')}
+                                </span>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => toggleChecked(item.id)}
+                              className={cn(
+                                "w-11 h-11 rounded-2xl flex items-center justify-center border-2 shrink-0 transition-all active:scale-95",
+                                state?.checked ? "bg-psu-green border-psu-green text-white" : "bg-psu-bg border-psu-gray/10 text-psu-gray/20"
+                              )}
+                            >
+                              {state?.checked && <Check size={20} strokeWidth={3} />}
+                            </button>
+                          </div>
+
+                          {item.cadence !== 'daily' && due && !state?.checked && (
+                            <div className="flex flex-wrap gap-2 mt-3">
+                              <span className="text-[9px] font-black text-psu-gray/30 uppercase tracking-widest w-full">
+                                {t('housekeeper.notDoneLabel')}
+                              </span>
+                              {TIDAK_DIKERJAKAN_REASONS.map(reason => (
+                                <button
+                                  key={reason}
+                                  type="button"
+                                  onClick={() => setReason(item.id, reason)}
+                                  className={cn(
+                                    "px-3 py-2 rounded-xl text-[10px] font-bold transition-all",
+                                    state?.reason === reason
+                                      ? "bg-psu-gray text-white"
+                                      : "bg-psu-bg text-psu-gray/50 border border-psu-gray/10"
+                                  )}
+                                >
+                                  {t(`housekeeper.reason.${reason}`)}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {PHOTO_REQUIRED_GROUPS.includes(group.key) && (
+                      <div>
+                        <label className="block text-[10px] font-black text-psu-gray/40 uppercase tracking-widest mb-2">
+                          {t('housekeeper.groupPhotoLabel')}
+                        </label>
+                        <PhotoCapture
+                          uid={currentUser?.id}
+                          onCapture={(url) => setGroupPhotos(prev => ({ ...prev, [group.key]: url }))}
+                        />
+                        {showValidation && !groupPhotos[group.key] && (
+                          <p className="text-[10px] text-psu-rejected font-bold mt-2">{t('housekeeper.photoRequired')}</p>
+                        )}
+                      </div>
                     )}
-                  >
-                    <div className={cn(
-                      "w-12 h-12 rounded-2xl flex items-center justify-center transition-all",
-                      complete ? "bg-psu-green/10 text-psu-green" : "bg-psu-bg text-psu-gray/30"
-                    )}>
-                      <Icon size={22} />
-                    </div>
-                    <span className="text-[10px] font-black uppercase tracking-widest text-psu-gray text-center leading-tight">
-                      {language === 'id' ? group.titleId : group.titleEn}
-                    </span>
-                    <span className="text-[9px] font-bold text-psu-gray/40">{answeredCount}/{requiredIds.length}</span>
-                  </button>
+                  </div>
                 );
               })}
             </div>
-
-            {/* Open group's checklist */}
-            <AnimatePresence mode="wait">
-              {openGroup && (
-                <motion.div
-                  key={openGroup}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  className="card space-y-4"
-                >
-                  <h4 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em] border-b border-psu-gray/5 pb-2 -mb-1">
-                    {language === 'id'
-                      ? ROOM_CLEANING_GROUPS.find(g => g.key === openGroup)?.titleId
-                      : ROOM_CLEANING_GROUPS.find(g => g.key === openGroup)?.titleEn}
-                  </h4>
-
-                  {itemsForGroup(openGroup).map(item => {
-                    const due = isRequiredToday(item);
-                    const state = checklistState[item.id];
-                    const missing = showValidation && ((item.cadence === 'daily' && !state?.checked) || (item.cadence !== 'daily' && due && !isAnswered(item.id)));
-                    return (
-                      <div key={item.id} className={cn("p-3 -mx-1 rounded-2xl transition-all", missing && "bg-psu-rejected/5")}>
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="text-sm font-bold text-psu-gray">{item.labelId}</p>
-                            <p className="text-[10px] text-psu-gray/40 italic">{item.labelEn}</p>
-                            {item.cadence !== 'daily' && (
-                              <span className={cn(
-                                "inline-block mt-1.5 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md",
-                                due ? "bg-psu-warning/10 text-psu-warning" : "bg-psu-gray/5 text-psu-gray/30"
-                              )}>
-                                {item.cadence === 'weekly' ? t('housekeeper.cadenceWeekly') : t('housekeeper.cadenceMonthly')}
-                                {' · '}
-                                {due ? t('housekeeper.due') : t('housekeeper.notDue')}
-                              </span>
-                            )}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => toggleChecked(item.id)}
-                            className={cn(
-                              "w-11 h-11 rounded-2xl flex items-center justify-center border-2 shrink-0 transition-all active:scale-95",
-                              state?.checked ? "bg-psu-green border-psu-green text-white" : "bg-psu-bg border-psu-gray/10 text-psu-gray/20"
-                            )}
-                          >
-                            {state?.checked && <Check size={20} strokeWidth={3} />}
-                          </button>
-                        </div>
-
-                        {item.cadence !== 'daily' && due && !state?.checked && (
-                          <div className="flex flex-wrap gap-2 mt-3">
-                            <span className="text-[9px] font-black text-psu-gray/30 uppercase tracking-widest w-full">
-                              {t('housekeeper.notDoneLabel')}
-                            </span>
-                            {TIDAK_DIKERJAKAN_REASONS.map(reason => (
-                              <button
-                                key={reason}
-                                type="button"
-                                onClick={() => setReason(item.id, reason)}
-                                className={cn(
-                                  "px-3 py-2 rounded-xl text-[10px] font-bold transition-all",
-                                  state?.reason === reason
-                                    ? "bg-psu-gray text-white"
-                                    : "bg-psu-bg text-psu-gray/50 border border-psu-gray/10"
-                                )}
-                              >
-                                {t(`housekeeper.reason.${reason}`)}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-
-                  {PHOTO_REQUIRED_GROUPS.includes(openGroup) && (
-                    <div>
-                      <label className="block text-[10px] font-black text-psu-gray/40 uppercase tracking-widest mb-2">
-                        {t('housekeeper.groupPhotoLabel')}
-                      </label>
-                      <PhotoCapture
-                        uid={currentUser?.id}
-                        onCapture={(url) => setGroupPhotos(prev => ({ ...prev, [openGroup]: url }))}
-                      />
-                      {showValidation && !groupPhotos[openGroup] && (
-                        <p className="text-[10px] text-psu-rejected font-bold mt-2">{t('housekeeper.photoRequired')}</p>
-                      )}
-                    </div>
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
 
             <button
               onClick={handleSubmit}
@@ -478,8 +374,6 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
               <p className="text-center text-[10px] text-psu-rejected font-bold uppercase tracking-widest">
                 {t('housekeeper.completeAllFirst')}
               </p>
-            )}
-            </>
             )}
           </motion.div>
         )}

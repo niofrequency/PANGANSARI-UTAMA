@@ -11,7 +11,9 @@ import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 // per room dropped off that day and a count per garment type (blank = 0).
 export function LaundryShopForm({ store, onCancel, onSubmitted }: {
   store: ReturnType<typeof useAppStore>;
-  onCancel: () => void;
+  // Optional: omitted on the dedicated Laundry Staff portal, where this
+  // is the only screen there is — nothing to cancel back to.
+  onCancel?: () => void;
   onSubmitted: () => void;
 }) {
   const { t } = useTranslation();
@@ -131,7 +133,9 @@ export function LaundryShopForm({ store, onCancel, onSubmitted }: {
       </div>
 
       <div className="flex gap-3">
-        <button onClick={onCancel} className="flex-1 py-4 text-psu-gray/40 font-black text-[10px] uppercase tracking-widest">{t('common.cancel')}</button>
+        {onCancel && (
+          <button onClick={onCancel} className="flex-1 py-4 text-psu-gray/40 font-black text-[10px] uppercase tracking-widest">{t('common.cancel')}</button>
+        )}
         <button onClick={handleSubmit} disabled={!canSubmit || isSubmitting}
           className={cn("flex-[2] py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg transition-all active:scale-95", canSubmit ? "bg-psu-green text-white shadow-psu-green/20" : "bg-psu-gray/20 text-psu-gray/40")}
         >{isSubmitting ? t('common.loading') : t('common.submit')}</button>

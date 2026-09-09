@@ -1,9 +1,14 @@
-// Shared registry for the nine additional operations logs
+// Shared registry for the additional operations logs
 // (PSU_Additional_Ops_Forms_PRD.md). Each entry drives the "Ops Logs"
 // picker/queue screens (OpsLogsTab.tsx) in the Supervisor and Manager
-// portals, and the two extra task cards on the Housekeeper portal / the
-// Temp Control card on the Technician portal — so the list of forms and
-// who owns them lives in exactly one place.
+// portals, and the dedicated worker portals (LaundryStaffPortal.tsx,
+// JanitorPortal.tsx) — so the list of forms and who owns them lives in
+// exactly one place.
+//
+// UF.10000 (Temperature Control) and UN.00.51 (Dishwashing Temp) were
+// removed from every worker-facing portal by request — frontline staff
+// don't need to see them. See git history for the removed
+// TempControlForm.tsx / DishwashForm.tsx if they're ever wanted back.
 
 import { OpsLogType } from '../types';
 
@@ -15,8 +20,6 @@ export type SignoffStep = 'checkedBy' | 'approvedBy' | 'verifiedBy';
 // flips a submission from PENDING to APPROVED — see
 // useAppStore.ts's addSignoffStamp().
 export const SIGNOFF_CHAINS: Record<OpsLogType, SignoffStep[]> = {
-  TEMP_CONTROL: ['checkedBy'],
-  DISHWASH_TEMP: ['checkedBy'],
   MESS_HALL_HYGIENE: ['checkedBy', 'approvedBy', 'verifiedBy'],
   COOKING_SERVICE: ['checkedBy', 'approvedBy'],
   HOT_PACKED_MEAL: ['checkedBy', 'approvedBy'],
@@ -36,20 +39,10 @@ export interface OpsLogDef {
   descKey: string;  // i18n key, ops.<form>.desc
   // Who can open the fill screen for this form, on top of it appearing in
   // the right department's portal at all.
-  fillerRoles: Array<'FOOD_SAFETY_TECHNICIAN' | 'FOOD_SAFETY_SUPERVISOR' | 'HOUSEKEEPER'>;
+  fillerRoles: Array<'FOOD_SAFETY_TECHNICIAN' | 'FOOD_SAFETY_SUPERVISOR' | 'HOUSEKEEPING_LAUNDRY' | 'HOUSEKEEPING_JANITOR'>;
 }
 
 export const OPS_LOG_DEFS: OpsLogDef[] = [
-  {
-    type: 'TEMP_CONTROL', formId: 'UF.10000', department: 'FOOD_SAFETY',
-    titleKey: 'ops.tempControl.title', descKey: 'ops.tempControl.desc',
-    fillerRoles: ['FOOD_SAFETY_TECHNICIAN', 'FOOD_SAFETY_SUPERVISOR'],
-  },
-  {
-    type: 'DISHWASH_TEMP', formId: 'UN.00.51', department: 'FOOD_SAFETY',
-    titleKey: 'ops.dishwash.title', descKey: 'ops.dishwash.desc',
-    fillerRoles: ['FOOD_SAFETY_SUPERVISOR'],
-  },
   {
     type: 'MESS_HALL_HYGIENE', formId: 'UWL10001', department: 'FOOD_SAFETY',
     titleKey: 'ops.messHall.title', descKey: 'ops.messHall.desc',
@@ -76,14 +69,18 @@ export const OPS_LOG_DEFS: OpsLogDef[] = [
     fillerRoles: ['FOOD_SAFETY_SUPERVISOR'],
   },
   {
+    // Filled only by the dedicated Laundry Staff portal now — not shown
+    // on the room-cleaning Housekeeper's own task list.
     type: 'LAUNDRY_SHOP', formId: 'UN.00-LAUNDRY', department: 'HOUSEKEEPING',
     titleKey: 'ops.laundryShop.title', descKey: 'ops.laundryShop.desc',
-    fillerRoles: ['HOUSEKEEPER'],
+    fillerRoles: ['HOUSEKEEPING_LAUNDRY'],
   },
   {
+    // Filled only by the dedicated Bathroom Janitor portal now — not
+    // shown on the room-cleaning Housekeeper's own task list.
     type: 'RESTROOM', formId: 'UN.00.45', department: 'HOUSEKEEPING',
     titleKey: 'ops.restroom.title', descKey: 'ops.restroom.desc',
-    fillerRoles: ['HOUSEKEEPER'],
+    fillerRoles: ['HOUSEKEEPING_JANITOR'],
   },
 ];
 
