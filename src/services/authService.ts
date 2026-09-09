@@ -36,7 +36,6 @@ import { doc, getDoc, setDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { auth, db, functions } from '../lib/firebase';
 import { User, UserRole } from '../types';
-import { hashPin } from '../utils/pinHash';
 
 export const SUPER_ADMIN_EMAIL = 'mpigome44@gmail.com';
 
@@ -143,15 +142,12 @@ interface FirestoreUserProfile {
   isActive: boolean;
   uid: string | null;
   // Scan-to-Job (StaffIdGate.tsx) — set by an Admin from the Admin Portal,
-  // not at signup. staffCode is also mirrored onto staffCodes/{CODE} (see
+  // not at signup. Also mirrored onto staffCodes/{CODE} (see
   // usersService.ts) so loginByStaffCode can look a profile up by code
   // before the person is authenticated, the same way the `users/{email}`
-  // doc's public `get` lets email login look a profile up by email. pinHash
-  // is never read back into the app's User type — see pinHash.ts for why
-  // it's hashed (and why that's only a deterrent, not real security) and
-  // types.ts for why `User` deliberately has no PIN field at all.
+  // doc's public `get` lets email login look a profile up by email. Staff
+  // ID alone is the credential — there's no PIN in this flow.
   staffCode?: string;
-  pinHash?: string;
 }
 
 function userDocRef(email: string) {
@@ -422,17 +418,19 @@ export async function loginWithGoogle(): Promise<LoginResult> {
 
 export type StaffCodeLoginResult =
   | { ok: true; profile: FirestoreUserProfile }
-  | { ok: false; error: 'unknown-id' | 'wrong-pin' | 'inactive' };
+  | { ok: false; error: 'unknown-id' | 'inactive' };
 
-// Scan-to-Job login (StaffIdGate.tsx): a Staff ID + 4-digit PIN instead of
-// email/password. Deliberately doesn't go through Firebase Auth at all —
-// there's no password to sign in with, and creating a parallel Auth
-// mechanism (custom tokens, a Cloud Function) for a 4-digit PIN would be a
-// lot of machinery for what this app actually needs. Submissions/warnings/
-// trainings are always localStorage regardless of Firebase mode (see
-// useAppStore.ts), so nothing downstream actually requires a real Firebase
-// Auth session to work — this just resolves a staffCode + PIN to a profile,
-// and useAppStore.ts sets that profile as currentUser directly.
+// Scan-to-Job login (StaffIdGate.tsx): a Staff ID instead of email/
+// password — no PIN, the code itself is the credential (only an Admin
+// ever hands one out; see AdminPortal.tsx). Deliberately doesn't go
+// through Firebase Auth at all — there's no password to sign in with, and
+// creating a parallel Auth mechanism (custom tokens, a Cloud Function) for
+// this would be a lot of machinery for what this app actually needs.
+// Submissions/warnings/trainings are always localStorage regardless of
+// Firebase mode (see useAppStore.ts), so nothing downstream actually
+// requires a real Firebase Auth session to work — this just resolves a
+// staffCode to a profile, and useAppStore.ts sets that profile as
+// currentUser directly.
 //
 // One real consequence of skipping Auth: this session won't survive a page
 // refresh in Firebase mode (there's no persisted Auth token backing it),
@@ -447,25 +445,34 @@ export type StaffCodeLoginResult =
 // isSignedIn() — not available pre-login here, same reason the users/{id}
 // doc itself allows a public single-doc `get`): staffCodes/{CODE} is a
 // small public-read index doc that only stores which email owns that code.
-export async function loginByStaffCode(staffCode: string, pin: string): Promise<StaffCodeLoginResult> {
+//
+// Wrapped in try/catch on purpose: if this ever throws instead of
+// resolving (e.g. firestore.rules for staffCodes hasn't actually been
+// deployed to this project yet — `firebase deploy --only
+// firestore:rules` — so the read comes back permission-denied instead of
+// "not found"), an un-caught rejection here left StaffIdGate's Log In
+// button stuck on "Loading..." forever with no error shown, which is
+// worse than a wrong answer.
+export async function loginByStaffCode(staffCode: string): Promise<StaffCodeLoginResult> {
   if (!db) return { ok: false, error: 'unknown-id' };
   const codeUpper = staffCode.trim().toUpperCase();
 
-  const mapSnap = await getDoc(doc(db, 'staffCodes', codeUpper));
-  if (!mapSnap.exists()) return { ok: false, error: 'unknown-id' };
-  const { email } = mapSnap.data() as { email: string };
+  try {
+    const mapSnap = await getDoc(doc(db, 'staffCodes', codeUpper));
+    if (!mapSnap.exists()) return { ok: false, error: 'unknown-id' };
+    const { email } = mapSnap.data() as { email: string };
 
-  const snap = await getDoc(userDocRef(email));
-  if (!snap.exists()) return { ok: false, error: 'unknown-id' };
-  const data = snap.data() as FirestoreUserProfile;
+    const snap = await getDoc(userDocRef(email));
+    if (!snap.exists()) return { ok: false, error: 'unknown-id' };
+    const data = snap.data() as FirestoreUserProfile;
 
-  if (data.isActive === false) return { ok: false, error: 'inactive' };
-  if (!data.pinHash) return { ok: false, error: 'unknown-id' }; // staffCode set but no PIN yet — treat like it doesn't exist
+    if (data.isActive === false) return { ok: false, error: 'inactive' };
 
-  const suppliedHash = await hashPin(codeUpper, pin);
-  if (suppliedHash !== data.pinHash) return { ok: false, error: 'wrong-pin' };
-
-  return { ok: true, profile: data };
+    return { ok: true, profile: data };
+  } catch (err) {
+    console.error('loginByStaffCode failed:', err);
+    return { ok: false, error: 'unknown-id' };
+  }
 }
 
 export async function logout() {

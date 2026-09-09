@@ -9,9 +9,19 @@ import * as admin from 'firebase-admin';
 admin.initializeApp();
 
 // Keep in sync with SUPER_ADMIN_EMAIL in src/services/authService.ts and
-// the matching constant in firestore.rules — all three independently
-// enforce "only this one account has admin powers."
+// the matching constant in firestore.rules. This one account is
+// permanently an admin; see isAdminCaller() below for everyone else who
+// holds the ADMIN role — it's no longer locked to just this address.
 const SUPER_ADMIN_EMAIL = 'mpigome44@gmail.com';
+
+// True for the bootstrap super-admin OR anyone an existing admin has
+// since promoted to the ADMIN role in Firestore (see updateUserRole in
+// src/store/useAppStore.ts) — mirrors isAdmin() in firestore.rules.
+async function isAdminCaller(email: string): Promise<boolean> {
+  if (email === SUPER_ADMIN_EMAIL) return true;
+  const snap = await admin.firestore().collection('users').doc(email).get();
+  return snap.exists && snap.data()?.role === 'ADMIN';
+}
 
 interface CreateStaffAccountData {
   email: string;
@@ -36,8 +46,8 @@ export const createStaffAccount = onCall(
     if (!request.auth || !callerEmail) {
       throw new HttpsError('unauthenticated', 'You must be signed in.');
     }
-    if (callerEmail !== SUPER_ADMIN_EMAIL) {
-      throw new HttpsError('permission-denied', 'Only the admin account can create staff accounts.');
+    if (!(await isAdminCaller(callerEmail))) {
+      throw new HttpsError('permission-denied', 'Only an admin account can create staff accounts.');
     }
 
     const { email, password, firstName, lastName, role, site } =
@@ -259,8 +269,8 @@ export const adminResetCredentials = onCall(
     if (!request.auth || !callerEmail) {
       throw new HttpsError('unauthenticated', 'You must be signed in.');
     }
-    if (callerEmail !== SUPER_ADMIN_EMAIL) {
-      throw new HttpsError('permission-denied', 'Only the admin account can reset staff credentials.');
+    if (!(await isAdminCaller(callerEmail))) {
+      throw new HttpsError('permission-denied', 'Only an admin account can reset staff credentials.');
     }
 
     const { uid, currentEmail, newEmail, newPassword } =

@@ -6,7 +6,6 @@
 import { collection, doc, deleteDoc, getDoc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { User, UserRole } from '../types';
-import { SUPER_ADMIN_EMAIL } from './authService';
 
 interface FirestoreUserDoc {
   name: string;
@@ -76,10 +75,10 @@ export async function inviteUser(user: Omit<User, 'id' | 'isActive'>): Promise<v
 export async function updateUserRoleDoc(email: string, role: UserRole): Promise<void> {
   if (!db) return;
   const emailLower = email.trim().toLowerCase();
-  // Mirrors the client-side guard in useAppStore: the ADMIN role can only
-  // ever belong to the designated super-admin account. Firestore security
-  // rules should enforce this too — see firestore.rules.
-  if (role === 'ADMIN' && emailLower !== SUPER_ADMIN_EMAIL) return;
+  // Any admin can grant (or revoke) ADMIN on someone else now — the only
+  // account this can never touch is the bootstrap super-admin, guarded in
+  // useAppStore.ts (which never calls this for that email) and enforced
+  // again server-side in firestore.rules.
   await updateDoc(doc(db, 'users', emailLower), { role });
 }
 
@@ -111,19 +110,19 @@ export async function deleteUserDoc(email: string): Promise<void> {
 
 export type SetStaffIdentityResult = { ok: true } | { ok: false; error: 'staffcode-taken' | 'not-configured' };
 
-// Sets (or replaces) a user's Scan-to-Job Staff ID + PIN. Writes two
-// places: the staffCodes/{CODE} lookup index (see authService.ts's
-// loginByStaffCode for why that index exists at all) and the staffCode +
-// pinHash fields on their own users/{email} doc. Neither write is
-// atomic with the other (no transaction — this app's Firestore usage
-// elsewhere doesn't use them either, see the email-migration comment in
-// functions/src/index.ts's adminResetCredentials for the same tradeoff),
-// but a half-finished attempt just means the admin retries; it can't lock
-// anyone out of an account that was already working.
+// Sets (or replaces) a user's Scan-to-Job Staff ID. No PIN — the code
+// itself is the credential, since it's only ever handed out by an Admin
+// in the first place. Writes two places: the staffCodes/{CODE} lookup
+// index (see authService.ts's loginByStaffCode for why that index exists
+// at all) and the staffCode field on their own users/{email} doc. Neither
+// write is atomic with the other (no transaction — this app's Firestore
+// usage elsewhere doesn't use them either, see the email-migration
+// comment in functions/src/index.ts's adminResetCredentials for the same
+// tradeoff), but a half-finished attempt just means the admin retries; it
+// can't lock anyone out of an account that was already working.
 export async function setStaffIdentityDoc(
   email: string,
   staffCode: string,
-  pinHash: string,
   previousStaffCode?: string
 ): Promise<SetStaffIdentityResult> {
   if (!db) return { ok: false, error: 'not-configured' };
@@ -137,7 +136,7 @@ export async function setStaffIdentityDoc(
   }
 
   await setDoc(mapRef, { email: emailLower });
-  await updateDoc(doc(db, 'users', emailLower), { staffCode: codeUpper, pinHash });
+  await updateDoc(doc(db, 'users', emailLower), { staffCode: codeUpper });
 
   if (previousStaffCode && previousStaffCode.trim().toUpperCase() !== codeUpper) {
     // Best-effort cleanup of the old index entry — leaving it behind would

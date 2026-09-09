@@ -32,8 +32,24 @@ service cloud.firestore {
 
     // Change this if you use a different super-admin address than the
     // one baked into src/services/authService.ts — keep them in sync.
+    // This ONE account is permanently an admin and can never be demoted,
+    // deleted, or otherwise altered by anyone but itself — see isAdmin()
+    // below for everyone else who holds the ADMIN role.
     function isSuperAdmin() {
       return isSignedIn() && email() == 'mpigome44@gmail.com';
+    }
+
+    // True for the bootstrap super-admin OR anyone an existing admin has
+    // since promoted to the ADMIN role (see updateUserRole in
+    // useAppStore.ts) — ADMIN is no longer locked to one hardcoded
+    // account. Looks up the CALLER's own profile doc by their own email,
+    // never the doc being written, so this can't be used to self-approve
+    // a role change that isn't already true.
+    function isAdmin() {
+      return isSuperAdmin() || (
+        isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(email())).data.role == 'ADMIN'
+      );
     }
 
     function isOwnUserDoc(userId) {
@@ -76,12 +92,15 @@ service cloud.firestore {
         && resource.data.uid == null
         && request.resource.data.uid == request.auth.uid;
 
-      // Full create/update access for the super-admin, EXCEPT they can
-      // never grant the ADMIN role to anyone but themselves.
-      allow create, update: if isSuperAdmin()
-        && (request.resource.data.role != 'ADMIN' || userId == 'mpigome44@gmail.com');
+      // Full create/update access for any admin — including granting or
+      // revoking the ADMIN role on someone else. The one exception: the
+      // original bootstrap account can never be altered by anyone but
+      // itself, so there's always at least one admin nobody else can
+      // demote, delete, or lock out (accidentally or otherwise).
+      allow create, update: if isAdmin()
+        && (userId != 'mpigome44@gmail.com' || isSuperAdmin());
 
-      allow delete: if isSuperAdmin() && userId != 'mpigome44@gmail.com';
+      allow delete: if isAdmin() && userId != 'mpigome44@gmail.com';
     }
 
     // ── staffCodes ───────────────────────────────────────────────────
@@ -89,15 +108,13 @@ service cloud.firestore {
     // loginByStaffCode): a small public-read index, {CODE} -> { email },
     // so a Staff ID can be resolved to a users/{email} profile before the
     // person is authenticated — the same reason users/{userId} allows a
-    // public `get` above. Never stores a PIN or its hash; that lives only
-    // on the users/{email} doc it points to (see usersService.ts's
-    // setStaffIdentityDoc). Only the super-admin can create/change/remove
-    // entries — staff codes are assigned by an Admin, not chosen by
-    // whoever gets to a signup form first.
+    // public `get` above. Staff ID alone is the credential (no PIN) —
+    // only an admin can create/change/remove entries, so a code is never
+    // chosen by whoever gets to a signup form first.
     match /staffCodes/{code} {
       allow get: if true;
       allow list: if isSignedIn();
-      allow create, update, delete: if isSuperAdmin();
+      allow create, update, delete: if isAdmin();
     }
 
     // ── submissions (not yet used by the client — see note above) ─────
@@ -132,11 +149,11 @@ service cloud.firestore {
     match /trainings/{moduleId} {
       allow read: if isSignedIn();
 
-      allow create, delete: if isSuperAdmin();
+      allow create, delete: if isAdmin();
 
       // Admin can edit anything; anyone signed in may mark themselves
       // complete (append their own uid to completedBy) but nothing else.
-      allow update: if isSuperAdmin()
+      allow update: if isAdmin()
         || (
           isSignedIn()
           && onlyChanged(['completedBy'])

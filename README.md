@@ -33,18 +33,21 @@ The other exception is three minimal seed accounts for trying the
 **Scan-to-Job** flow (see below) with zero setup — no fictional roster,
 just enough to log in as:
 
-| Name | Role | Staff ID | PIN |
-|---|---|---|---|
-| Budi Santoso | Food Safety Technician | `FS01` | `1234` |
-| Siti Aminah | Food Safety Technician | `FS02` | `1234` |
-| Andi Wijaya | Housekeeper | `HK01` | `1234` |
+| Name | Role | Staff ID |
+|---|---|---|
+| Budi Santoso | Food Safety Technician | `1001` |
+| Siti Aminah | Food Safety Technician | `1002` |
+| Andi Wijaya | Housekeeper | `2001` |
 
-### Scan-to-Job (Staff ID + PIN)
+### Scan-to-Job (Staff ID)
 
 Frontline staff can skip email login entirely: scan a job QR (or open its
-`/go` link directly), then type a **Staff ID + 4-digit PIN** instead of an
-email and password. The QR never carries identity, a PIN, or a token —
-only where the job is (`site` + `action`) — see
+`/go` link directly), then type a **Staff ID** instead of an email and
+password — no PIN, the code itself is the credential (an Admin only ever
+hands one to the person it belongs to). It's entered on an on-screen
+number pad — Staff IDs are digits only (3-12 of them, e.g. `1001`), so
+nothing on this screen ever needs a letter keyboard. The QR never carries
+identity or a token — only where the job is (`site` + `action`) — see
 `PSU_QR_JobDeepLink_PRD.md` for the full spec.
 
 Try these locally (append to your dev URL, e.g. `http://localhost:3000`):
@@ -57,8 +60,9 @@ Try these locally (append to your dev URL, e.g. `http://localhost:3000`):
 
 Log in with any of the three demo accounts above (the technician codes
 only make sense for `fridge`/`core`/`clean`/`wellness`; the housekeeper
-code only for `a=room`). An Admin can issue real Staff IDs from the
-Admin Portal's Personnel tab ("Staff ID" button on each user), and print
+code only for `a=room`). An Admin can issue real Staff IDs either right
+when adding a new staff member, or later from the Admin Portal's
+Personnel tab ("Staff ID" button on each user), and print
 QR cards for a site from the new **Print QR** tab.
 
 ## Deploying for real use (Vercel + Firebase)

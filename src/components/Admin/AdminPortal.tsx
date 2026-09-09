@@ -11,14 +11,10 @@ import { UserRole, Submission, User } from '../../types';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { SUPER_ADMIN_EMAIL } from '../../services/authService';
 import { isFirebaseConfigured } from '../../lib/firebase';
+import { isValidStaffCode } from '../../utils/staffCode';
 import { PrintQrPanel } from './PrintQrPanel';
 
-// 4-digit PIN, no letters — matches StaffIdGate.tsx's numeric keypad.
-function generatePin(): string {
-  return String(Math.floor(1000 + Math.random() * 9000));
-}
-
-// Avoids visually-ambiguous characters (0/O, 1/l/I) since this password  
+// Avoids visually-ambiguous characters (0/O, 1/l/I) since this password
 // gets read aloud, typed by hand, or copy-pasted into a text message.
 function generatePassword(length = 10): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
@@ -37,6 +33,9 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
   const [showAddModal, setShowAddModal] = useState(false);
   const [newUser, setNewUser] = useState({ firstName: '', lastName: '', email: '', role: 'HOUSEKEEPER' as UserRole, site: 'site-1' });
   const [password, setPassword] = useState(() => generatePassword());
+  // Optional Scan-to-Job Staff ID, assignable right when the account is
+  // created (not just afterward via the per-user "Staff ID" button below).
+  const [newStaffCode, setNewStaffCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isCreatingUser, setIsCreatingUser] = useState(false);
   const [addUserError, setAddUserError] = useState('');
@@ -56,12 +55,12 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
   const [resetError, setResetError] = useState('');
   const [resetSuccess, setResetSuccess] = useState(false);
 
-  // Staff ID modal — sets/changes a user's Scan-to-Job Staff ID + PIN (see
-  // StaffIdGate.tsx). Available in both Firebase and demo mode, unlike
-  // Reset Login above (which genuinely needs a Cloud Function).
+  // Staff ID modal — sets/changes a user's Scan-to-Job Staff ID (see
+  // StaffIdGate.tsx). No PIN — the code itself is the credential.
+  // Available in both Firebase and demo mode, unlike Reset Login above
+  // (which genuinely needs a Cloud Function).
   const [staffIdTarget, setStaffIdTarget] = useState<User | null>(null);
   const [staffIdCode, setStaffIdCode] = useState('');
-  const [staffIdPin, setStaffIdPin] = useState('');
   const [isSavingStaffId, setIsSavingStaffId] = useState(false);
   const [staffIdError, setStaffIdError] = useState('');
   const [staffIdSuccess, setStaffIdSuccess] = useState(false);
@@ -72,20 +71,59 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
   const [statusFilter, setStatusFilter] = useState<'ALL' | Submission['status']>('ALL');
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
 
-  const filteredUsers = users.filter(u => 
-    u.name.toLowerCase().includes(search.toLowerCase()) || 
+  // Site + department scope — shared by the Activity and Analytics tabs.
+  // The Admin already sees every site and both departments by default
+  // (unlike the Supervisor/Manager portals, which are scoped to the
+  // viewer's own site/department); these two filters just let the Admin
+  // narrow that down instead of always scrolling through everything.
+  const [scopeSite, setScopeSite] = useState<'ALL' | string>('ALL');
+  const [scopeDept, setScopeDept] = useState<'ALL' | 'HOUSEKEEPING' | 'FOOD_SAFETY'>('ALL');
+
+  const departmentOfSubmissionType = (type: Submission['type']): 'HOUSEKEEPING' | 'FOOD_SAFETY' =>
+    type === 'HOUSEKEEPING' ? 'HOUSEKEEPING' : 'FOOD_SAFETY';
+
+  // GENERAL_MANAGER and ADMIN sit above both departments rather than
+  // inside one — a warning tied to one of them (shouldn't normally
+  // happen, but nothing stops it structurally) never matches a specific
+  // department filter.
+  const departmentOfRole = (role: UserRole): 'HOUSEKEEPING' | 'FOOD_SAFETY' | null => {
+    if (role.startsWith('HOUSEKEEPING')) return 'HOUSEKEEPING';
+    if (role.startsWith('FOOD_SAFETY')) return 'FOOD_SAFETY';
+    return null;
+  };
+
+  const scopedSubmissions = submissions
+    .filter(s => scopeSite === 'ALL' || s.siteId === scopeSite)
+    .filter(s => scopeDept === 'ALL' || departmentOfSubmissionType(s.type) === scopeDept);
+
+  const scopedWarnings = warnings.filter(w => {
+    const technician = users.find(u => u.id === w.technicianId);
+    if (scopeSite !== 'ALL' && technician?.site !== scopeSite) return false;
+    if (scopeDept !== 'ALL' && (!technician || departmentOfRole(technician.role) !== scopeDept)) return false;
+    return true;
+  });
+
+  const scopedSites = scopeSite === 'ALL' ? sites : sites.filter(s => s.id === scopeSite);
+
+  const scopedUsers = users
+    .filter(u => scopeSite === 'ALL' || u.site === scopeSite)
+    .filter(u => scopeDept === 'ALL' || departmentOfRole(u.role) === scopeDept);
+
+  const filteredUsers = users.filter(u =>
+    u.name.toLowerCase().includes(search.toLowerCase()) ||
     u.email.toLowerCase().includes(search.toLowerCase())
   );
 
-  // All submissions, across every user and every site — this is the whole
-  // point of the Admin Portal's Activity tab: nothing here is scoped to
-  // "my site" the way the Supervisor/Manager portals are.
-  const filteredSubmissions = submissions
+  // All submissions, across every user and every site by default — this
+  // is the whole point of the Admin Portal's Activity tab, unlike the
+  // Supervisor/Manager portals which are scoped to "my site." scopeSite/
+  // scopeDept above narrow that on purpose when set.
+  const filteredSubmissions = scopedSubmissions
     .filter(s => statusFilter === 'ALL' || s.status === statusFilter)
     .filter(s => s.userName.toLowerCase().includes(activitySearch.toLowerCase()))
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-  const filteredWarnings = warnings
+  const filteredWarnings = scopedWarnings
     .filter(w => w.technicianName.toLowerCase().includes(activitySearch.toLowerCase()))
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
@@ -103,13 +141,25 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
       return;
     }
 
+    const staffCodeTrim = newStaffCode.trim();
+    if (staffCodeTrim && !isValidStaffCode(staffCodeTrim)) {
+      setAddUserError(t('admin.staffIdInvalidCode'));
+      return;
+    }
+
     setIsCreatingUser(true);
-    const result = await addUser({ ...newUser, name }, password);
+    const result = await addUser(
+      { ...newUser, name },
+      password,
+      staffCodeTrim ? { staffCode: staffCodeTrim } : undefined
+    );
     setIsCreatingUser(false);
 
     if (!result.ok) {
       setAddUserError(
-        result.error === 'already-exists' ? t('admin.emailAlreadyExists') : t('admin.createAccountFailed')
+        result.error === 'already-exists' ? t('admin.emailAlreadyExists')
+          : result.error === 'staffcode-taken' ? t('admin.staffIdTaken')
+          : t('admin.createAccountFailed')
       );
       return;
     }
@@ -124,6 +174,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
     }
     setNewUser({ firstName: '', lastName: '', email: '', role: 'HOUSEKEEPER', site: 'site-1' });
     setPassword(generatePassword());
+    setNewStaffCode('');
   };
 
   const openResetModal = (user: User) => {
@@ -176,7 +227,6 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
   const openStaffIdModal = (user: User) => {
     setStaffIdTarget(user);
     setStaffIdCode(user.staffCode || '');
-    setStaffIdPin(generatePin());
     setStaffIdError('');
     setStaffIdSuccess(false);
   };
@@ -187,17 +237,13 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
     e.preventDefault();
     if (!staffIdTarget) return;
     setStaffIdError('');
-    const code = staffIdCode.trim().toUpperCase();
-    if (!/^[A-Z0-9]{3,12}$/.test(code)) {
+    const code = staffIdCode.trim();
+    if (!isValidStaffCode(code)) {
       setStaffIdError(t('admin.staffIdInvalidCode'));
       return;
     }
-    if (!/^\d{4}$/.test(staffIdPin)) {
-      setStaffIdError(t('admin.staffIdInvalidPin'));
-      return;
-    }
     setIsSavingStaffId(true);
-    const result = await setStaffIdentity(staffIdTarget.id, code, staffIdPin);
+    const result = await setStaffIdentity(staffIdTarget.id, code);
     setIsSavingStaffId(false);
     if (!result.ok) {
       setStaffIdError(result.error === 'staffcode-taken' ? t('admin.staffIdTaken') : t('admin.createAccountFailed'));
@@ -227,6 +273,30 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
     setInviteCopied(false);
     setAddUserError('');
   };
+
+  // Shared by the Activity and Analytics tabs — lets the Admin narrow
+  // "everything, everywhere" down to one site and/or one department.
+  const renderScopeFilters = () => (
+    <div className="flex gap-3">
+      <select
+        value={scopeSite}
+        onChange={(e) => setScopeSite(e.target.value)}
+        className="flex-1 min-w-0 p-3 bg-white border border-psu-gray/5 rounded-2xl text-[10px] font-black uppercase tracking-tighter shadow-sm outline-none focus:ring-2 focus:ring-psu-gray/10"
+      >
+        <option value="ALL">{t('admin.filterAllSites')}</option>
+        {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+      </select>
+      <select
+        value={scopeDept}
+        onChange={(e) => setScopeDept(e.target.value as any)}
+        className="flex-1 min-w-0 p-3 bg-white border border-psu-gray/5 rounded-2xl text-[10px] font-black uppercase tracking-tighter shadow-sm outline-none focus:ring-2 focus:ring-psu-gray/10"
+      >
+        <option value="ALL">{t('admin.filterAllDepartments')}</option>
+        <option value="HOUSEKEEPING">{t('admin.filterDeptHousekeeping')}</option>
+        <option value="FOOD_SAFETY">{t('admin.filterDeptFoodSafety')}</option>
+      </select>
+    </div>
+  );
 
   const statusBadgeClass = (status: Submission['status']) => cn(
     "text-[9px] font-black uppercase tracking-tighter px-2 py-1 rounded-md shrink-0",
@@ -320,8 +390,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                       <option value="FOOD_SAFETY_SUPERVISOR">{t('rolesShort.FOOD_SAFETY_SUPERVISOR')}</option>
                       <option value="FOOD_SAFETY_MANAGER">{t('rolesShort.FOOD_SAFETY_MANAGER')}</option>
                       <option value="GENERAL_MANAGER">{t('rolesShort.GENERAL_MANAGER')}</option>
-                      {/* ADMIN intentionally omitted: that role is locked to one
-                          account and can't be granted from this screen. */}
+                      <option value="ADMIN">{t('rolesShort.ADMIN')}</option>
                     </select>
                     {user.email.toLowerCase() !== SUPER_ADMIN_EMAIL && isFirebaseConfigured && (
                       <button
@@ -394,9 +463,11 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
               ))}
             </div>
 
+            {renderScopeFilters()}
+
             <div className="relative">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-psu-gray/20" size={18} />
-              <input 
+              <input
                 type="text"
                 value={activitySearch}
                 onChange={(e) => setActivitySearch(e.target.value)}
@@ -492,7 +563,8 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
             animate={{ opacity: 1, scale: 1 }}
           >
             <h2 className="text-xl font-bold tracking-tight text-psu-gray mb-6 px-2">{t('admin.tabAnalytics')}</h2>
-            <AnalyticsDashboard submissions={submissions} warnings={warnings} sites={sites} users={users} />
+            <div className="mb-6">{renderScopeFilters()}</div>
+            <AnalyticsDashboard submissions={scopedSubmissions} warnings={scopedWarnings} sites={scopedSites} users={scopedUsers} />
           </motion.div>
         )}
 
@@ -726,12 +798,12 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                           <option value="FOOD_SAFETY_SUPERVISOR">{t('rolesShort.FOOD_SAFETY_SUPERVISOR')}</option>
                           <option value="FOOD_SAFETY_MANAGER">{t('rolesShort.FOOD_SAFETY_MANAGER')}</option>
                           <option value="GENERAL_MANAGER">{t('rolesShort.GENERAL_MANAGER')}</option>
-                          {/* ADMIN not offered here — locked to one account */}
+                          <option value="ADMIN">{t('rolesShort.ADMIN')}</option>
                         </select>
                       </div>
                       <div>
                         <label className="block text-[10px] font-black text-psu-gray/40 uppercase mb-2 tracking-widest">{t('admin.siteLabel')}</label>
-                        <select 
+                        <select
                           value={newUser.site}
                           onChange={(e) => setNewUser(p => ({ ...p, site: e.target.value }))}
                           className="w-full p-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-[10px] font-black uppercase tracking-tighter"
@@ -739,6 +811,19 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                           {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </select>
                       </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-black text-psu-gray/40 uppercase mb-2 tracking-widest">{t('admin.staffIdOptionalLabel')}</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={newStaffCode}
+                        onChange={(e) => setNewStaffCode(e.target.value.replace(/\D/g, '').slice(0, 12))}
+                        placeholder={t('staffIdGate.staffIdPlaceholder')}
+                        className="w-full p-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-sm font-mono font-bold tracking-widest focus:outline-none focus:ring-2 focus:ring-psu-green/20 transition-all"
+                      />
+                      <p className="text-[10px] text-psu-gray/40 font-medium mt-2">{t('admin.staffIdOptionalNote')}</p>
                     </div>
 
                     {addUserError && (
@@ -971,8 +1056,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                     </p>
                   </div>
                   <div className="bg-psu-bg border border-psu-gray/10 rounded-2xl p-4 mb-6 text-xs text-psu-gray space-y-1">
-                    <p><span className="font-black uppercase text-[9px] text-psu-gray/40 tracking-widest mr-2">{t('staffIdGate.staffIdLabel')}</span>{staffIdCode.trim().toUpperCase()}</p>
-                    <p><span className="font-black uppercase text-[9px] text-psu-gray/40 tracking-widest mr-2">PIN</span>{staffIdPin}</p>
+                    <p><span className="font-black uppercase text-[9px] text-psu-gray/40 tracking-widest mr-2">{t('staffIdGate.staffIdLabel')}</span>{staffIdCode.trim()}</p>
                   </div>
                   <button
                     type="button"
@@ -999,34 +1083,13 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                       <label className="block text-[10px] font-black text-psu-gray/40 uppercase mb-2 tracking-widest">{t('staffIdGate.staffIdLabel')}</label>
                       <input
                         type="text"
-                        value={staffIdCode}
-                        onChange={(e) => setStaffIdCode(e.target.value.toUpperCase().slice(0, 12))}
-                        placeholder={t('staffIdGate.staffIdPlaceholder')}
-                        className="w-full p-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-sm font-mono font-bold tracking-widest uppercase focus:outline-none focus:ring-2 focus:ring-psu-green/20 transition-all"
-                      />
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="block text-[10px] font-black text-psu-gray/40 uppercase tracking-widest">PIN</label>
-                        <button
-                          type="button"
-                          onClick={() => setStaffIdPin(generatePin())}
-                          className="flex items-center gap-1 text-[9px] font-black text-psu-green uppercase tracking-widest"
-                        >
-                          <RefreshCw size={11} />
-                          {t('admin.regenerate')}
-                        </button>
-                      </div>
-                      <input
-                        type="text"
                         inputMode="numeric"
-                        maxLength={4}
-                        value={staffIdPin}
-                        onChange={(e) => setStaffIdPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                        className="w-full p-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-sm font-mono font-bold tracking-[0.5em] text-center focus:outline-none focus:ring-2 focus:ring-psu-green/20 transition-all"
+                        value={staffIdCode}
+                        onChange={(e) => setStaffIdCode(e.target.value.replace(/\D/g, '').slice(0, 12))}
+                        placeholder={t('staffIdGate.staffIdPlaceholder')}
+                        className="w-full p-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-sm font-mono font-bold tracking-widest focus:outline-none focus:ring-2 focus:ring-psu-green/20 transition-all"
                       />
-                      <p className="text-[10px] text-psu-gray/40 font-medium mt-2">{t('admin.staffIdPinNote')}</p>
+                      <p className="text-[10px] text-psu-gray/40 font-medium mt-2">{t('admin.staffIdNote')}</p>
                     </div>
 
                     {staffIdError && (

@@ -32,14 +32,9 @@ export const SITES: Site[] = [
 // submissions, no history, purely so `/go?...` has someone to log in as.
 // See README.md for the matching `/go` URLs to try them with.
 //
-// `pin` is demo-mode-only plaintext (see types.ts / pinHash.ts — Firebase
-// mode never stores a raw PIN, only a hash, and never on the `User` type
-// at all — this local-only type extension is exactly why loginByStaffCode
-// in useAppStore.ts has to read it back off with an `as any`). PIN for all
-// three is 1234.
-type DemoUser = User & { pin: string };
-
-export const INITIAL_USERS: DemoUser[] = [
+// Staff ID alone logs someone in — no PIN in this flow (see
+// authService.ts's loginByStaffCode and StaffIdGate.tsx).
+export const INITIAL_USERS: User[] = [
   {
     id: 'demo-fs-1',
     firstName: 'Budi',
@@ -49,8 +44,7 @@ export const INITIAL_USERS: DemoUser[] = [
     role: 'FOOD_SAFETY_TECHNICIAN',
     site: 'site-1',
     isActive: true,
-    staffCode: 'FS01',
-    pin: '1234',
+    staffCode: '1001',
   },
   {
     id: 'demo-fs-2',
@@ -61,8 +55,7 @@ export const INITIAL_USERS: DemoUser[] = [
     role: 'FOOD_SAFETY_TECHNICIAN',
     site: 'site-1',
     isActive: true,
-    staffCode: 'FS02',
-    pin: '1234',
+    staffCode: '1002',
   },
   {
     id: 'demo-hk-1',
@@ -73,8 +66,7 @@ export const INITIAL_USERS: DemoUser[] = [
     role: 'HOUSEKEEPER',
     site: 'site-1',
     isActive: true,
-    staffCode: 'HK01',
-    pin: '1234',
+    staffCode: '2001',
   },
 ];
 

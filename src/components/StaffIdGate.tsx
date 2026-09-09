@@ -9,7 +9,7 @@ import { ScanJobButton } from './QrScanner';
 interface StaffIdGateProps {
   pendingJob: DeepLinkJob;
   sites: Site[];
-  loginByStaffCode: (staffCode: string, pin: string) => Promise<{ ok: boolean; error?: string }>;
+  loginByStaffCode: (staffCode: string) => Promise<{ ok: boolean; error?: string }>;
   onSuccess: () => void;
   onSwitchToEmailLogin: () => void;
   onScanJob: (job: DeepLinkJob) => void;
@@ -23,16 +23,19 @@ const ACTION_LABEL_KEY: Record<DeepLinkJob['action'], string> = {
   room: 'housekeeper.tabTasks',
 };
 
+const MAX_STAFF_ID_LENGTH = 12;
+const MIN_STAFF_ID_LENGTH = 3;
+
 // Scan-to-Job login screen (see deepLink.ts / PSU_QR_JobDeepLink_PRD.md):
 // shown instead of the normal email/password Login whenever a job QR is
-// pending and nobody's signed in yet. Staff ID is a short code, not an
-// email; the PIN is entered on a big on-screen keypad rather than typed
-// into a text field, since this is meant to work well with a wet or
-// gloved thumb on a shared kiosk-style device.
+// pending and nobody's signed in yet. Staff ID alone is the credential —
+// no PIN — entered on an on-screen number pad rather than a text field,
+// since IDs are digits only (see utils/staffCode.ts): nothing on this
+// screen ever needs a letter keyboard, which matters on a shared,
+// possibly wet- or gloved-thumb kiosk device.
 export function StaffIdGate({ pendingJob, sites, loginByStaffCode, onSuccess, onSwitchToEmailLogin, onScanJob }: StaffIdGateProps) {
   const { t, language, toggleLanguage } = useTranslation();
   const [staffCode, setStaffCode] = useState('');
-  const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -42,7 +45,6 @@ export function StaffIdGate({ pendingJob, sites, loginByStaffCode, onSuccess, on
   const errorMessage = (code?: string): string => {
     switch (code) {
       case 'unknown-id': return t('staffIdGate.errorUnknownId');
-      case 'wrong-pin': return t('staffIdGate.errorWrongPin');
       case 'inactive': return t('staffIdGate.errorInactive');
       default: return t('staffIdGate.errorGeneric');
     }
@@ -50,47 +52,32 @@ export function StaffIdGate({ pendingJob, sites, loginByStaffCode, onSuccess, on
 
   const handleSubmit = async () => {
     if (isSubmitting) return;
-    // Tapping Log In (or the button being merely disabled) with an
-    // incomplete form used to just do nothing visible at all — which reads
-    // exactly like a broken button. Always give a reason instead of
-    // silently refusing.
-    if (!staffCode.trim()) {
+    // Always give a reason instead of silently refusing — a disabled
+    // button with no feedback reads exactly like a broken one.
+    if (staffCode.trim().length < MIN_STAFF_ID_LENGTH) {
       setError(t('staffIdGate.errorEnterStaffId'));
-      return;
-    }
-    if (pin.length !== 4) {
-      setError(t('staffIdGate.errorEnterPin'));
       return;
     }
     setIsSubmitting(true);
     setError('');
-    const result = await loginByStaffCode(staffCode, pin);
+    const result = await loginByStaffCode(staffCode);
     setIsSubmitting(false);
     if (!result.ok) {
       setError(errorMessage(result.error));
-      setPin('');
       return;
     }
     onSuccess();
   };
 
-  // Auto-submit the moment a 4th digit is entered — a kiosk PIN pad
-  // doesn't need a separate "Enter" step.
-  useEffect(() => {
-    if (pin.length === 4 && staffCode.trim()) {
-      handleSubmit();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pin]);
-
   const pressDigit = (d: string) => {
     if (isSubmitting) return;
     setError('');
-    setPin((p) => (p.length < 4 ? p + d : p));
+    setStaffCode((p) => (p.length < MAX_STAFF_ID_LENGTH ? p + d : p));
   };
+
   const pressBackspace = () => {
     if (isSubmitting) return;
-    setPin((p) => p.slice(0, -1));
+    setStaffCode((p) => p.slice(0, -1));
   };
 
   const handleScanned = (rawValue: string) => {
@@ -124,29 +111,13 @@ export function StaffIdGate({ pendingJob, sites, loginByStaffCode, onSuccess, on
         <label className="block text-[10px] font-black text-psu-gray/40 uppercase tracking-widest mb-2 text-center">
           {t('staffIdGate.staffIdLabel')}
         </label>
-        <input
-          type="text"
-          value={staffCode}
-          onChange={(e) => {
-            setError('');
-            setStaffCode(e.target.value.toUpperCase().slice(0, 12));
-          }}
-          placeholder={t('staffIdGate.staffIdPlaceholder')}
-          autoCapitalize="characters"
-          autoComplete="off"
-          className="w-full text-center text-2xl font-black tracking-[0.3em] py-4 mb-6 bg-psu-bg border-2 border-psu-gray/10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-psu-blue/30 focus:border-psu-blue/30 transition-all"
-        />
-
-        <div className="flex items-center justify-center gap-3 mb-6">
-          {[0, 1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className={
-                'w-4 h-4 rounded-full border-2 transition-all ' +
-                (pin.length > i ? 'bg-psu-green border-psu-green' : 'border-psu-gray/20')
-              }
-            />
-          ))}
+        <div
+          className={
+            "w-full min-h-[64px] flex items-center justify-center text-center text-3xl font-black tracking-[0.2em] py-3 mb-6 bg-psu-bg border-2 rounded-2xl transition-all " +
+            (error ? "border-psu-rejected" : "border-psu-gray/10")
+          }
+        >
+          {staffCode || <span className="text-psu-gray/20 text-lg tracking-normal">{t('staffIdGate.staffIdPlaceholder')}</span>}
         </div>
 
         <div className="grid grid-cols-3 gap-3 mb-6">
