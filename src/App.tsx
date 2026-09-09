@@ -9,6 +9,8 @@ import { Login } from './components/Auth';
 import { StaffIdGate } from './components/StaffIdGate';
 import { Layout } from './components/Layout';
 import { HousekeeperPortal } from './components/Portals/HousekeeperPortal';
+import { LaundryStaffPortal } from './components/Portals/LaundryStaffPortal';
+import { JanitorPortal } from './components/Portals/JanitorPortal';
 import { SupervisorPortal } from './components/Portals/SupervisorPortal';
 import { ManagerPortal } from './components/Portals/ManagerPortal';
 import { TechnicianPortal } from './components/Portals/TechnicianPortal';
@@ -125,6 +127,10 @@ export default function App() {
           />
         );
       }
+      case 'HOUSEKEEPING_LAUNDRY':
+        return <LaundryStaffPortal store={store} />;
+      case 'HOUSEKEEPING_JANITOR':
+        return <JanitorPortal store={store} />;
       case 'HOUSEKEEPING_SUPERVISOR':
       case 'FOOD_SAFETY_SUPERVISOR':
         return <SupervisorPortal store={store} />;

@@ -1,5 +1,11 @@
 export type UserRole =
   | 'HOUSEKEEPER'
+  // Split out of the old single HOUSEKEEPER role: each worker now sees
+  // only their own form (the laundry shop's own log, and the toilet
+  // cleaning checklist) instead of a 3-way picker. HOUSEKEEPER itself is
+  // unchanged — room cleaning (UN.00.65) only.
+  | 'HOUSEKEEPING_LAUNDRY'
+  | 'HOUSEKEEPING_JANITOR'
   | 'HOUSEKEEPING_SUPERVISOR'
   | 'HOUSEKEEPING_MANAGER'
   | 'FOOD_SAFETY_TECHNICIAN'
@@ -69,13 +75,15 @@ export interface DailyFoodHandlerRosterEntry {
   remark?: string;
 }
 
-// The nine additional operations logs (PSU_Additional_Ops_Forms_PRD.md) —
-// UN.00.65 room cleaning, GEMBA, FSI, and DFH already existed and are not
-// part of this set. Each has its own catalog file under src/data/ and its
-// own fill form under src/components/OpsLogs/.
+// Additional operations logs (PSU_Additional_Ops_Forms_PRD.md) — UN.00.65
+// room cleaning, GEMBA, FSI, and DFH already existed and are not part of
+// this set. Each has its own catalog file under src/data/ and its own
+// fill form under src/components/OpsLogs/.
+//
+// UF.10000 (Temperature Control) and UN.00.51 (Dishwashing Temp) were
+// removed from every worker-facing portal by request; kept out of this
+// union entirely so nothing can newly submit them.
 export type OpsLogType =
-  | 'TEMP_CONTROL'       // UF.10000 — chiller/freezer/dry, 5 daily slots
-  | 'DISHWASH_TEMP'      // UN.00.51 — bilas + cuci, 3 shifts
   | 'MESS_HALL_HYGIENE'  // UWL10001 — area checklist, B/R marks
   | 'COOKING_SERVICE'    // UF.09001 — cook + install time/temp per meal
   | 'HOT_PACKED_MEAL'    // UF.09000 — pack + cook/hold/pack windows
@@ -143,7 +151,7 @@ export interface Submission {
     // read-only header chip (site / department / form id / user / staff
     // code) every ops-log fill screen shows instead of handwriting lokasi
     // and ID. 'UN.00.65' kept for the room-cleaning checklist above.
-    formId?: 'UN.00.65' | 'UF.10000' | 'UN.00.51' | 'UWL10001' | 'UF.09001' | 'UF.09000' | 'UN.00.43' | 'STAFF_READY' | 'UN.00-LAUNDRY' | 'UN.00.45';
+    formId?: 'UN.00.65' | 'UWL10001' | 'UF.09001' | 'UF.09000' | 'UN.00.43' | 'STAFF_READY' | 'UN.00-LAUNDRY' | 'UN.00.45';
 
     // Named sign-off chain (PRD section 6) — logged-in user + timestamp,
     // not a signature canvas. Which of these four a given OpsLogType uses,
@@ -158,12 +166,11 @@ export interface Submission {
       verifiedBy?: { userId: string; name: string; at: string };
     };
 
-    // TEMP_CONTROL (UF.10000) / DISHWASH_TEMP (UN.00.51)
-    assetId?: string;
-    assetName?: string;
-    storeKind?: 'dry' | 'freezer' | 'chiller';
-    slot?: '08' | '11' | '12' | '16' | '18' | '20' | '24';
-    outOfRange?: boolean; // true if any reading on this submission breached its paper limit — still saves either way
+    // RESTROOM (UN.00.45) — its 3 daily slots
+    slot?: '08' | '11' | '16';
+    // COOKING_SERVICE / HOT_PACKED_MEAL / THAWING — true if any reading on
+    // this submission breached its paper limit; still saves either way.
+    outOfRange?: boolean;
 
     // MESS_HALL_HYGIENE (UWL10001)
     areaKey?: string;

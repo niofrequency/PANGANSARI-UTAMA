@@ -25,6 +25,8 @@ export const translations = {
     },
     roles: {
       HOUSEKEEPER: 'Housekeeper',
+      HOUSEKEEPING_LAUNDRY: 'Laundry Staff',
+      HOUSEKEEPING_JANITOR: 'Bathroom Janitor',
       HOUSEKEEPING_SUPERVISOR: 'Housekeeping Supervisor',
       HOUSEKEEPING_MANAGER: 'Housekeeping Manager',
       FOOD_SAFETY_TECHNICIAN: 'Food Safety Technician',
@@ -35,6 +37,8 @@ export const translations = {
     },
     rolesShort: {
       HOUSEKEEPER: 'Housekeeper',
+      HOUSEKEEPING_LAUNDRY: 'Laundry Staff',
+      HOUSEKEEPING_JANITOR: 'Janitor',
       HOUSEKEEPING_SUPERVISOR: 'HK Supervisor',
       HOUSEKEEPING_MANAGER: 'HK Manager',
       FOOD_SAFETY_TECHNICIAN: 'FS Technician',
@@ -100,7 +104,6 @@ export const translations = {
       historyTitle: 'My History',
       trainingTitle: 'Training',
       scanJobButton: 'Scan job',
-      roomCleaningCard: 'Room Cleaning',
       barakLabel: 'Barak',
       barakPlaceholder: 'e.g. A',
       roomLabel: 'No. Kamar',
@@ -497,25 +500,6 @@ export const translations = {
         approvedBy: 'Approved',
         verifiedBy: 'Verified',
       },
-      storeKind: {
-        dry: 'Dry store',
-        freezer: 'Freezer',
-        chiller: 'Chiller',
-      },
-      tempControl: {
-        title: 'Temperature Control (UF.10000)',
-        desc: 'Daily temperature reading for one chiller, freezer, or dry store.',
-        assetLabel: 'Asset',
-        noAssets: 'No temperature-controlled assets set up for this site yet.',
-        tempLabel: 'Temperature (°C)',
-      },
-      dishwash: {
-        title: 'Dishwashing Temp (UN.00.51)',
-        desc: 'Rinse and wash temperature for the dishwashing machine, per shift.',
-        locationLabel: 'Machine / location',
-        cuci: 'Cuci (wash)',
-        bilas: 'Bilas (rinse)',
-      },
       messHall: {
         title: 'Mess Hall Hygiene (UWL10001)',
         desc: 'Cleanliness and condition check for a mess hall storage area.',
@@ -613,6 +597,8 @@ export const translations = {
     },
     roles: {
       HOUSEKEEPER: 'Housekeeper',
+      HOUSEKEEPING_LAUNDRY: 'Staf Laundry',
+      HOUSEKEEPING_JANITOR: 'Petugas Kebersihan Toilet',
       HOUSEKEEPING_SUPERVISOR: 'Supervisor Housekeeping',
       HOUSEKEEPING_MANAGER: 'Manajer Housekeeping',
       FOOD_SAFETY_TECHNICIAN: 'Teknisi Keamanan Pangan',
@@ -623,6 +609,8 @@ export const translations = {
     },
     rolesShort: {
       HOUSEKEEPER: 'Housekeeper',
+      HOUSEKEEPING_LAUNDRY: 'Staf Laundry',
+      HOUSEKEEPING_JANITOR: 'Petugas Toilet',
       HOUSEKEEPING_SUPERVISOR: 'Sup. HK',
       HOUSEKEEPING_MANAGER: 'Manajer HK',
       FOOD_SAFETY_TECHNICIAN: 'Teknisi FS',
@@ -688,7 +676,6 @@ export const translations = {
       historyTitle: 'Riwayat Saya',
       trainingTitle: 'Pelatihan',
       scanJobButton: 'Pindai tugas',
-      roomCleaningCard: 'Pembersihan Kamar',
       barakLabel: 'Barak',
       barakPlaceholder: 'cth. A',
       roomLabel: 'No. Kamar',
@@ -1079,25 +1066,6 @@ export const translations = {
         checkedBy: 'Diperiksa',
         approvedBy: 'Disetujui',
         verifiedBy: 'Diverifikasi',
-      },
-      storeKind: {
-        dry: 'Gudang kering',
-        freezer: 'Freezer',
-        chiller: 'Chiller',
-      },
-      tempControl: {
-        title: 'Kontrol Suhu (UF.10000)',
-        desc: 'Pembacaan suhu harian untuk satu chiller, freezer, atau gudang kering.',
-        assetLabel: 'Aset',
-        noAssets: 'Belum ada aset kontrol suhu untuk lokasi ini.',
-        tempLabel: 'Suhu (°C)',
-      },
-      dishwash: {
-        title: 'Suhu Dishwashing (UN.00.51)',
-        desc: 'Suhu bilas dan cuci mesin dishwashing, per shift.',
-        locationLabel: 'Mesin / lokasi',
-        cuci: 'Cuci',
-        bilas: 'Bilas',
       },
       messHall: {
         title: 'Kebersihan Mess Hall (UWL10001)',

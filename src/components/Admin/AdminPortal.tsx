@@ -384,6 +384,8 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                       className="flex-1 min-w-0 text-[9px] bg-psu-bg border border-psu-gray/10 rounded-md px-2 py-1.5 font-black uppercase tracking-tighter outline-none focus:ring-2 focus:ring-psu-blue/20 disabled:opacity-50 truncate"
                     >
                       <option value="HOUSEKEEPER">{t('rolesShort.HOUSEKEEPER')}</option>
+                      <option value="HOUSEKEEPING_LAUNDRY">{t('rolesShort.HOUSEKEEPING_LAUNDRY')}</option>
+                      <option value="HOUSEKEEPING_JANITOR">{t('rolesShort.HOUSEKEEPING_JANITOR')}</option>
                       <option value="HOUSEKEEPING_SUPERVISOR">{t('rolesShort.HOUSEKEEPING_SUPERVISOR')}</option>
                       <option value="HOUSEKEEPING_MANAGER">{t('rolesShort.HOUSEKEEPING_MANAGER')}</option>
                       <option value="FOOD_SAFETY_TECHNICIAN">{t('rolesShort.FOOD_SAFETY_TECHNICIAN')}</option>
@@ -792,6 +794,8 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                           className="w-full p-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-[10px] font-black uppercase tracking-tighter"
                         >
                           <option value="HOUSEKEEPER">{t('rolesShort.HOUSEKEEPER')}</option>
+                          <option value="HOUSEKEEPING_LAUNDRY">{t('rolesShort.HOUSEKEEPING_LAUNDRY')}</option>
+                          <option value="HOUSEKEEPING_JANITOR">{t('rolesShort.HOUSEKEEPING_JANITOR')}</option>
                           <option value="HOUSEKEEPING_SUPERVISOR">{t('rolesShort.HOUSEKEEPING_SUPERVISOR')}</option>
                           <option value="HOUSEKEEPING_MANAGER">{t('rolesShort.HOUSEKEEPING_MANAGER')}</option>
                           <option value="FOOD_SAFETY_TECHNICIAN">{t('rolesShort.FOOD_SAFETY_TECHNICIAN')}</option>
