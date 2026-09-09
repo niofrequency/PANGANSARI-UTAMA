@@ -5,6 +5,7 @@ import { cn } from '../../utils/cn';
 import { OpsHeaderChip, OutOfRangeFlag } from './opsHelpers';
 import { HOT_PACK_TYPES, HotPackTypeId, HOT_PACK_MEAL_PERIODS, HotPackMealPeriodId, HOT_PACK_ROWS } from '../../data/hotPackedMealData';
 import { COOK_MIN_TEMP_C } from '../../data/cookingServiceData';
+import { useWorkingSite } from '../../hooks/useWorkingSite';
 
 interface RowEntry {
   cookTime: string; cookTemp: string;
@@ -22,7 +23,7 @@ export function HotPackedMealForm({ store, onCancel, onSubmitted }: {
 }) {
   const { t } = useTranslation();
   const { currentUser, sites, addSubmission } = store;
-  const currentSiteName = sites.find(s => s.id === currentUser?.site)?.name || currentUser?.site || '';
+  const { workingSiteId, workingSiteName: currentSiteName, availableSites, setWorkingSiteId } = useWorkingSite(currentUser, sites);
 
   const [packType, setPackType] = useState<HotPackTypeId>('1');
   const [selectedMeals, setSelectedMeals] = useState<HotPackMealPeriodId[]>([]);
@@ -80,7 +81,7 @@ export function HotPackedMealForm({ store, onCancel, onSubmitted }: {
 
     addSubmission({
       userId: currentUser.id, userName: currentUser.name, role: currentUser.role,
-      siteId: currentUser.site, siteName: currentSiteName, timestamp: new Date().toISOString(),
+      siteId: workingSiteId, siteName: currentSiteName, timestamp: new Date().toISOString(),
       type: 'HOT_PACKED_MEAL', status: 'PENDING', items,
       meta: {
         formId: 'UF.09000', mealPeriods: selectedMeals, packType,
@@ -94,7 +95,7 @@ export function HotPackedMealForm({ store, onCancel, onSubmitted }: {
 
   return (
     <div className="space-y-6">
-      <OpsHeaderChip siteName={currentSiteName} formId="UF.09000" userName={currentUser?.name || ''} staffCode={currentUser?.staffCode} departmentLabel={t('roles.FOOD_SAFETY_SUPERVISOR')} />
+      <OpsHeaderChip siteName={currentSiteName} formId="UF.09000" userName={currentUser?.name || ''} staffCode={currentUser?.staffCode} departmentLabel={t('roles.FOOD_SAFETY_SUPERVISOR')} siteOptions={availableSites} onSiteChange={setWorkingSiteId} />
 
       <div className="card space-y-3">
         <label className="block text-[10px] font-black text-psu-gray/40 uppercase tracking-widest">{t('ops.hotPacked.packTypeLabel')}</label>

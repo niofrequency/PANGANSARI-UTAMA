@@ -5,6 +5,7 @@ import { cn } from '../../utils/cn';
 import { OpsHeaderChip } from './opsHelpers';
 import { RESTROOM_GROUPS, RESTROOM_SLOTS, RestroomSlot, RESTROOM_EXAMPLE_SECTION } from '../../data/restroomData';
 import { Clock } from 'lucide-react';
+import { useWorkingSite } from '../../hooks/useWorkingSite';
 
 // UN.00.45 Pembersihan Toilet — one submit = one restroom/section + one
 // slot (08/11/16). Two groups of points, each with its own mark set.
@@ -17,7 +18,7 @@ export function RestroomForm({ store, onCancel, onSubmitted }: {
 }) {
   const { t, language } = useTranslation();
   const { currentUser, sites, addSubmission } = store;
-  const currentSiteName = sites.find(s => s.id === currentUser?.site)?.name || currentUser?.site || '';
+  const { workingSiteId, workingSiteName: currentSiteName, availableSites, setWorkingSiteId } = useWorkingSite(currentUser, sites);
 
   const [section, setSection] = useState('');
   const [slot, setSlot] = useState<RestroomSlot>('08');
@@ -42,7 +43,7 @@ export function RestroomForm({ store, onCancel, onSubmitted }: {
       userId: currentUser.id,
       userName: currentUser.name,
       role: currentUser.role,
-      siteId: currentUser.site,
+      siteId: workingSiteId,
       siteName: currentSiteName,
       timestamp: new Date().toISOString(),
       type: 'RESTROOM',
@@ -70,7 +71,9 @@ export function RestroomForm({ store, onCancel, onSubmitted }: {
         formId="UN.00.45"
         userName={currentUser?.name || ''}
         staffCode={currentUser?.staffCode}
-        departmentLabel={t('roles.HOUSEKEEPER')}
+        departmentLabel={t('roles.HOUSEKEEPING_JANITOR')}
+        siteOptions={availableSites}
+        onSiteChange={setWorkingSiteId}
       />
 
       <div className="card space-y-5">

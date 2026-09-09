@@ -13,7 +13,6 @@ import { SUPER_ADMIN_EMAIL } from '../../services/authService';
 import { isFirebaseConfigured } from '../../lib/firebase';
 import { isValidStaffCode } from '../../utils/staffCode';
 import { PrintQrPanel } from './PrintQrPanel';
-import { SITE_SCOPED_ROLES } from '../../lib/siteScope';
 
 // Avoids visually-ambiguous characters (0/O, 1/l/I) since this password
 // gets read aloud, typed by hand, or copy-pasted into a text message.
@@ -502,11 +501,14 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                     </select>
                   )}
 
-                  {/* Which sites this person reviews (Field Queue,
-                      Escalations, Dashboard, Ops Logs) — separate from
-                      their Home Site above. Only shown for the roles that
-                      actually consult it; see lib/siteScope.ts. */}
-                  {user.email.toLowerCase() !== SUPER_ADMIN_EMAIL && SITE_SCOPED_ROLES.includes(user.role) && (
+                  {/* Which sites this person can act on — a Supervisor/
+                      Manager/GM's review scope (Field Queue, Escalations,
+                      Dashboard, Ops Logs), or a frontline worker's set of
+                      sites to submit for / scan a job QR at (see
+                      hooks/useWorkingSite.ts). Separate from their Home
+                      Site above, which stays their default/fallback site
+                      either way. */}
+                  {user.email.toLowerCase() !== SUPER_ADMIN_EMAIL && (
                     <SiteAccessPicker
                       sites={sites}
                       homeSite={user.site}
@@ -905,14 +907,12 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                       </div>
                     </div>
 
-                    {SITE_SCOPED_ROLES.includes(newUser.role) && (
-                      <SiteAccessPicker
-                        sites={sites}
-                        homeSite={newUser.site}
-                        value={newUser.assignedSites}
-                        onChange={(next) => setNewUser(p => ({ ...p, assignedSites: next }))}
-                      />
-                    )}
+                    <SiteAccessPicker
+                      sites={sites}
+                      homeSite={newUser.site}
+                      value={newUser.assignedSites}
+                      onChange={(next) => setNewUser(p => ({ ...p, assignedSites: next }))}
+                    />
 
                     <div>
                       <label className="block text-[10px] font-black text-psu-gray/40 uppercase mb-2 tracking-widest">{t('admin.staffIdOptionalLabel')}</label>

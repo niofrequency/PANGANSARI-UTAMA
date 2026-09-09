@@ -5,6 +5,7 @@ import { useTranslation } from '../../i18n/LanguageContext';
 import { cn } from '../../utils/cn';
 import { OpsHeaderChip } from './opsHelpers';
 import { MESS_HALL_AREAS, MessHallMark } from '../../data/messHallHygieneData';
+import { useWorkingSite } from '../../hooks/useWorkingSite';
 
 // UWL10001 Checklist Kebersihan dan Perawatan Area Mess Hall — one submit
 // = one area (only "D — Area Gudang" is catalogued yet, see
@@ -17,7 +18,7 @@ export function MessHallHygieneForm({ store, onCancel, onSubmitted }: {
 }) {
   const { t, language } = useTranslation();
   const { currentUser, sites, addSubmission } = store;
-  const currentSiteName = sites.find(s => s.id === currentUser?.site)?.name || currentUser?.site || '';
+  const { workingSiteId, workingSiteName: currentSiteName, availableSites, setWorkingSiteId } = useWorkingSite(currentUser, sites);
 
   const [areaKey, setAreaKey] = useState(MESS_HALL_AREAS[0]?.key || 'D');
   const area = MESS_HALL_AREAS.find(a => a.key === areaKey)!;
@@ -43,7 +44,7 @@ export function MessHallHygieneForm({ store, onCancel, onSubmitted }: {
       userId: currentUser.id,
       userName: currentUser.name,
       role: currentUser.role,
-      siteId: currentUser.site,
+      siteId: workingSiteId,
       siteName: currentSiteName,
       timestamp: new Date().toISOString(),
       type: 'MESS_HALL_HYGIENE',
@@ -73,6 +74,8 @@ export function MessHallHygieneForm({ store, onCancel, onSubmitted }: {
         userName={currentUser?.name || ''}
         staffCode={currentUser?.staffCode}
         departmentLabel={t('roles.FOOD_SAFETY_SUPERVISOR')}
+        siteOptions={availableSites}
+        onSiteChange={setWorkingSiteId}
       />
 
       {MESS_HALL_AREAS.length > 1 && (

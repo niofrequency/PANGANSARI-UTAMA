@@ -5,6 +5,7 @@ import { cn } from '../../utils/cn';
 import { OpsHeaderChip, OutOfRangeFlag } from './opsHelpers';
 import { THAWING_METHODS, ThawMethodId, THAW_PRODUCT_CATEGORIES, ThawProductCategoryId, THAW_USED_FOR, THAW_PRODUCT_TEMP_LIMIT_C } from '../../data/thawingData';
 import { Plus, Trash2 } from 'lucide-react';
+import { useWorkingSite } from '../../hooks/useWorkingSite';
 
 interface ThawRow {
   id: string;
@@ -28,7 +29,7 @@ export function ThawingForm({ store, onCancel, onSubmitted }: {
 }) {
   const { t } = useTranslation();
   const { currentUser, sites, addSubmission } = store;
-  const currentSiteName = sites.find(s => s.id === currentUser?.site)?.name || currentUser?.site || '';
+  const { workingSiteId, workingSiteName: currentSiteName, availableSites, setWorkingSiteId } = useWorkingSite(currentUser, sites);
 
   const [method, setMethod] = useState<ThawMethodId>('1');
   const [rows, setRows] = useState<ThawRow[]>([emptyThawRow('r1')]);
@@ -54,7 +55,7 @@ export function ThawingForm({ store, onCancel, onSubmitted }: {
 
     addSubmission({
       userId: currentUser.id, userName: currentUser.name, role: currentUser.role,
-      siteId: currentUser.site, siteName: currentSiteName, timestamp: new Date().toISOString(),
+      siteId: workingSiteId, siteName: currentSiteName, timestamp: new Date().toISOString(),
       type: 'THAWING', status: 'PENDING',
       items: filledRows.map(r => {
         const cat = THAW_PRODUCT_CATEGORIES.find(c => c.id === r.category);
@@ -82,7 +83,7 @@ export function ThawingForm({ store, onCancel, onSubmitted }: {
 
   return (
     <div className="space-y-6">
-      <OpsHeaderChip siteName={currentSiteName} formId="UN.00.43" userName={currentUser?.name || ''} staffCode={currentUser?.staffCode} departmentLabel={t('roles.FOOD_SAFETY_SUPERVISOR')} />
+      <OpsHeaderChip siteName={currentSiteName} formId="UN.00.43" userName={currentUser?.name || ''} staffCode={currentUser?.staffCode} departmentLabel={t('roles.FOOD_SAFETY_SUPERVISOR')} siteOptions={availableSites} onSiteChange={setWorkingSiteId} />
 
       <div className="card space-y-3">
         <label className="block text-[10px] font-black text-psu-gray/40 uppercase tracking-widest">{t('ops.thawing.methodLabel')}</label>

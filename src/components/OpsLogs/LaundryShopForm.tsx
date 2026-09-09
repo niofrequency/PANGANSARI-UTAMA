@@ -5,6 +5,7 @@ import { cn } from '../../utils/cn';
 import { OpsHeaderChip } from './opsHelpers';
 import { LAUNDRY_GARMENT_COLUMNS, LaundryRoomRow, emptyLaundryRow } from '../../data/laundryShopData';
 import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
+import { useWorkingSite } from '../../hooks/useWorkingSite';
 
 // Daily Check List — Laundryshop. NOT UN.00.65 section 6 — this is the
 // laundry shop's own receiving log. One submit = one date, with one row
@@ -18,7 +19,7 @@ export function LaundryShopForm({ store, onCancel, onSubmitted }: {
 }) {
   const { t } = useTranslation();
   const { currentUser, sites, addSubmission } = store;
-  const currentSiteName = sites.find(s => s.id === currentUser?.site)?.name || currentUser?.site || '';
+  const { workingSiteId, workingSiteName: currentSiteName, availableSites, setWorkingSiteId } = useWorkingSite(currentUser, sites);
 
   const [rows, setRows] = useState<LaundryRoomRow[]>([emptyLaundryRow('room-1')]);
   const [expandedId, setExpandedId] = useState<string | null>('room-1');
@@ -47,7 +48,7 @@ export function LaundryShopForm({ store, onCancel, onSubmitted }: {
     await new Promise(r => setTimeout(r, 500));
     addSubmission({
       userId: currentUser.id, userName: currentUser.name, role: currentUser.role,
-      siteId: currentUser.site, siteName: currentSiteName, timestamp: new Date().toISOString(),
+      siteId: workingSiteId, siteName: currentSiteName, timestamp: new Date().toISOString(),
       type: 'LAUNDRY_SHOP', status: 'PENDING',
       items: filledRows.map(r => ({
         id: r.id,
@@ -72,7 +73,15 @@ export function LaundryShopForm({ store, onCancel, onSubmitted }: {
 
   return (
     <div className="space-y-6">
-      <OpsHeaderChip siteName={currentSiteName} formId="UN.00-LAUNDRY" userName={currentUser?.name || ''} staffCode={currentUser?.staffCode} departmentLabel={t('roles.HOUSEKEEPER')} />
+      <OpsHeaderChip
+        siteName={currentSiteName}
+        formId="UN.00-LAUNDRY"
+        userName={currentUser?.name || ''}
+        staffCode={currentUser?.staffCode}
+        departmentLabel={t('roles.HOUSEKEEPING_LAUNDRY')}
+        siteOptions={availableSites}
+        onSiteChange={setWorkingSiteId}
+      />
 
       <div className="card !py-3 text-center">
         <span className="text-[10px] font-black text-psu-gray/40 uppercase tracking-widest">{t('ops.laundryShop.dateLabel')}: {today}</span>
