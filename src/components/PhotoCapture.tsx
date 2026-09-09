@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { Camera, Clock, AlertCircle, MapPin } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useTranslation } from '../i18n/LanguageContext';
-import { isFirebaseConfigured } from '../lib/firebase';
+import { isFirebaseConfigured, auth } from '../lib/firebase';
 import { uploadSubmissionPhoto } from '../services/storageService';
 
 interface PhotoCaptureProps {
@@ -99,7 +99,17 @@ export function PhotoCapture({ onCapture, uid }: PhotoCaptureProps) {
       // local copy is what ends up submitted, not nothing.
       onCapture(stamped);
 
-      if (isFirebaseConfigured && uid) {
+      // storage.rules only ever grants a write to whoever request.auth.uid
+      // says the caller is — a REAL, currently signed-in Firebase Auth
+      // session, not just "this app's currentUser has this id." Scan-to-Job
+      // (StaffIdGate.tsx / loginByStaffCode) deliberately never creates
+      // one (see authService.ts's comment on why), so for that session
+      // auth.currentUser is null even though uid is a real uid on file.
+      // Attempting the upload there would just be a guaranteed-to-fail
+      // network round-trip on every single photo a frontline Scan-to-Job
+      // technician or housekeeper takes — skip it and keep the local data
+      // URL, exactly like demo mode already does.
+      if (isFirebaseConfigured && uid && auth?.currentUser?.uid === uid) {
         try {
           const remoteUrl = await uploadSubmissionPhoto(uid, stamped);
           onCapture(remoteUrl);
