@@ -16,6 +16,8 @@ import {
 import { wasDoneWithinDays, wasDoneThisCalendarMonth } from '../../data/roomCleaningCadence';
 import { DeepLinkJob, parseDeepLinkFromUrl } from '../../lib/deepLink';
 import { ScanJobButton } from '../QrScanner';
+import { userCanSeeSite } from '../../lib/siteScope';
+import { useWorkingSite } from '../../hooks/useWorkingSite';
 
 const GROUP_ICON: Record<RoomCleaningGroupKey, typeof Sparkles> = {
   '1': Sparkles,
@@ -50,9 +52,11 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
   const [activeTab, setActiveTab] = useState<'TASKS' | 'HISTORY' | 'TRAINING'>('TASKS');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showValidation, setShowValidation] = useState(false);
-  const currentSite = sites.find(s => s.id === currentUser?.site);
-  const currentSiteName = currentSite?.name || currentUser?.site || '';
-  const siteMismatch = Boolean(expectedSite && currentUser && currentUser.site !== expectedSite);
+  // Which site this room-cleaning submission is for — see
+  // hooks/useWorkingSite.ts. A single-site account gets no picker at
+  // all, same as before Site Access existed.
+  const { workingSiteId, workingSiteName: currentSiteName, setWorkingSiteId, availableSites, needsPicker } = useWorkingSite(currentUser, sites, expectedSite);
+  const siteMismatch = Boolean(expectedSite && currentUser && !userCanSeeSite(currentUser, expectedSite));
 
   const [barak, setBarak] = useState(startBarak || '');
   const [roomId, setRoomId] = useState(startRoom || '');
@@ -144,7 +148,7 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
       userId: currentUser!.id,
       userName: currentUser!.name,
       role: currentUser!.role,
-      siteId: currentUser!.site,
+      siteId: workingSiteId,
       siteName: currentSiteName,
       timestamp: new Date().toISOString(),
       type: 'HOUSEKEEPING',
@@ -226,9 +230,22 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
             <div className="flex items-center justify-between px-2 gap-3">
               <h2 className="text-xl font-bold tracking-tight text-psu-gray truncate">{t('housekeeper.today')}</h2>
               <div className="flex items-center gap-3 shrink-0">
-                <div className="flex items-center gap-1 text-[10px] font-black text-psu-gray/40 uppercase tracking-widest">
-                  <MapPin size={12} /> {currentSiteName}
-                </div>
+                {needsPicker ? (
+                  <div className="flex items-center gap-1 text-[10px] font-black text-psu-gray/50 uppercase tracking-widest">
+                    <MapPin size={12} className="shrink-0" />
+                    <select
+                      value={workingSiteId}
+                      onChange={(e) => setWorkingSiteId(e.target.value)}
+                      className="bg-white border border-psu-gray/10 rounded-lg px-1.5 py-1 outline-none focus:ring-2 focus:ring-psu-green/20"
+                    >
+                      {availableSites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1 text-[10px] font-black text-psu-gray/40 uppercase tracking-widest">
+                    <MapPin size={12} /> {currentSiteName}
+                  </div>
+                )}
                 <ScanJobButton
                   onScanned={handleScanned}
                   label={t('housekeeper.scanJobButton')}

@@ -4,6 +4,7 @@ import { useTranslation } from '../../i18n/LanguageContext';
 import { cn } from '../../utils/cn';
 import { OpsHeaderChip, OutOfRangeFlag } from './opsHelpers';
 import { MEAL_PERIODS, MealPeriodId, COOKING_SERVICE_ROWS, INSTALLATION_CODES, COOK_MIN_TEMP_C } from '../../data/cookingServiceData';
+import { useWorkingSite } from '../../hooks/useWorkingSite';
 
 interface RowEntry {
   cookTime: string;
@@ -27,7 +28,7 @@ export function CookingServiceForm({ store, onCancel, onSubmitted }: {
 }) {
   const { t } = useTranslation();
   const { currentUser, sites, addSubmission } = store;
-  const currentSiteName = sites.find(s => s.id === currentUser?.site)?.name || currentUser?.site || '';
+  const { workingSiteId, workingSiteName: currentSiteName, availableSites, setWorkingSiteId } = useWorkingSite(currentUser, sites);
 
   const [selectedMeals, setSelectedMeals] = useState<MealPeriodId[]>([]);
   const [activeMeal, setActiveMeal] = useState<MealPeriodId | null>(null);
@@ -92,7 +93,7 @@ export function CookingServiceForm({ store, onCancel, onSubmitted }: {
       userId: currentUser.id,
       userName: currentUser.name,
       role: currentUser.role,
-      siteId: currentUser.site,
+      siteId: workingSiteId,
       siteName: currentSiteName,
       timestamp: new Date().toISOString(),
       type: 'COOKING_SERVICE',
@@ -111,7 +112,7 @@ export function CookingServiceForm({ store, onCancel, onSubmitted }: {
 
   return (
     <div className="space-y-6">
-      <OpsHeaderChip siteName={currentSiteName} formId="UF.09001" userName={currentUser?.name || ''} staffCode={currentUser?.staffCode} departmentLabel={t('roles.FOOD_SAFETY_SUPERVISOR')} />
+      <OpsHeaderChip siteName={currentSiteName} formId="UF.09001" userName={currentUser?.name || ''} staffCode={currentUser?.staffCode} departmentLabel={t('roles.FOOD_SAFETY_SUPERVISOR')} siteOptions={availableSites} onSiteChange={setWorkingSiteId} />
 
       <div className="card space-y-3">
         <label className="block text-[10px] font-black text-psu-gray/40 uppercase tracking-widest">{t('ops.mealPeriodsLabel')}</label>

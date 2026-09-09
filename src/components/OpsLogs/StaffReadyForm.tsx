@@ -5,6 +5,7 @@ import { cn } from '../../utils/cn';
 import { OpsHeaderChip } from './opsHelpers';
 import { STAFF_READY_GROUPS, STAFF_READY_POSITIONS, StaffReadyRow, emptyStaffReadyRow } from '../../data/staffReadyData';
 import { ChevronDown, ChevronUp, Plus, Trash2, UserPlus } from 'lucide-react';
+import { useWorkingSite } from '../../hooks/useWorkingSite';
 
 // Checklist Persiapan Diri Karyawan — a shift roster, not the Daily Food
 // Handler self-check (Inspections tab). Pulls names from active users at
@@ -16,8 +17,11 @@ export function StaffReadyForm({ store, onCancel, onSubmitted }: {
 }) {
   const { t } = useTranslation();
   const { currentUser, sites, users, addSubmission } = store;
-  const currentSiteName = sites.find(s => s.id === currentUser?.site)?.name || currentUser?.site || '';
-  const siteStaff = users.filter(u => u.site === currentUser?.site && u.id !== currentUser?.id);
+  const { workingSiteId, workingSiteName: currentSiteName, availableSites, setWorkingSiteId } = useWorkingSite(currentUser, sites);
+  // Roster suggestions are for whichever site this submission is
+  // actually for — not necessarily the supervisor's own Home Site once
+  // they have Site Access to more than one (see hooks/useWorkingSite.ts).
+  const siteStaff = users.filter(u => u.site === workingSiteId && u.id !== currentUser?.id);
 
   const [shift, setShift] = useState<'day' | 'night'>('day');
   const [rows, setRows] = useState<StaffReadyRow[]>([]);
@@ -50,7 +54,7 @@ export function StaffReadyForm({ store, onCancel, onSubmitted }: {
     await new Promise(r => setTimeout(r, 500));
     addSubmission({
       userId: currentUser.id, userName: currentUser.name, role: currentUser.role,
-      siteId: currentUser.site, siteName: currentSiteName, timestamp: new Date().toISOString(),
+      siteId: workingSiteId, siteName: currentSiteName, timestamp: new Date().toISOString(),
       type: 'STAFF_READY', status: 'PENDING',
       items: rows.map(r => ({
         id: r.id,
@@ -73,7 +77,7 @@ export function StaffReadyForm({ store, onCancel, onSubmitted }: {
 
   return (
     <div className="space-y-6">
-      <OpsHeaderChip siteName={currentSiteName} formId="STAFF_READY" userName={currentUser?.name || ''} staffCode={currentUser?.staffCode} departmentLabel={t('roles.FOOD_SAFETY_SUPERVISOR')} />
+      <OpsHeaderChip siteName={currentSiteName} formId="STAFF_READY" userName={currentUser?.name || ''} staffCode={currentUser?.staffCode} departmentLabel={t('roles.FOOD_SAFETY_SUPERVISOR')} siteOptions={availableSites} onSiteChange={setWorkingSiteId} />
 
       <div className="card space-y-3">
         <label className="block text-[10px] font-black text-psu-gray/40 uppercase tracking-widest">{t('ops.staffReady.shiftLabel')}</label>

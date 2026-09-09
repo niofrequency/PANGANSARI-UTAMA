@@ -10,19 +10,36 @@ import { OpsLogType } from '../../types';
 // form id, user name, staff code — so nobody has to handwrite lokasi / ID
 // (PRD section 6). Every new form uses this instead of its own ad hoc
 // header row.
+//
+// The site chip becomes a small picker instead of plain text once this
+// filler has Site Access to more than one site (siteOptions.length > 1
+// — see hooks/useWorkingSite.ts) — most accounts still have exactly one
+// site and see plain text, unchanged from before Site Access existed.
 export function OpsHeaderChip({
-  siteName, formId, userName, staffCode, departmentLabel,
+  siteName, formId, userName, staffCode, departmentLabel, siteOptions, onSiteChange,
 }: {
   siteName: string;
   formId: string;
   userName: string;
   staffCode?: string;
   departmentLabel: string;
+  siteOptions?: { id: string; name: string }[];
+  onSiteChange?: (siteId: string) => void;
 }) {
+  const showSitePicker = siteOptions && siteOptions.length > 1 && onSiteChange;
   return (
     <div className="card flex flex-wrap items-center gap-x-5 gap-y-2 !py-4">
       <span className="flex items-center gap-1.5 text-[10px] font-black text-psu-gray/50 uppercase tracking-widest">
-        <MapPin size={12} /> {siteName}
+        <MapPin size={12} className="shrink-0" />
+        {showSitePicker ? (
+          <select
+            value={siteOptions!.find(s => s.name === siteName)?.id ?? ''}
+            onChange={(e) => onSiteChange!(e.target.value)}
+            className="bg-psu-bg border border-psu-gray/10 rounded-md px-1.5 py-0.5 outline-none focus:ring-2 focus:ring-psu-blue/20 normal-case font-bold"
+          >
+            {siteOptions!.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        ) : siteName}
       </span>
       <span className="flex items-center gap-1.5 text-[10px] font-black text-psu-gray/50 uppercase tracking-widest">
         <Hash size={12} /> {formId}

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { TrainingsTab } from '../TrainingsTab';
-import { ClipboardList, History, GraduationCap, CheckCircle2, Clock, XCircle, MapPin } from 'lucide-react';
+import { ClipboardList, History, GraduationCap, CheckCircle2, Clock, XCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
@@ -10,11 +10,14 @@ import { LaundryShopForm } from '../OpsLogs/LaundryShopForm';
 // Split out of HousekeeperPortal.tsx's old 3-card picker — Laundry Staff
 // now gets their own portal with just one job: the laundry shop's daily
 // receiving log. No Scan-to-Job here (only room doors carry a job QR).
+// No site chip here either — LaundryShopForm's own OpsHeaderChip already
+// shows (and, once this person has Site Access to more than one site,
+// lets them pick) the site, so a second one up here would just drift out
+// of sync with it.
 export function LaundryStaffPortal({ store }: { store: ReturnType<typeof useAppStore> }) {
   const { t } = useTranslation();
-  const { currentUser, submissions, trainings, completeTraining, sites } = store;
+  const { currentUser, submissions, trainings, completeTraining } = store;
   const [activeTab, setActiveTab] = useState<'TASKS' | 'HISTORY' | 'TRAINING'>('TASKS');
-  const currentSiteName = sites.find(s => s.id === currentUser?.site)?.name || currentUser?.site || '';
   const myHistory = submissions.filter(s => s.userId === currentUser?.id);
 
   return (
@@ -42,12 +45,7 @@ export function LaundryStaffPortal({ store }: { store: ReturnType<typeof useAppS
       <AnimatePresence mode="wait">
         {activeTab === 'TASKS' && (
           <motion.div key="tasks" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} className="space-y-6">
-            <div className="flex items-center justify-between px-2 gap-3">
-              <h2 className="text-xl font-bold tracking-tight text-psu-gray truncate">{t('ops.laundryShop.title')}</h2>
-              <div className="flex items-center gap-1 text-[10px] font-black text-psu-gray/40 uppercase tracking-widest shrink-0">
-                <MapPin size={12} /> {currentSiteName}
-              </div>
-            </div>
+            <h2 className="text-xl font-bold tracking-tight text-psu-gray truncate px-2">{t('ops.laundryShop.title')}</h2>
             <LaundryShopForm store={store} onSubmitted={() => setActiveTab('HISTORY')} />
           </motion.div>
         )}
