@@ -7,6 +7,7 @@ import { ClipboardList, ChevronRight, CheckCircle2, XCircle, Clock, Stamp } from
 import { Submission, OpsLogType } from '../../types';
 import { OPS_LOG_DEFS, OpsDepartment } from '../../data/opsLogsCatalog';
 import { SignoffProgress, nextSignoffStep } from './opsHelpers';
+import { userCanSeeSite } from '../../lib/siteScope';
 import { MessHallHygieneForm } from './MessHallHygieneForm';
 import { CookingServiceForm } from './CookingServiceForm';
 import { HotPackedMealForm } from './HotPackedMealForm';
@@ -32,15 +33,14 @@ const FORM_COMPONENTS: Record<OpsLogType, ComponentType<{ store: ReturnType<type
 // tab next to GEMBA/FSI/DFH (PRD section 5) — those are audits, these are
 // daily operations logs with their own paper sign-off chains.
 export function OpsLogsTab({
-  store, department, tier, unscoped = false,
+  store, department, tier,
 }: {
   store: ReturnType<typeof useAppStore>;
   department: OpsDepartment;
   tier: 'supervisor' | 'manager';
-  unscoped?: boolean; // GENERAL_MANAGER — no site filter, matches Escalations/Dashboard/Inspections
 }) {
   const { t, language } = useTranslation();
-  const { currentUser, submissions, sites, addSignoffStamp } = store;
+  const { currentUser, submissions, addSignoffStamp } = store;
   const [openType, setOpenType] = useState<OpsLogType | null>(null);
   const [selected, setSelected] = useState<Submission | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -51,7 +51,9 @@ export function OpsLogsTab({
     : [];
 
   const deptTypes = defs.map(d => d.type);
-  const inScope = (s: Submission) => deptTypes.includes(s.type as OpsLogType) && (unscoped || s.siteId === currentUser?.site);
+  // Site-scoped per lib/siteScope.ts — Home Site by default, or wider if
+  // the Admin gave this Supervisor/Manager/GM a Site Access override.
+  const inScope = (s: Submission) => deptTypes.includes(s.type as OpsLogType) && userCanSeeSite(currentUser, s.siteId);
 
   // "Needs your stamp": PENDING items whose next required step matches
   // this tier — checkedBy for a Supervisor's queue, approvedBy/verifiedBy

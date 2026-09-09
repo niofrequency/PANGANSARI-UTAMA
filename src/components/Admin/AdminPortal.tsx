@@ -7,12 +7,13 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
-import { UserRole, Submission, User } from '../../types';
+import { UserRole, Submission, User, Site } from '../../types';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { SUPER_ADMIN_EMAIL } from '../../services/authService';
 import { isFirebaseConfigured } from '../../lib/firebase';
 import { isValidStaffCode } from '../../utils/staffCode';
 import { PrintQrPanel } from './PrintQrPanel';
+import { SITE_SCOPED_ROLES } from '../../lib/siteScope';
 
 // Avoids visually-ambiguous characters (0/O, 1/l/I) since this password
 // gets read aloud, typed by hand, or copy-pasted into a text message.
@@ -25,13 +26,79 @@ function generatePassword(length = 10): string {
   return pw;
 }
 
+type SiteAccessValue = string[] | 'ALL' | undefined;
+
+function siteAccessMode(value: SiteAccessValue): 'home' | 'all' | 'custom' {
+  if (value === 'ALL') return 'all';
+  if (Array.isArray(value)) return 'custom';
+  return 'home';
+}
+
+// Which sites a Supervisor/Manager/GM can review — see lib/siteScope.ts.
+// Shared between the per-user Personnel card and the Add Staff form so
+// both get the exact same 3-way picker (Home Site / All Sites / Custom)
+// instead of two hand-rolled copies drifting apart.
+function SiteAccessPicker({
+  sites, homeSite, value, onChange,
+}: {
+  sites: Site[];
+  homeSite: string; // fallback for "Custom" starting point, and the last-site guard below
+  value: SiteAccessValue;
+  onChange: (next: SiteAccessValue) => void;
+}) {
+  const { t } = useTranslation();
+  const mode = siteAccessMode(value);
+  const customSites = Array.isArray(value) ? value : [homeSite];
+
+  const pillClass = (active: boolean) => cn(
+    "flex-1 py-2 rounded-lg text-[9px] font-black uppercase tracking-tighter transition-all",
+    active ? "bg-psu-blue text-white" : "bg-psu-bg text-psu-gray/40 border border-psu-gray/10"
+  );
+
+  return (
+    <div>
+      <label className="block text-[9px] font-black text-psu-gray/30 uppercase tracking-widest mb-1.5">{t('admin.siteAccessLabel')}</label>
+      <div className="flex gap-1.5">
+        <button type="button" onClick={() => onChange(undefined)} className={pillClass(mode === 'home')}>{t('admin.siteAccessHome')}</button>
+        <button type="button" onClick={() => onChange('ALL')} className={pillClass(mode === 'all')}>{t('admin.siteAccessAll')}</button>
+        <button type="button" onClick={() => onChange(mode === 'custom' ? customSites : [homeSite])} className={pillClass(mode === 'custom')}>{t('admin.siteAccessCustom')}</button>
+      </div>
+      {mode === 'custom' && (
+        <div className="grid grid-cols-2 gap-x-2 gap-y-1 mt-2 p-2 bg-psu-bg rounded-xl">
+          {sites.map(site => {
+            const checked = customSites.includes(site.id);
+            return (
+              <label key={site.id} className="flex items-center gap-1.5 text-[9px] font-bold text-psu-gray/60 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={(e) => {
+                    const next = e.target.checked
+                      ? [...customSites, site.id]
+                      : customSites.filter(id => id !== site.id);
+                    // Never leave a Supervisor/Manager scoped to zero
+                    // sites — that's not "narrower," it's a queue that
+                    // silently shows nothing.
+                    onChange(next.length > 0 ? next : [homeSite]);
+                  }}
+                />
+                <span className="truncate">{site.name}</span>
+              </label>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }) {
   const { t } = useTranslation();
-  const { users, sites, submissions, warnings, addUser, updateUserRole, updateUserSite, resetUserCredentials, setStaffIdentity, deleteUser } = store;
+  const { users, sites, submissions, warnings, addUser, updateUserRole, updateUserSite, updateUserAssignedSites, resetUserCredentials, setStaffIdentity, deleteUser } = store;
   const [activeTab, setActiveTab] = useState<'USERS' | 'ACTIVITY' | 'ANALYTICS' | 'PRINT'>('USERS');
   const [search, setSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [newUser, setNewUser] = useState({ firstName: '', lastName: '', email: '', role: 'HOUSEKEEPER' as UserRole, site: 'site-1' });
+  const [newUser, setNewUser] = useState({ firstName: '', lastName: '', email: '', role: 'HOUSEKEEPER' as UserRole, site: 'site-1', assignedSites: undefined as SiteAccessValue });
   const [password, setPassword] = useState(() => generatePassword());
   // Optional Scan-to-Job Staff ID, assignable right when the account is
   // created (not just afterward via the per-user "Staff ID" button below).
@@ -172,7 +239,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
     } else {
       setShowAddModal(false);
     }
-    setNewUser({ firstName: '', lastName: '', email: '', role: 'HOUSEKEEPER', site: 'site-1' });
+    setNewUser({ firstName: '', lastName: '', email: '', role: 'HOUSEKEEPER', site: 'site-1', assignedSites: undefined });
     setPassword(generatePassword());
     setNewStaffCode('');
   };
@@ -433,6 +500,19 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                         <option key={site.id} value={site.id}>{site.name}</option>
                       ))}
                     </select>
+                  )}
+
+                  {/* Which sites this person reviews (Field Queue,
+                      Escalations, Dashboard, Ops Logs) — separate from
+                      their Home Site above. Only shown for the roles that
+                      actually consult it; see lib/siteScope.ts. */}
+                  {user.email.toLowerCase() !== SUPER_ADMIN_EMAIL && SITE_SCOPED_ROLES.includes(user.role) && (
+                    <SiteAccessPicker
+                      sites={sites}
+                      homeSite={user.site}
+                      value={user.assignedSites}
+                      onChange={(next) => updateUserAssignedSites(user.id, next ?? null)}
+                    />
                   )}
                 </div>
               ))}
@@ -824,6 +904,15 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                         </select>
                       </div>
                     </div>
+
+                    {SITE_SCOPED_ROLES.includes(newUser.role) && (
+                      <SiteAccessPicker
+                        sites={sites}
+                        homeSite={newUser.site}
+                        value={newUser.assignedSites}
+                        onChange={(next) => setNewUser(p => ({ ...p, assignedSites: next }))}
+                      />
+                    )}
 
                     <div>
                       <label className="block text-[10px] font-black text-psu-gray/40 uppercase mb-2 tracking-widest">{t('admin.staffIdOptionalLabel')}</label>

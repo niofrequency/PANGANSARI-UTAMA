@@ -3,7 +3,7 @@
 // lowercased email so authService can look a profile up directly without
 // a query. See authService.ts for how accounts actually get activated.
 
-import { collection, doc, deleteDoc, getDoc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, doc, deleteDoc, deleteField, getDoc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { User, UserRole } from '../types';
 
@@ -14,6 +14,7 @@ interface FirestoreUserDoc {
   email: string;
   role: UserRole;
   site: string;
+  assignedSites?: string[] | 'ALL';
   isActive: boolean;
   uid: string | null;
   staffCode?: string;
@@ -38,6 +39,7 @@ export function subscribeUsers(onChange: (users: User[]) => void): () => void {
           email: data.email,
           role: data.role,
           site: data.site,
+          assignedSites: data.assignedSites,
           isActive: data.isActive,
           staffCode: data.staffCode,
         };
@@ -69,6 +71,7 @@ export async function inviteUser(user: Omit<User, 'id' | 'isActive'>): Promise<v
     isActive: true,
     uid: null,
   };
+  if (user.assignedSites) docData.assignedSites = user.assignedSites;
   await setDoc(doc(db, 'users', emailLower), docData);
 }
 
@@ -86,6 +89,16 @@ export async function updateUserSiteDoc(email: string, site: string): Promise<vo
   if (!db) return;
   const emailLower = email.trim().toLowerCase();
   await updateDoc(doc(db, 'users', emailLower), { site });
+}
+
+// null clears the override entirely (back to "Home Site only" — see
+// siteScope.ts's sitesForScope()), via Firestore's deleteField() rather
+// than writing null/undefined, so a since-renamed or deleted site never
+// lingers in an old assignedSites array.
+export async function updateUserAssignedSitesDoc(email: string, assignedSites: string[] | 'ALL' | null): Promise<void> {
+  if (!db) return;
+  const emailLower = email.trim().toLowerCase();
+  await updateDoc(doc(db, 'users', emailLower), { assignedSites: assignedSites ?? deleteField() });
 }
 
 export async function toggleUserActiveDoc(email: string, isActive: boolean): Promise<void> {

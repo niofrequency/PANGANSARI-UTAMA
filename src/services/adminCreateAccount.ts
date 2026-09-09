@@ -34,6 +34,10 @@ export interface CreateStaffAccountParams {
   lastName: string;
   role: UserRole;
   site: string;
+  // Optional Site Access scope (see lib/siteScope.ts) — assignable right
+  // at creation time for Supervisor/Manager/GM roles instead of only
+  // afterward via updateUserAssignedSites.
+  assignedSites?: string[] | 'ALL';
   // Optional Scan-to-Job Staff ID, assignable right at creation time (see
   // AdminPortal.tsx's Add Staff form) instead of only afterward via
   // setStaffIdentity. No PIN — the code itself is the credential.
@@ -122,6 +126,7 @@ export async function createStaffAccountDirect(
       site: params.site,
       isActive: true,
       uid,
+      ...(params.assignedSites ? { assignedSites: params.assignedSites } : {}),
       ...(staffCode ? { staffCode } : {}),
     };
     const wrote = await setDocWithRetry(() => setDoc(doc(db, 'users', emailLower), profile));
