@@ -15,7 +15,6 @@ import { TechnicianPortal } from './components/Portals/TechnicianPortal';
 import { AdminPortal } from './components/Admin/AdminPortal';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { useTranslation } from './i18n/LanguageContext';
-import { SUPER_ADMIN_EMAIL } from './services/authService';
 import { DeepLinkJob, parseDeepLink, consumeDeepLink, clearDeepLink, setDeepLink } from './lib/deepLink';
 import { UserRole } from './types';
 import { motion, AnimatePresence } from 'motion/react';
@@ -105,20 +104,13 @@ export default function App() {
 
     switch (currentUser.role) {
       case 'ADMIN':
-        // Route guard, mirrored from the store's login-time check: never
-        // render the Admin Portal for anyone but the designated address,
-        // even if a role field somewhere claims ADMIN.
-        if (currentUser.email.toLowerCase() !== SUPER_ADMIN_EMAIL) {
-          return (
-            <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 text-center">
-              <h2 className="text-xl font-bold text-slate-gray">{t('accessRestricted.title')}</h2>
-              <p className="mt-2 text-slate-500">{t('accessRestricted.body')}</p>
-              <button onClick={logout} className="mt-6 px-6 py-2 bg-psu-green text-white rounded-lg font-medium">
-                {t('common.backToLogin')}
-              </button>
-            </div>
-          );
-        }
+        // Any account whose Firestore role is ADMIN gets the Admin Portal
+        // — not just the original bootstrap account (SUPER_ADMIN_EMAIL).
+        // That's trustworthy on its own now: only an existing admin can
+        // ever set someone else's role to ADMIN in the first place (see
+        // firestore.rules' isAdmin()/updateUserRole in useAppStore.ts), so
+        // there's no "role field claims ADMIN but shouldn't be trusted"
+        // case left to guard against here.
         return <AdminPortal store={store} />;
       case 'HOUSEKEEPER': {
         const job = pendingJob && pendingJob.action === 'room' ? pendingJob : null;

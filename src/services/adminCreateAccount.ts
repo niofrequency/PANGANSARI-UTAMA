@@ -15,13 +15,15 @@
 // primary session (app/auth from lib/firebase.ts) is never touched.
 //
 // The Firestore profile write still goes through the primary, already
-// signed-in-as-admin `db` — firestore.rules' isSuperAdmin() branch already
-// allows the super-admin to create/update any non-ADMIN user's doc, so no
+// signed-in-as-admin `db` — firestore.rules' isAdmin() branch already
+// allows any admin to create/update another user's doc, including
+// granting the ADMIN role itself (the one exception is the original
+// bootstrap account, which stays untouchable by anyone but itself), so no
 // rule changes are needed for this.
 
 import { initializeApp, deleteApp, type FirebaseApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { firebaseConfig, db } from '../lib/firebase';
 import { UserRole } from '../types';
 
@@ -32,11 +34,15 @@ export interface CreateStaffAccountParams {
   lastName: string;
   role: UserRole;
   site: string;
+  // Optional Scan-to-Job Staff ID, assignable right at creation time (see
+  // AdminPortal.tsx's Add Staff form) instead of only afterward via
+  // setStaffIdentity. No PIN — the code itself is the credential.
+  staffCode?: string;
 }
 
 export type CreateStaffAccountResult =
   | { ok: true }
-  | { ok: false; error: 'already-exists' | 'invalid-argument' | 'not-configured' | 'unknown' };
+  | { ok: false; error: 'already-exists' | 'staffcode-taken' | 'invalid-argument' | 'not-configured' | 'unknown' };
 
 // Same reasoning as writeProfileWithRetry in authService.ts: covers a
 // transient Firestore hiccup right after account creation without giving
@@ -69,11 +75,16 @@ export async function createStaffAccountDirect(
   if (!emailLower || !fn || !params.role || !params.site) {
     return { ok: false, error: 'invalid-argument' };
   }
-  if (params.role === 'ADMIN') {
-    return { ok: false, error: 'invalid-argument' };
-  }
   if (params.password.length < 6) {
     return { ok: false, error: 'invalid-argument' };
+  }
+
+  const staffCode = params.staffCode?.trim();
+  if (staffCode) {
+    const mapSnap = await getDoc(doc(db, 'staffCodes', staffCode));
+    if (mapSnap.exists()) {
+      return { ok: false, error: 'staffcode-taken' };
+    }
   }
 
   // A uniquely-named secondary app per call — so two "Add Staff" calls
@@ -111,6 +122,7 @@ export async function createStaffAccountDirect(
       site: params.site,
       isActive: true,
       uid,
+      ...(staffCode ? { staffCode } : {}),
     };
     const wrote = await setDocWithRetry(() => setDoc(doc(db, 'users', emailLower), profile));
     if (!wrote) {
@@ -120,6 +132,15 @@ export async function createStaffAccountDirect(
       // use" fallback), so the person isn't permanently stuck even though
       // this specific attempt is reported as failed.
       return { ok: false, error: 'unknown' };
+    }
+    if (staffCode) {
+      // Best-effort: the account and profile are already fully working
+      // without this, so a failure here isn't worth reporting as the
+      // whole call having failed — the admin can always add the Staff ID
+      // afterward from the per-user "Staff ID" button instead.
+      await setDoc(doc(db, 'staffCodes', staffCode), { email: emailLower }).catch((err) =>
+        console.error('createStaffAccountDirect: staffCodes index write failed:', err)
+      );
     }
     return { ok: true };
   } finally {

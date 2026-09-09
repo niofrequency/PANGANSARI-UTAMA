@@ -13,7 +13,7 @@ import {
 import { subscribeUsers, updateUserRoleDoc, updateUserSiteDoc, setStaffIdentityDoc, toggleUserActiveDoc, deleteUserDoc } from '../services/usersService';
 import { createStaffAccountDirect } from '../services/adminCreateAccount';
 import { resetStaffCredentials } from '../services/adminResetCredentials';
-import { hashPin, isValidPin, isValidStaffCode } from '../utils/pinHash';
+import { isValidStaffCode } from '../utils/staffCode';
 
 // This store has two modes: 
 //
@@ -207,11 +207,11 @@ export function useAppStore() {
 
     if (existing) {
       if (!existing.isActive) return 'inactive';
-      const effectiveUser =
-        existing.role === 'ADMIN' && existing.email.toLowerCase() !== SUPER_ADMIN_EMAIL
-          ? { ...existing, role: 'HOUSEKEEPER' as UserRole }
-          : existing;
-      setCurrentUser(effectiveUser);
+      // ADMIN is no longer locked to the one bootstrap account — any
+      // account an existing admin promoted to ADMIN (via updateUserRole)
+      // logs in as a real admin. See App.tsx's Admin Portal route, which
+      // now trusts role === 'ADMIN' on its own.
+      setCurrentUser(existing);
       return null;
     }
 
@@ -246,17 +246,17 @@ export function useAppStore() {
     return result.ok ? null : result.error;
   };
 
-  // Scan-to-Job login (StaffIdGate.tsx): Staff ID + 4-digit PIN instead of
-  // email/password. See authService.ts's loginByStaffCode for why this
-  // deliberately never touches Firebase Auth.
+  // Scan-to-Job login (StaffIdGate.tsx): a Staff ID instead of email/
+  // password — no PIN, the code itself is the credential (only an Admin
+  // ever hands one out). See authService.ts's loginByStaffCode for why
+  // this deliberately never touches Firebase Auth.
   const loginByStaffCode = async (
-    staffCode: string,
-    pin: string
-  ): Promise<{ ok: boolean; error?: 'unknown-id' | 'wrong-pin' | 'inactive' }> => {
+    staffCode: string
+  ): Promise<{ ok: boolean; error?: 'unknown-id' | 'inactive' }> => {
     const codeUpper = staffCode.trim().toUpperCase();
 
     if (isFirebaseConfigured) {
-      const result = await loginByStaffCodeService(codeUpper, pin);
+      const result = await loginByStaffCodeService(codeUpper);
       if (!result.ok) return result;
       const p = result.profile;
       setPinSessionActive(true);
@@ -278,7 +278,6 @@ export function useAppStore() {
     const match = users.find((u) => u.staffCode?.toUpperCase() === codeUpper);
     if (!match) return { ok: false, error: 'unknown-id' };
     if (!match.isActive) return { ok: false, error: 'inactive' };
-    if ((match as any).pin !== pin) return { ok: false, error: 'wrong-pin' };
     setCurrentUser(match);
     return { ok: true };
   };
@@ -310,10 +309,13 @@ export function useAppStore() {
   // whatever password you hand them.
   const addUser = async (
     user: Omit<User, 'id' | 'isActive'>,
-    password: string
+    password: string,
+    // Optional Scan-to-Job Staff ID, assignable right at creation time
+    // instead of only afterward via setStaffIdentity. No PIN.
+    staffIdentity?: { staffCode: string }
   ): Promise<{ ok: boolean; error?: string }> => {
     if (isFirebaseConfigured) {
-      const result = await createStaffAccountDirect({ ...user, password });
+      const result = await createStaffAccountDirect({ ...user, password, staffCode: staffIdentity?.staffCode });
       if (result.ok) return { ok: true };
       return { ok: false, error: result.error };
     }
@@ -327,22 +329,32 @@ export function useAppStore() {
     if (users.some(u => u.email.toLowerCase() === user.email.toLowerCase())) {
       return { ok: false, error: 'already-exists' };
     }
-    const newUser: User = { ...user, id: `u-${Date.now()}`, isActive: true };
+    if (staffIdentity && users.some(u => u.staffCode?.toUpperCase() === staffIdentity.staffCode.toUpperCase())) {
+      return { ok: false, error: 'staffcode-taken' };
+    }
+    const newUser: User = {
+      ...user,
+      id: `u-${Date.now()}`,
+      isActive: true,
+      ...(staffIdentity ? { staffCode: staffIdentity.staffCode } : {}),
+    };
     setUsers(prev => [...prev, newUser]);
     return { ok: true };
   };
 
+  // Any admin can promote another account to ADMIN (or demote one back)
+  // from here — including granting it. The one account this can never
+  // touch is the original bootstrap super-admin, guarded below and in
+  // firestore.rules, so there's always at least one admin nobody else can
+  // lock out.
   const updateUserRole = (userId: string, role: UserRole) => {
+    const target = users.find(u => u.id === userId);
+    if (target && target.email.toLowerCase() === SUPER_ADMIN_EMAIL) return;
     if (isFirebaseConfigured) {
-      const target = users.find(u => u.id === userId);
       if (target) updateUserRoleDoc(target.email, role);
       return;
     }
-    setUsers(prev => prev.map(u => {
-      if (u.id !== userId) return u;
-      if (role === 'ADMIN' && u.email.toLowerCase() !== SUPER_ADMIN_EMAIL) return u;
-      return { ...u, role };
-    }));
+    setUsers(prev => prev.map(u => (u.id === userId ? { ...u, role } : u)));
   };
 
   const updateUserSite = (userId: string, site: string) => {
@@ -377,32 +389,27 @@ export function useAppStore() {
     return { ok: false, error: result.error };
   };
 
-  // Admin sets/changes a user's Scan-to-Job Staff ID + PIN. Firebase mode
-  // hashes the PIN before it's ever sent to Firestore (see pinHash.ts);
-  // demo mode has no server to hash for, so it's stored as-is on the local
-  // user object (see the `pin` comment on mockData.ts's demo seed).
+  // Admin sets/changes a user's Scan-to-Job Staff ID. No PIN — the code
+  // itself is the credential, since it's only ever handed out by an Admin.
   const setStaffIdentity = async (
     userId: string,
-    staffCode: string,
-    pin: string
-  ): Promise<{ ok: boolean; error?: 'invalid-code' | 'invalid-pin' | 'staffcode-taken' | 'unknown' | 'not-configured' }> => {
+    staffCode: string
+  ): Promise<{ ok: boolean; error?: 'invalid-code' | 'staffcode-taken' | 'unknown' | 'not-configured' }> => {
     const codeUpper = staffCode.trim().toUpperCase();
     if (!isValidStaffCode(codeUpper)) return { ok: false, error: 'invalid-code' };
-    if (!isValidPin(pin)) return { ok: false, error: 'invalid-pin' };
 
     const target = users.find((u) => u.id === userId);
     if (!target) return { ok: false, error: 'unknown' };
 
     if (isFirebaseConfigured) {
-      const pinHash = await hashPin(codeUpper, pin);
-      const result = await setStaffIdentityDoc(target.email, codeUpper, pinHash, target.staffCode);
+      const result = await setStaffIdentityDoc(target.email, codeUpper, target.staffCode);
       return result;
     }
 
     if (users.some((u) => u.id !== userId && u.staffCode?.toUpperCase() === codeUpper)) {
       return { ok: false, error: 'staffcode-taken' };
     }
-    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, staffCode: codeUpper, pin } as User : u)));
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, staffCode: codeUpper } : u)));
     return { ok: true };
   };
 
