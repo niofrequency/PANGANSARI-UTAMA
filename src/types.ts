@@ -146,6 +146,8 @@ export interface Submission {
     barak?: string;
     roomId?: string;
     qrRoomId?: string;
+    // One proof photo for the whole submission, not per section.
+    photoUrl?: string;
 
     // Paper document number this submission corresponds to — shown on the
     // read-only header chip (site / department / form id / user / staff

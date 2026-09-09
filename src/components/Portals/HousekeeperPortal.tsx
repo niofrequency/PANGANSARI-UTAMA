@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
 import {
-  ROOM_CLEANING_GROUPS, ROOM_CLEANING_ITEMS, PHOTO_REQUIRED_GROUPS, itemsForGroup,
+  ROOM_CLEANING_GROUPS, ROOM_CLEANING_ITEMS, itemsForGroup,
   TIDAK_DIKERJAKAN_REASONS, RoomCleaningGroupKey, RoomCleaningItem, TidakDikerjakanReason,
 } from '../../data/roomCleaningData';
 import { wasDoneWithinDays, wasDoneThisCalendarMonth } from '../../data/roomCleaningCadence';
@@ -57,7 +57,8 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
   const [barak, setBarak] = useState(startBarak || '');
   const [roomId, setRoomId] = useState(startRoom || '');
   const [checklistState, setChecklistState] = useState<Record<string, ItemState>>({});
-  const [groupPhotos, setGroupPhotos] = useState<Partial<Record<RoomCleaningGroupKey, string>>>({});
+  // One proof photo for the whole submission, not per section.
+  const [photo, setPhoto] = useState<string | null>(null);
 
   // A job QR always wins over whatever was typed before it was scanned —
   // this is the whole point of scanning the door sticker.
@@ -109,8 +110,8 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
   const roomFilled = roomId.trim().length > 0;
   const allDailyAnswered = dailyItems.every(i => checklistState[i.id]?.checked);
   const allDueAnswered = dueNonDailyItems.every(i => isAnswered(i.id));
-  const allPhotosPresent = PHOTO_REQUIRED_GROUPS.every(g => Boolean(groupPhotos[g]));
-  const canSubmit = barakFilled && roomFilled && allDailyAnswered && allDueAnswered && allPhotosPresent;
+  const photoPresent = Boolean(photo);
+  const canSubmit = barakFilled && roomFilled && allDailyAnswered && allDueAnswered && photoPresent;
 
   const handleScanned = (rawValue: string) => {
     const job = parseDeepLinkFromUrl(rawValue);
@@ -131,12 +132,10 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
 
     const items = ROOM_CLEANING_ITEMS.map(item => {
       const state = checklistState[item.id];
-      const photoUrl = PHOTO_REQUIRED_GROUPS.includes(item.group) ? groupPhotos[item.group] : undefined;
       return {
         id: item.id,
         question: `${item.labelId} (${item.labelEn})`,
         answer: Boolean(state?.checked),
-        photoUrl,
         remarks: state?.reason ? t(`housekeeper.reason.${state.reason}`) : undefined,
       };
     });
@@ -156,12 +155,13 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
         formId: 'UN.00.65',
         barak: barak.trim(),
         roomId: roomId.trim(),
+        photoUrl: photo || undefined,
         ...(cameFromQr ? { source: 'qr' as const, qrAction: 'room' as const, qrRoomId: startRoom } : {}),
       },
     });
 
     setChecklistState({});
-    setGroupPhotos({});
+    setPhoto(null);
     setShowValidation(false);
     setIsSubmitting(false);
     setActiveTab('HISTORY');
@@ -339,24 +339,20 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
                         </div>
                       );
                     })}
-
-                    {PHOTO_REQUIRED_GROUPS.includes(group.key) && (
-                      <div>
-                        <label className="block text-[10px] font-black text-psu-gray/40 uppercase tracking-widest mb-2">
-                          {t('housekeeper.groupPhotoLabel')}
-                        </label>
-                        <PhotoCapture
-                          uid={currentUser?.id}
-                          onCapture={(url) => setGroupPhotos(prev => ({ ...prev, [group.key]: url }))}
-                        />
-                        {showValidation && !groupPhotos[group.key] && (
-                          <p className="text-[10px] text-psu-rejected font-bold mt-2">{t('housekeeper.photoRequired')}</p>
-                        )}
-                      </div>
-                    )}
                   </div>
                 );
               })}
+            </div>
+
+            {/* One proof photo for the whole submission, not per section. */}
+            <div className="card">
+              <label className="block text-[10px] font-black text-psu-gray/40 uppercase tracking-widest mb-2">
+                {t('housekeeper.groupPhotoLabel')}
+              </label>
+              <PhotoCapture uid={currentUser?.id} onCapture={(url) => setPhoto(url)} />
+              {showValidation && !photo && (
+                <p className="text-[10px] text-psu-rejected font-bold mt-2">{t('housekeeper.photoRequired')}</p>
+              )}
             </div>
 
             <button

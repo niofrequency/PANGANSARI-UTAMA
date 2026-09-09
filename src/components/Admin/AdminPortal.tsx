@@ -618,6 +618,14 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                     <span className={statusBadgeClass(selectedSubmission.status)}>{statusLabel(selectedSubmission.status)}</span>
                   </div>
 
+                  {/* HOUSEKEEPING (UN.00.65): one proof photo for the whole
+                      submission, not per item. */}
+                  {selectedSubmission.meta?.photoUrl && (
+                    <div className="rounded-2xl overflow-hidden border border-psu-gray/5">
+                      <img src={selectedSubmission.meta.photoUrl} className="w-full h-48 object-cover" alt="Proof" />
+                    </div>
+                  )}
+
                   <div className="space-y-4">
                     <h4 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em] border-b border-psu-gray/5 pb-2">{t('supervisorHK.checklistTitle')}</h4>
                     {selectedSubmission.items.map((item, idx) => (
