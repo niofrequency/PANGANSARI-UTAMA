@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { PhotoCapture } from '../PhotoCapture';
 import { TrainingsTab } from '../TrainingsTab';
-import { ClipboardCheck, History, GraduationCap, CheckCircle2, Clock, XCircle, AlertTriangle, MapPin, Check, X, MapPinOff } from 'lucide-react';
+import { ClipboardCheck, History, GraduationCap, CheckCircle2, Clock, XCircle, AlertTriangle, MapPin, Check, X, MapPinOff, Thermometer, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
@@ -10,6 +10,7 @@ import { DAILY_FOOD_HANDLER_GROUPS, DAILY_FOOD_HANDLER_ALL_CRITERIA } from '../.
 import { computeReadyToWork, countMarked, isGoodMark } from '../../data/dailyFoodHandlerScoring';
 import { DeepLinkJob, parseDeepLinkFromUrl } from '../../lib/deepLink';
 import { ScanJobButton } from '../QrScanner';
+import { TempControlForm } from '../OpsLogs/TempControlForm';
 
 type DeepLinkStartAt = 'fridge' | 'core' | 'clean' | 'wellness';
 
@@ -50,6 +51,10 @@ export function TechnicianPortal({ store, startAt, expectedSite, onDeepLinkHandl
   const { t } = useTranslation();
   const { currentUser, submissions, addSubmission, trainings, completeTraining, warnings, sites } = store;
   const [activeTab, setActiveTab] = useState<'TASKS' | 'HISTORY' | 'TRAINING'>('TASKS');
+  // UF.10000 Temp Control is a separate task from the daily fridge/core
+  // log above — a toggle, not a replacement (PRD 4.1 / section 5: "add as
+  // a separate task, do not replace the existing fridge/core daily log").
+  const [showTempControl, setShowTempControl] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showValidation, setShowValidation] = useState(false);
   const [highlightSection, setHighlightSection] = useState<DeepLinkStartAt | null>(null);
@@ -252,6 +257,26 @@ export function TechnicianPortal({ store, startAt, expectedSite, onDeepLinkHandl
               </div>
             </div>
 
+            {showTempControl ? (
+              <TempControlForm
+                store={store}
+                onCancel={() => setShowTempControl(false)}
+                onSubmitted={() => { setShowTempControl(false); setActiveTab('HISTORY'); }}
+              />
+            ) : (
+            <>
+            <button
+              onClick={() => setShowTempControl(true)}
+              className="card w-full text-left flex items-center gap-4 hover:border-psu-blue/20 transition-all active:scale-98"
+            >
+              <div className="w-11 h-11 rounded-2xl bg-psu-blue/10 text-psu-blue flex items-center justify-center shrink-0"><Thermometer size={20} /></div>
+              <div className="flex-1 min-w-0">
+                <h4 className="text-sm font-bold text-psu-gray">{t('ops.tempControl.title')}</h4>
+                <p className="text-[10px] text-psu-gray/40 font-medium mt-0.5">{t('ops.tempControl.desc')}</p>
+              </div>
+              <ChevronRight size={16} className="text-psu-gray/20 shrink-0" />
+            </button>
+
             <div className="card space-y-8">
               <h4 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em] border-b border-psu-gray/5 pb-2 -mb-2">{t('technician.sectionOperations')}</h4>
               <div className="grid grid-cols-2 gap-4">
@@ -398,6 +423,8 @@ export function TechnicianPortal({ store, startAt, expectedSite, onDeepLinkHandl
                 {isSubmitting ? t('technician.submitting') : t('technician.submitButton')}
               </button>
             </div>
+            </>
+            )}
           </motion.div>
         )}
 

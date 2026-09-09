@@ -69,6 +69,21 @@ export interface DailyFoodHandlerRosterEntry {
   remark?: string;
 }
 
+// The nine additional operations logs (PSU_Additional_Ops_Forms_PRD.md) —
+// UN.00.65 room cleaning, GEMBA, FSI, and DFH already existed and are not
+// part of this set. Each has its own catalog file under src/data/ and its
+// own fill form under src/components/OpsLogs/.
+export type OpsLogType =
+  | 'TEMP_CONTROL'       // UF.10000 — chiller/freezer/dry, 5 daily slots
+  | 'DISHWASH_TEMP'      // UN.00.51 — bilas + cuci, 3 shifts
+  | 'MESS_HALL_HYGIENE'  // UWL10001 — area checklist, B/R marks
+  | 'COOKING_SERVICE'    // UF.09001 — cook + install time/temp per meal
+  | 'HOT_PACKED_MEAL'    // UF.09000 — pack + cook/hold/pack windows
+  | 'THAWING'            // UN.00.43 — method + product batches
+  | 'STAFF_READY'        // Persiapan Diri Karyawan — shift roster
+  | 'LAUNDRY_SHOP'       // Laundryshop daily list — room x garment counts
+  | 'RESTROOM';          // UN.00.45 — toilet cleaning, 3 daily slots
+
 export interface Submission {
   id: string;
   userId: string;
@@ -77,7 +92,7 @@ export interface Submission {
   siteId: string;
   siteName: string;
   timestamp: string;
-  type: 'HOUSEKEEPING' | 'FOOD_SAFETY' | 'FOOD_SAFETY_INSPECTION' | 'GEMBA_WALK' | 'DAILY_FOOD_HANDLER';
+  type: 'HOUSEKEEPING' | 'FOOD_SAFETY' | 'FOOD_SAFETY_INSPECTION' | 'GEMBA_WALK' | 'DAILY_FOOD_HANDLER' | OpsLogType;
   status: SubmissionStatus;
   items: {
     id: string;
@@ -120,10 +135,54 @@ export interface Submission {
     source?: 'qr';
     qrAction?: 'fridge' | 'core' | 'clean' | 'wellness' | 'room';
     // HOUSEKEEPING (UN.00.65 room-cleaning checklist) only
-    formId?: 'UN.00.65';
     barak?: string;
     roomId?: string;
     qrRoomId?: string;
+
+    // Paper document number this submission corresponds to — shown on the
+    // read-only header chip (site / department / form id / user / staff
+    // code) every ops-log fill screen shows instead of handwriting lokasi
+    // and ID. 'UN.00.65' kept for the room-cleaning checklist above.
+    formId?: 'UN.00.65' | 'UF.10000' | 'UN.00.51' | 'UWL10001' | 'UF.09001' | 'UF.09000' | 'UN.00.43' | 'STAFF_READY' | 'UN.00-LAUNDRY' | 'UN.00.45';
+
+    // Named sign-off chain (PRD section 6) — logged-in user + timestamp,
+    // not a signature canvas. Which of these four a given OpsLogType uses,
+    // and which one is the *last* required stamp (the one that flips
+    // status to APPROVED), is defined per-type in
+    // src/data/opsLogsCatalog.ts's SIGNOFF_CHAINS — not every form uses
+    // all four slots.
+    signoff?: {
+      draftedBy?: { userId: string; name: string; staffCode?: string; at: string };
+      checkedBy?: { userId: string; name: string; at: string };
+      approvedBy?: { userId: string; name: string; at: string };
+      verifiedBy?: { userId: string; name: string; at: string };
+    };
+
+    // TEMP_CONTROL (UF.10000) / DISHWASH_TEMP (UN.00.51)
+    assetId?: string;
+    assetName?: string;
+    storeKind?: 'dry' | 'freezer' | 'chiller';
+    slot?: '08' | '11' | '12' | '16' | '18' | '20' | '24';
+    outOfRange?: boolean; // true if any reading on this submission breached its paper limit — still saves either way
+
+    // MESS_HALL_HYGIENE (UWL10001)
+    areaKey?: string;
+
+    // RESTROOM (UN.00.45)
+    section?: string;
+
+    // COOKING_SERVICE (UF.09001) / HOT_PACKED_MEAL (UF.09000)
+    mealPeriods?: string[]; // which of breakfast/lunch/dinner/supper were actually cooked that day
+    packType?: string; // HOT_PACKED_MEAL only
+
+    // THAWING (UN.00.43)
+    thawMethod?: '1' | '2' | '3' | '4';
+
+    // STAFF_READY (Persiapan Diri Karyawan)
+    shift?: 'day' | 'night';
+
+    // LAUNDRY_SHOP (Laundryshop daily list)
+    laundryDate?: string;
   };
 }
 

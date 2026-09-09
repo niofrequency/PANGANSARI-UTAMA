@@ -14,6 +14,7 @@ import { subscribeUsers, updateUserRoleDoc, updateUserSiteDoc, setStaffIdentityD
 import { createStaffAccountDirect } from '../services/adminCreateAccount';
 import { resetStaffCredentials } from '../services/adminResetCredentials';
 import { isValidStaffCode } from '../utils/staffCode';
+import { SIGNOFF_CHAINS } from '../data/opsLogsCatalog';
 
 // This store has two modes: 
 //
@@ -300,6 +301,30 @@ export function useAppStore() {
     setSubmissions(prev => prev.map(s => s.id === id ? { ...s, status, rejectionReason: reason } : s));
   };
 
+  // Named sign-off chain for the additional ops logs (PSU_Additional_Ops_
+  // Forms_PRD.md section 6) — logged-in user + timestamp, not a signature
+  // canvas. Stamps a named slot (checkedBy/approvedBy/verifiedBy) on the
+  // submission's meta.signoff; if that was the LAST stamp its type's
+  // chain requires (see opsLogsCatalog.ts's SIGNOFF_CHAINS), the
+  // submission also flips from PENDING to APPROVED. Earlier stamps don't
+  // change status — the paper stays "in progress" until the final name
+  // signs it, same as the source forms.
+  const addSignoffStamp = (submissionId: string, step: 'checkedBy' | 'approvedBy' | 'verifiedBy') => {
+    if (!currentUser) return;
+    setSubmissions(prev => prev.map(s => {
+      if (s.id !== submissionId) return s;
+      const chain = s.type in SIGNOFF_CHAINS ? SIGNOFF_CHAINS[s.type as keyof typeof SIGNOFF_CHAINS] : undefined;
+      const stamp = { userId: currentUser.id, name: currentUser.name, at: new Date().toISOString() };
+      const nextSignoff = { ...s.meta?.signoff, [step]: stamp };
+      const isFinalStep = chain ? chain[chain.length - 1] === step : false;
+      return {
+        ...s,
+        meta: { ...s.meta, signoff: nextSignoff },
+        status: isFinalStep ? 'APPROVED' : s.status,
+      };
+    }));
+  };
+
   // In Firebase mode this always creates a fully-working, already-activated
   // login on the spot — no invite-only fallback. createStaffAccountDirect
   // creates the Firebase Auth account and the Firestore profile straight
@@ -460,6 +485,7 @@ export function useAppStore() {
     logout,
     addSubmission,
     updateSubmissionStatus,
+    addSignoffStamp,
     addUser,
     updateUserRole,
     updateUserSite,

@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
-import { CheckCircle2, XCircle, Clock, Eye, AlertTriangle, User, MapPin, ClipboardCheck, ListChecks } from 'lucide-react';
+import { CheckCircle2, XCircle, Clock, Eye, AlertTriangle, User, MapPin, ClipboardCheck, ListChecks, ClipboardList } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
 import { Submission } from '../../types';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { InspectionsTab } from '../Inspections/InspectionsTab';
+import { OpsLogsTab } from '../OpsLogs/OpsLogsTab';
 import { DAILY_FOOD_HANDLER_ALL_CRITERIA } from '../../data/dailyFoodHandlerData';
 
 // A Food Safety Technician's daily log folds in a personal wellness/hygiene/
@@ -22,7 +23,7 @@ export function SupervisorPortal({ store }: { store: ReturnType<typeof useAppSto
   const { t } = useTranslation();
   const { currentUser, submissions, updateSubmissionStatus, addWarning, users } = store;
   const isFoodSafety = currentUser?.role === 'FOOD_SAFETY_SUPERVISOR';
-  const [activeTab, setActiveTab] = useState<'QUEUE' | 'INSPECTIONS'>('QUEUE');
+  const [activeTab, setActiveTab] = useState<'QUEUE' | 'INSPECTIONS' | 'OPS_LOGS'>('QUEUE');
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [showWarningDialog, setShowWarningDialog] = useState(false);
@@ -76,32 +77,35 @@ export function SupervisorPortal({ store }: { store: ReturnType<typeof useAppSto
 
   return (
     <div className="space-y-6">
-      {isFoodSafety && (
-        <div className="flex bg-white rounded-2xl p-1.5 shadow-sm border border-psu-gray/5">
-          {[
-            { id: 'QUEUE' as const, icon: ListChecks, label: t('supervisorHK.queueTitle') },
-            { id: 'INSPECTIONS' as const, icon: ClipboardCheck, label: t('inspection.tabTitle') },
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={cn(
-                "flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
-                activeTab === tab.id
-                  ? "bg-psu-blue text-white shadow-md shadow-psu-blue/20"
-                  : "text-psu-gray/40 hover:text-psu-gray"
-              )}
-            >
-              <tab.icon size={18} />
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="flex bg-white rounded-2xl p-1.5 shadow-sm border border-psu-gray/5">
+        {[
+          { id: 'QUEUE' as const, icon: ListChecks, label: t('supervisorHK.queueTitle') },
+          { id: 'OPS_LOGS' as const, icon: ClipboardList, label: t('ops.tabTitle') },
+          ...(isFoodSafety ? [{ id: 'INSPECTIONS' as const, icon: ClipboardCheck, label: t('inspection.tabTitle') }] : []),
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={cn(
+              "flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+              activeTab === tab.id
+                ? "bg-psu-blue text-white shadow-md shadow-psu-blue/20"
+                : "text-psu-gray/40 hover:text-psu-gray"
+            )}
+          >
+            <tab.icon size={18} />
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
       {isFoodSafety && activeTab === 'INSPECTIONS' && <InspectionsTab store={store} />}
 
-      {(!isFoodSafety || activeTab === 'QUEUE') && (
+      {activeTab === 'OPS_LOGS' && (
+        <OpsLogsTab store={store} department={isFoodSafety ? 'FOOD_SAFETY' : 'HOUSEKEEPING'} tier="supervisor" />
+      )}
+
+      {activeTab === 'QUEUE' && (
       <>
       <div className="flex items-center justify-between px-2">
         <h2 className="text-xl font-bold tracking-tight text-psu-gray">{t('supervisorHK.queueTitle')}</h2>

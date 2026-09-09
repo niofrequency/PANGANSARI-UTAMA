@@ -4,7 +4,7 @@ import { PhotoCapture } from '../PhotoCapture';
 import { TrainingsTab } from '../TrainingsTab';
 import {
   ClipboardList, History, GraduationCap, CheckCircle2, Clock, XCircle, MapPin, MapPinOff,
-  Check, Sparkles, BedDouble, Bath, Sofa, UtensilsCrossed, Shirt,
+  Check, Sparkles, BedDouble, Bath, Sofa, UtensilsCrossed, Shirt, WashingMachine, Toilet, ChevronLeft,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
@@ -16,6 +16,8 @@ import {
 import { wasDoneWithinDays, wasDoneThisCalendarMonth } from '../../data/roomCleaningCadence';
 import { DeepLinkJob, parseDeepLinkFromUrl } from '../../lib/deepLink';
 import { ScanJobButton } from '../QrScanner';
+import { LaundryShopForm } from '../OpsLogs/LaundryShopForm';
+import { RestroomForm } from '../OpsLogs/RestroomForm';
 
 const GROUP_ICON: Record<RoomCleaningGroupKey, typeof Sparkles> = {
   '1': Sparkles,
@@ -68,6 +70,16 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
   }, [startBarak, startRoom]);
 
   const cameFromQr = startBarak !== undefined || startRoom !== undefined;
+
+  // Which task card is open on the Tasks tab: the picker (Room Cleaning /
+  // Laundry Shop / Toilet), or one of the three. A room-scan QR is always
+  // for Room Cleaning, so it skips the picker entirely — same "the QR
+  // decides" precedent as TechnicianPortal's startAt.
+  const [mode, setMode] = useState<'PICKER' | 'ROOM_CLEANING' | 'LAUNDRY' | 'TOILET'>(cameFromQr ? 'ROOM_CLEANING' : 'PICKER');
+  useEffect(() => {
+    if (cameFromQr) setMode('ROOM_CLEANING');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startBarak, startRoom]);
 
   const myHistory = submissions.filter(s => s.userId === currentUser?.id);
 
@@ -167,6 +179,7 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
     setShowValidation(false);
     setIsSubmitting(false);
     setActiveTab('HISTORY');
+    setMode('PICKER');
     if (cameFromQr) onDeepLinkHandled?.();
   };
 
@@ -226,7 +239,23 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
             className="space-y-6"
           >
             <div className="flex items-center justify-between px-2 gap-3">
-              <h2 className="text-xl font-bold tracking-tight text-psu-gray">{t('housekeeper.today')}</h2>
+              <div className="flex items-center gap-2 min-w-0">
+                {mode !== 'PICKER' && !cameFromQr && (
+                  <button
+                    onClick={() => setMode('PICKER')}
+                    className="w-8 h-8 rounded-xl bg-white border border-psu-gray/10 text-psu-gray/50 flex items-center justify-center shrink-0"
+                    aria-label={t('common.cancel')}
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                )}
+                <h2 className="text-xl font-bold tracking-tight text-psu-gray truncate">
+                  {mode === 'PICKER' ? t('housekeeper.tabTasks')
+                    : mode === 'LAUNDRY' ? t('ops.laundryShop.title')
+                    : mode === 'TOILET' ? t('ops.restroom.title')
+                    : t('housekeeper.today')}
+                </h2>
+              </div>
               <div className="flex items-center gap-3 shrink-0">
                 <div className="flex items-center gap-1 text-[10px] font-black text-psu-gray/40 uppercase tracking-widest">
                   <MapPin size={12} /> {currentSiteName}
@@ -240,6 +269,41 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
               </div>
             </div>
 
+            {mode === 'PICKER' && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <button onClick={() => setMode('ROOM_CLEANING')} className="card text-left flex items-start gap-4 hover:border-psu-green/20 transition-all active:scale-98">
+                  <div className="w-12 h-12 rounded-2xl bg-psu-green/10 text-psu-green flex items-center justify-center shrink-0"><Sparkles size={22} /></div>
+                  <div>
+                    <h4 className="text-sm font-bold text-psu-gray">{t('housekeeper.roomCleaningCard')}</h4>
+                    <p className="text-[10px] text-psu-gray/40 font-medium mt-1">UN.00.65</p>
+                  </div>
+                </button>
+                <button onClick={() => setMode('LAUNDRY')} className="card text-left flex items-start gap-4 hover:border-psu-green/20 transition-all active:scale-98">
+                  <div className="w-12 h-12 rounded-2xl bg-psu-blue/10 text-psu-blue flex items-center justify-center shrink-0"><WashingMachine size={22} /></div>
+                  <div>
+                    <h4 className="text-sm font-bold text-psu-gray">{t('ops.laundryShop.title')}</h4>
+                    <p className="text-[10px] text-psu-gray/40 font-medium mt-1">{t('ops.laundryShop.desc')}</p>
+                  </div>
+                </button>
+                <button onClick={() => setMode('TOILET')} className="card text-left flex items-start gap-4 hover:border-psu-green/20 transition-all active:scale-98">
+                  <div className="w-12 h-12 rounded-2xl bg-psu-warning/10 text-psu-warning flex items-center justify-center shrink-0"><Toilet size={22} /></div>
+                  <div>
+                    <h4 className="text-sm font-bold text-psu-gray">{t('ops.restroom.title')}</h4>
+                    <p className="text-[10px] text-psu-gray/40 font-medium mt-1">{t('ops.restroom.desc')}</p>
+                  </div>
+                </button>
+              </div>
+            )}
+
+            {mode === 'LAUNDRY' && (
+              <LaundryShopForm store={store} onCancel={() => setMode('PICKER')} onSubmitted={() => { setMode('PICKER'); setActiveTab('HISTORY'); }} />
+            )}
+            {mode === 'TOILET' && (
+              <RestroomForm store={store} onCancel={() => setMode('PICKER')} onSubmitted={() => { setMode('PICKER'); setActiveTab('HISTORY'); }} />
+            )}
+
+            {mode === 'ROOM_CLEANING' && (
+            <>
             {/* BARAK + NO. KAMAR */}
             <div className="card grid grid-cols-2 gap-4">
               <div>
@@ -414,6 +478,8 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
               <p className="text-center text-[10px] text-psu-rejected font-bold uppercase tracking-widest">
                 {t('housekeeper.completeAllFirst')}
               </p>
+            )}
+            </>
             )}
           </motion.div>
         )}
