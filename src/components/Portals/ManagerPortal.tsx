@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { AnalyticsDashboard } from '../Dashboard/AnalyticsDashboard';
-import { LayoutDashboard, CheckSquare, Settings, User, CheckCircle2, ClipboardCheck } from 'lucide-react';
+import { LayoutDashboard, CheckSquare, Settings, User, CheckCircle2, ClipboardCheck, ClipboardList } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { InspectionsTab } from '../Inspections/InspectionsTab';
+import { OpsLogsTab } from '../OpsLogs/OpsLogsTab';
 
 export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore> }) {
   const { t } = useTranslation();
@@ -16,7 +17,7 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
   // unscoped Escalations queue, below.
   const isGeneralManager = currentUser?.role === 'GENERAL_MANAGER';
   const isFoodSafety = currentUser?.role === 'FOOD_SAFETY_MANAGER' || isGeneralManager;
-  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'ESCALATIONS' | 'INSPECTIONS'>('DASHBOARD');
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'ESCALATIONS' | 'OPS_LOGS' | 'INSPECTIONS'>('DASHBOARD');
 
   // Site-scoped *and* department-scoped, same as the Supervisor's Field
   // Queue — a Housekeeping Manager's Escalations is HOUSEKEEPING
@@ -54,6 +55,7 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
   const tabs = [
     { id: 'DASHBOARD' as const, icon: LayoutDashboard, label: t('manager.tabAnalytics') },
     { id: 'ESCALATIONS' as const, icon: CheckSquare, label: t('manager.tabEscalations') },
+    { id: 'OPS_LOGS' as const, icon: ClipboardList, label: t('ops.tabTitle') },
     ...(isFoodSafety ? [{ id: 'INSPECTIONS' as const, icon: ClipboardCheck, label: t('inspection.tabTitle') }] : []),
   ];
 
@@ -158,6 +160,33 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
             exit={{ opacity: 0, scale: 0.98 }}
           >
             <InspectionsTab store={store} />
+          </motion.div>
+        )}
+
+        {activeTab === 'OPS_LOGS' && (
+          <motion.div
+            key="ops-logs"
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            className="space-y-8"
+          >
+            {/* GENERAL_MANAGER sits above both departments (same exception
+                as Escalations/Dashboard above) — sees both departments'
+                ops logs, not just one. HOUSEKEEPING_MANAGER and
+                FOOD_SAFETY_MANAGER each only see their own. */}
+            {(isGeneralManager || !isFoodSafety) && (
+              <div className="space-y-3">
+                {isGeneralManager && <h3 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em] px-2">{t('roles.HOUSEKEEPING_MANAGER')}</h3>}
+                <OpsLogsTab store={store} department="HOUSEKEEPING" tier="manager" unscoped={isGeneralManager} />
+              </div>
+            )}
+            {isFoodSafety && (
+              <div className="space-y-3">
+                {isGeneralManager && <h3 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em] px-2">{t('roles.FOOD_SAFETY_MANAGER')}</h3>}
+                <OpsLogsTab store={store} department="FOOD_SAFETY" tier="manager" unscoped={isGeneralManager} />
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
