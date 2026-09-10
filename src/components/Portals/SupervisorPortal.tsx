@@ -118,7 +118,9 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled, onScanJob
             { id: 'QUEUE' as const, icon: ListChecks, label: t('supervisorHK.queueTitle') },
             { id: 'OPS_LOGS' as const, icon: ClipboardList, label: t('ops.tabTitle') },
             { id: 'REPORTS' as const, icon: MessageSquareWarning, label: t('fieldReport.tabTitle') },
-            ...(isFoodSafety ? [{ id: 'INSPECTIONS' as const, icon: ClipboardCheck, label: t('inspection.tabTitle') }] : []),
+            // Housekeeping Supervisor gets this too now, restricted to
+            // Gemba Walk's Section A only — see InspectionsTab.tsx.
+            { id: 'INSPECTIONS' as const, icon: ClipboardCheck, label: t('inspection.tabTitle') },
           ].map(tab => (
             <button
               key={tab.id}
@@ -145,7 +147,9 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled, onScanJob
         )}
       </div>
 
-      {isFoodSafety && activeTab === 'INSPECTIONS' && <InspectionsTab store={store} />}
+      {activeTab === 'INSPECTIONS' && (
+        <InspectionsTab store={store} department={isFoodSafety ? 'FOOD_SAFETY' : 'HOUSEKEEPING'} />
+      )}
 
       {activeTab === 'OPS_LOGS' && (
         <OpsLogsTab store={store} department={isFoodSafety ? 'FOOD_SAFETY' : 'HOUSEKEEPING'} tier="supervisor" />

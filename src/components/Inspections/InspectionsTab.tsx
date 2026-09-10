@@ -12,8 +12,18 @@ import { GembaWalkReportView } from './GembaWalkReportView';
 import { DailyFoodHandlerForm } from './DailyFoodHandlerForm';
 import { DailyFoodHandlerReportView } from './DailyFoodHandlerReportView';
 import { userCanSeeSite } from '../../lib/siteScope';
+import { UserRole } from '../../types';
 
 type AuditType = 'FOOD_SAFETY_INSPECTION' | 'GEMBA_WALK' | 'DAILY_FOOD_HANDLER';
+
+// Gemba Walk is the one audit both departments do — Food Safety
+// Supervisor covers Section A + B, Housekeeping Supervisor Section A
+// only (see GembaWalkForm's `sections` prop) — so a HOUSEKEEPING_
+// SUPERVISOR's own Gemba Walks need to be told apart from a Food Safety
+// person's when this tab (and the Manager's Escalations queue) filters
+// by department. Food Safety Inspection and Daily Food Handler stay
+// Food-Safety-only, same as before.
+const HOUSEKEEPING_GEMBA_ROLES: UserRole[] = ['HOUSEKEEPING_SUPERVISOR', 'HOUSEKEEPING_MANAGER'];
 
 const CATEGORY_COLOR: Record<string, string> = {
   A: 'text-psu-green bg-psu-green/10',
@@ -30,36 +40,48 @@ function scoreColor(score?: number) {
   return 'text-psu-rejected bg-psu-rejected/10';
 }
 
-// Shared by SupervisorPortal (FOOD_SAFETY_SUPERVISOR) and ManagerPortal
-// (FOOD_SAFETY_MANAGER): all three audits are self-contained records —
-// there is no separate reviewer, so each is stored as APPROVED the moment
-// the inspector submits it (mirrors how the paper forms work: once filled
-// in and scored, it *is* the record).
-export function InspectionsTab({ store }: { store: ReturnType<typeof useAppStore> }) {
+// Shared by SupervisorPortal (both departments) and ManagerPortal
+// (FOOD_SAFETY_MANAGER/GENERAL_MANAGER). Food Safety Inspection and Daily
+// Food Handler are self-contained records — there's no separate reviewer,
+// so each is stored as APPROVED the moment the inspector submits it
+// (mirrors how the paper forms work: once filled in and scored, it *is*
+// the record). Gemba Walk is the exception: it's stored PENDING and shows
+// up in the Manager/Assistant Manager's Escalations queue for approval,
+// same as a daily Housekeeping/Food Safety submission.
+export function InspectionsTab({ store, department }: { store: ReturnType<typeof useAppStore>; department: 'HOUSEKEEPING' | 'FOOD_SAFETY' }) {
   const { t } = useTranslation();
   const { currentUser, submissions, addSubmission, sites } = store;
   const [view, setView] = useState<'LIST' | 'PICKER' | 'NEW_FSI' | 'NEW_GEMBA' | 'NEW_DFH'>('LIST');
   const [selected, setSelected] = useState<Submission | null>(null);
   const currentSite = sites.find(s => s.id === currentUser?.site);
   const currentSiteName = currentSite?.name || currentUser?.site || '';
+  const gembaSections: ('A' | 'B')[] = department === 'HOUSEKEEPING' ? ['A'] : ['A', 'B'];
 
   // Site-scoped per lib/siteScope.ts — Home Site by default, 'ALL' for
   // GENERAL_MANAGER unless the Admin overrides it, or wider still if the
-  // Admin gave this Supervisor/Manager a Site Access override.
+  // Admin gave this Supervisor/Manager a Site Access override. Gemba Walk
+  // is also filtered by department (see HOUSEKEEPING_GEMBA_ROLES above) —
+  // FSI and DFH need no such filter since only Food Safety roles can ever
+  // create one.
   const myAudits = submissions
     .filter((s): s is Submission & { type: AuditType } =>
-      (s.type === 'FOOD_SAFETY_INSPECTION' || s.type === 'GEMBA_WALK' || s.type === 'DAILY_FOOD_HANDLER') && userCanSeeSite(currentUser, s.siteId)
+      (s.type === 'FOOD_SAFETY_INSPECTION' || s.type === 'GEMBA_WALK' || s.type === 'DAILY_FOOD_HANDLER')
+      && userCanSeeSite(currentUser, s.siteId)
+      && (s.type !== 'GEMBA_WALK' || HOUSEKEEPING_GEMBA_ROLES.includes(s.role) === (department === 'HOUSEKEEPING'))
     )
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-  const commonSubmissionFields = () => ({
+  const commonSubmissionFields = (type: AuditType) => ({
     userId: currentUser!.id,
     userName: currentUser!.name,
     role: currentUser!.role,
     siteId: currentUser!.site,
     siteName: currentSiteName,
     timestamp: new Date().toISOString(),
-    status: 'APPROVED' as const,
+    // A Gemba Walk needs Manager/Assistant Manager sign-off before it's
+    // final; Food Safety Inspection and Daily Food Handler don't (see this
+    // function's header comment).
+    status: type === 'GEMBA_WALK' ? 'PENDING' as const : 'APPROVED' as const,
   });
 
   if (selected) {
@@ -74,7 +96,7 @@ export function InspectionsTab({ store }: { store: ReturnType<typeof useAppStore
         inspectorName={currentUser?.name || ''}
         onCancel={() => setView('LIST')}
         onSubmit={(payload) => {
-          addSubmission({ ...payload, ...commonSubmissionFields() });
+          addSubmission({ ...payload, ...commonSubmissionFields('FOOD_SAFETY_INSPECTION') });
           setView('LIST');
         }}
       />
@@ -85,9 +107,10 @@ export function InspectionsTab({ store }: { store: ReturnType<typeof useAppStore
     return (
       <GembaWalkForm
         inspectorName={currentUser?.name || ''}
+        sections={gembaSections}
         onCancel={() => setView('LIST')}
         onSubmit={(payload) => {
-          addSubmission({ ...payload, ...commonSubmissionFields() });
+          addSubmission({ ...payload, ...commonSubmissionFields('GEMBA_WALK') });
           setView('LIST');
         }}
       />
@@ -100,7 +123,7 @@ export function InspectionsTab({ store }: { store: ReturnType<typeof useAppStore
         siteName={currentSiteName}
         onCancel={() => setView('LIST')}
         onSubmit={(payload) => {
-          addSubmission({ ...payload, ...commonSubmissionFields() });
+          addSubmission({ ...payload, ...commonSubmissionFields('DAILY_FOOD_HANDLER') });
           setView('LIST');
         }}
       />
@@ -146,7 +169,9 @@ export function InspectionsTab({ store }: { store: ReturnType<typeof useAppStore
       <div className="flex items-center justify-between px-2">
         <h2 className="text-xl font-bold tracking-tight text-psu-gray">{t('inspection.historyTitle')}</h2>
         <button
-          onClick={() => setView('PICKER')}
+          // Housekeeping only ever does Gemba Walk here — skip straight to
+          // it instead of making them choose from a picker with one option.
+          onClick={() => setView(department === 'HOUSEKEEPING' ? 'NEW_GEMBA' : 'PICKER')}
           className="flex items-center gap-2 bg-psu-blue text-white px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-psu-blue/20 active:scale-95 transition-all"
         >
           <Plus size={14} /> {t('inspection.newButton')}
@@ -185,6 +210,14 @@ export function InspectionsTab({ store }: { store: ReturnType<typeof useAppStore
                           Admin gave a Site Access override to. */}
                       {(currentUser?.role === 'GENERAL_MANAGER' || currentUser?.assignedSites) && s.siteName ? ` · ${s.siteName}` : ''}
                     </p>
+                    {/* Only Gemba Walk goes through review — see this
+                        file's header comment — so this is the one type
+                        where "still pending" is worth flagging here. */}
+                    {s.type === 'GEMBA_WALK' && s.status === 'PENDING' && (
+                      <span className="inline-block mt-1.5 text-[9px] font-black uppercase tracking-widest text-psu-warning bg-psu-warning/10 px-2 py-0.5 rounded-full">
+                        {t('common.pending')}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <ChevronRight size={18} className="text-psu-gray/20 group-hover:text-psu-blue transition-colors shrink-0" />

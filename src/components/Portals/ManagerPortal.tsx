@@ -8,6 +8,9 @@ import { useTranslation } from '../../i18n/LanguageContext';
 import { InspectionsTab } from '../Inspections/InspectionsTab';
 import { OpsLogsTab } from '../OpsLogs/OpsLogsTab';
 import { userCanSeeSite } from '../../lib/siteScope';
+import { UserRole } from '../../types';
+
+const HOUSEKEEPING_GEMBA_ROLES: UserRole[] = ['HOUSEKEEPING_SUPERVISOR', 'HOUSEKEEPING_MANAGER'];
 
 export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore> }) {
   const { t } = useTranslation();
@@ -30,8 +33,18 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
   // the deliberate exception: no department filter at all (site scope
   // still applies, but defaults to 'ALL' for that role — see
   // siteScope.ts), since that role is meant to see everything.
+  //
+  // Gemba Walk is the one audit that needs approval here too (see
+  // InspectionsTab.tsx) and it's a separate `type` from HOUSEKEEPING/
+  // FOOD_SAFETY entirely, so it needs its own department check — by who
+  // filed it (its `role`), same split InspectionsTab uses.
+  const matchesDepartment = (s: (typeof submissions)[number]) => {
+    if (isGeneralManager) return true;
+    if (s.type === 'GEMBA_WALK') return HOUSEKEEPING_GEMBA_ROLES.includes(s.role) === !isFoodSafety;
+    return s.type === (isFoodSafety ? 'FOOD_SAFETY' : 'HOUSEKEEPING');
+  };
   const escalations = submissions.filter(
-    s => s.status === 'PENDING' && userCanSeeSite(currentUser, s.siteId) && (isGeneralManager || s.type === (isFoodSafety ? 'FOOD_SAFETY' : 'HOUSEKEEPING'))
+    s => s.status === 'PENDING' && userCanSeeSite(currentUser, s.siteId) && matchesDepartment(s)
   );
 
   // The Dashboard tab used to get the raw, unfiltered store data — every
@@ -117,7 +130,9 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
                             queue mixes both departments and every site, can
                             tell them apart at a glance — same info a
                             Supervisor's Field Queue card already shows. */}
-                        <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5">{s.type} &middot; {s.siteName}</p>
+                        <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5">
+                          {s.type === 'GEMBA_WALK' ? t('inspection.pickerGemba') : s.type} &middot; {s.siteName}
+                        </p>
                       </div>
                     </div>
                     <span className="text-[9px] font-black text-psu-blue bg-psu-blue/10 px-2 py-1 rounded uppercase tracking-tighter">{t('common.pending')}</span>
@@ -156,7 +171,7 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.98 }}
           >
-            <InspectionsTab store={store} />
+            <InspectionsTab store={store} department="FOOD_SAFETY" />
           </motion.div>
         )}
 
