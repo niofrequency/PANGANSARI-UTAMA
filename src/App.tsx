@@ -169,7 +169,6 @@ export default function App() {
             store={store}
             startTab={job ? 'OPS_LOGS' : undefined}
             onDeepLinkHandled={handleDeepLinkHandled}
-            onScanJob={handleScanJob}
           />
         );
       }
