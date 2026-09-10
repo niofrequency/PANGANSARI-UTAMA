@@ -148,6 +148,13 @@ interface FirestoreUserProfile {
   // doc's public `get` lets email login look a profile up by email. Staff
   // ID alone is the credential — there's no PIN in this flow.
   staffCode?: string;
+  // Site Access (AdminPortal.tsx's SiteAccessPicker / lib/siteScope.ts) —
+  // unset means "Home Site only" (the `site` field above). Was missing
+  // from this type entirely, so every login path silently dropped it when
+  // building the signed-in person's own currentUser — see
+  // watchAuthAndProfile and useAppStore.ts's loginByStaffCode below for
+  // where it's actually read now.
+  assignedSites?: string[] | 'ALL';
 }
 
 function userDocRef(email: string) {
@@ -526,6 +533,7 @@ export function watchAuthAndProfile(
           role: data.role,
           site: data.site,
           isActive: data.isActive,
+          assignedSites: data.assignedSites,
         });
       },
       (err) => {
