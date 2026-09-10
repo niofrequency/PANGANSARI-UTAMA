@@ -18,6 +18,8 @@ import { DeepLinkJob, parseDeepLinkFromUrl } from '../../lib/deepLink';
 import { ScanJobButton } from '../QrScanner';
 import { userCanSeeSite } from '../../lib/siteScope';
 import { useWorkingSite } from '../../hooks/useWorkingSite';
+import { ReportIssueButton } from '../FieldReports/ReportIssueButton';
+import { MyFieldReports } from '../FieldReports/MyFieldReports';
 
 const GROUP_ICON: Record<RoomCleaningGroupKey, typeof Sparkles> = {
   '1': Sparkles,
@@ -246,6 +248,13 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
                     <MapPin size={12} /> {currentSiteName}
                   </div>
                 )}
+                <ReportIssueButton
+                  store={store}
+                  siteId={workingSiteId}
+                  siteName={currentSiteName}
+                  department="HOUSEKEEPING"
+                  className="w-9 h-9 rounded-xl bg-white border border-psu-gray/10 text-psu-gray/50 flex items-center justify-center active:scale-95 transition-all"
+                />
                 <ScanJobButton
                   onScanned={handleScanned}
                   label={t('housekeeper.scanJobButton')}
@@ -440,6 +449,7 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
                 </div>
               )}
             </div>
+            <MyFieldReports store={store} />
           </motion.div>
         )}
 

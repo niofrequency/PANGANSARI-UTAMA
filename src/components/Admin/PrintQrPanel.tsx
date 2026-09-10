@@ -36,10 +36,12 @@ interface QrCardProps {
   sublabel: string;
 }
 
-// Card = QR + icon + label + site name — deliberately never a PIN or an
-// email (see PSU_QR_JobDeepLink_PRD.md's Admin section). The QR itself
-// carries no identity either way (see deepLink.ts) — this is just the
-// printed presentation of that same rule.
+// Card = QR + icon + label + a site name (the housekeeping room pack,
+// where the sticker really is tied to that one site) or a generic note
+// (every other pack — see buildSimpleJobUrl's comment) — deliberately
+// never a PIN or an email (see PSU_QR_JobDeepLink_PRD.md's Admin
+// section). The QR itself carries no identity either way (see
+// deepLink.ts) — this is just the printed presentation of that same rule.
 function QrCard({ url, icon: Icon, label, sublabel }: QrCardProps) {
   return (
     <div className="border border-psu-gray/10 rounded-2xl p-5 flex flex-col items-center gap-3 bg-white break-inside-avoid">
@@ -117,6 +119,7 @@ export function PrintQrPanel({ sites }: { sites: Site[] }) {
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
           </select>
+          <p className="text-[10px] text-psu-gray/40 font-medium mt-2">{t('admin.printRoomSiteNote')}</p>
         </div>
 
         <div>
@@ -142,22 +145,66 @@ export function PrintQrPanel({ sites }: { sites: Site[] }) {
       </div>
 
       <div className="psu-print-area space-y-8">
+        {/* Technician/Janitor/Laundry/Supervisor QR codes carry no site
+            (see buildSimpleJobUrl) — print these once, laminate them, and
+            they work at every site forever. Whoever scans one is routed to
+            whatever site is set on their own account (hooks/useWorkingSite.
+            ts), so there's nothing here for the Site picker above to
+            affect. */}
         <div>
-          <h3 className="text-sm font-black text-psu-gray uppercase tracking-widest mb-3 px-1">{t('admin.printTechnicianPack')} — {siteName}</h3>
+          <h3 className="text-sm font-black text-psu-gray uppercase tracking-widest mb-3 px-1">{t('admin.printTechnicianPack')}</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {TECHNICIAN_ACTIONS.map((a) => (
               <div key={a.action}>
                 <QrCard
-                  url={buildSimpleJobUrl(a.action, siteId)}
+                  url={buildSimpleJobUrl(a.action)}
                   icon={a.icon}
                   label={t(a.labelKey)}
-                  sublabel={siteName}
+                  sublabel={t('admin.printAnySite')}
                 />
               </div>
             ))}
           </div>
         </div>
 
+        <div>
+          <h3 className="text-sm font-black text-psu-gray uppercase tracking-widest mb-3 px-1">{t('admin.printJanitorPack')}</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <QrCard
+              url={buildSimpleJobUrl(JANITOR_ACTION.action)}
+              icon={JANITOR_ACTION.icon}
+              label={t(JANITOR_ACTION.labelKey)}
+              sublabel={t('admin.printAnySite')}
+            />
+          </div>
+        </div>
+
+        <div>
+          <h3 className="text-sm font-black text-psu-gray uppercase tracking-widest mb-3 px-1">{t('admin.printLaundryPack')}</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <QrCard
+              url={buildSimpleJobUrl(LAUNDRY_ACTION.action)}
+              icon={LAUNDRY_ACTION.icon}
+              label={t(LAUNDRY_ACTION.labelKey)}
+              sublabel={t('admin.printAnySite')}
+            />
+          </div>
+        </div>
+
+        <div>
+          <h3 className="text-sm font-black text-psu-gray uppercase tracking-widest mb-3 px-1">{t('admin.printSupervisorPack')}</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <QrCard
+              url={buildSimpleJobUrl(SUPERVISOR_ACTION.action)}
+              icon={SUPERVISOR_ACTION.icon}
+              label={t(SUPERVISOR_ACTION.labelKey)}
+              sublabel={t('admin.printAnySite')}
+            />
+          </div>
+        </div>
+
+        {/* The one exception: a room QR is tied to a physical place, so it
+            still needs the Site picker above and prints per-site. */}
         {roomRows.length > 0 && (
           <div>
             <h3 className="text-sm font-black text-psu-gray uppercase tracking-widest mb-3 px-1">{t('admin.printHousekeepingPack')} — {siteName}</h3>
@@ -175,42 +222,6 @@ export function PrintQrPanel({ sites }: { sites: Site[] }) {
             </div>
           </div>
         )}
-
-        <div>
-          <h3 className="text-sm font-black text-psu-gray uppercase tracking-widest mb-3 px-1">{t('admin.printJanitorPack')} — {siteName}</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <QrCard
-              url={buildSimpleJobUrl(JANITOR_ACTION.action, siteId)}
-              icon={JANITOR_ACTION.icon}
-              label={t(JANITOR_ACTION.labelKey)}
-              sublabel={siteName}
-            />
-          </div>
-        </div>
-
-        <div>
-          <h3 className="text-sm font-black text-psu-gray uppercase tracking-widest mb-3 px-1">{t('admin.printLaundryPack')} — {siteName}</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <QrCard
-              url={buildSimpleJobUrl(LAUNDRY_ACTION.action, siteId)}
-              icon={LAUNDRY_ACTION.icon}
-              label={t(LAUNDRY_ACTION.labelKey)}
-              sublabel={siteName}
-            />
-          </div>
-        </div>
-
-        <div>
-          <h3 className="text-sm font-black text-psu-gray uppercase tracking-widest mb-3 px-1">{t('admin.printSupervisorPack')} — {siteName}</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <QrCard
-              url={buildSimpleJobUrl(SUPERVISOR_ACTION.action, siteId)}
-              icon={SUPERVISOR_ACTION.icon}
-              label={t(SUPERVISOR_ACTION.labelKey)}
-              sublabel={siteName}
-            />
-          </div>
-        </div>
       </div>
     </div>
   );

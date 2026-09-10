@@ -7,7 +7,10 @@ import { Site } from '../types';
 import { ScanJobButton } from './QrScanner';
 
 interface StaffIdGateProps {
-  pendingJob: DeepLinkJob;
+  // null when someone reached this screen by choosing "Sign in with Staff
+  // ID" on the normal Login screen, rather than scanning a job QR — same
+  // form either way, just no job badge and no job to route to afterwards.
+  pendingJob: DeepLinkJob | null;
   sites: Site[];
   loginByStaffCode: (staffCode: string) => Promise<{ ok: boolean; error?: string }>;
   onSuccess: () => void;
@@ -31,9 +34,10 @@ const MIN_STAFF_ID_LENGTH = 3;
 
 const LETTER_ROWS = ['ABCDEF', 'GHIJKL', 'MNOPQR', 'STUVWX', 'YZ'];
 
-// Scan-to-Job login screen (see deepLink.ts / PSU_QR_JobDeepLink_PRD.md):
-// shown instead of the normal email/password Login whenever a job QR is
-// pending and nobody's signed in yet. Staff ID alone is the credential —
+// Scan-to-Job login screen (see deepLink.ts / PSU_QR_JobDeepLink_PRD.md) —
+// also reachable directly from the normal Login screen ("Sign in with
+// Staff ID") for anyone who'd rather use their Staff ID than email/
+// password day to day, job QR or not. Staff ID alone is the credential —
 // no PIN — entered on an on-screen keypad rather than a text field, for
 // large touch targets on a shared, possibly wet- or gloved-thumb kiosk
 // device. IDs can mix digits and letters (e.g. "TECH01" — see
@@ -46,8 +50,13 @@ export function StaffIdGate({ pendingJob, sites, loginByStaffCode, onSuccess, on
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const siteName = sites.find((s) => s.id === pendingJob.siteId)?.name || pendingJob.siteId;
-  const jobLabel = t(ACTION_LABEL_KEY[pendingJob.action]);
+  // Every action but 'room' now carries no site (see deepLink.ts's file
+  // header) — the badge below just shows the job for those, with no site
+  // to name yet since it isn't known until after this person's Staff ID
+  // resolves their own account. No pendingJob at all (arrived via "Sign in
+  // with Staff ID" on Login, not a QR) means no badge whatsoever.
+  const siteName = pendingJob?.siteId ? (sites.find((s) => s.id === pendingJob.siteId)?.name || pendingJob.siteId) : undefined;
+  const jobLabel = pendingJob ? t(ACTION_LABEL_KEY[pendingJob.action]) : undefined;
 
   const errorMessage = (code?: string): string => {
     switch (code) {
@@ -110,9 +119,11 @@ export function StaffIdGate({ pendingJob, sites, loginByStaffCode, onSuccess, on
         <div className="flex flex-col items-center mb-6 text-center">
           <img src="/icons/psu-logo-full.png" alt="Pangansari Utama" className="h-14 w-auto mb-3" />
           <h1 className="text-lg font-bold tracking-tight text-psu-gray">{t('staffIdGate.title')}</h1>
-          <p className="text-[11px] text-psu-blue font-bold mt-2 bg-psu-blue/5 rounded-full px-3 py-1.5">
-            {jobLabel} · {siteName}
-          </p>
+          {jobLabel && (
+            <p className="text-[11px] text-psu-blue font-bold mt-2 bg-psu-blue/5 rounded-full px-3 py-1.5">
+              {siteName ? `${jobLabel} · ${siteName}` : jobLabel}
+            </p>
+          )}
         </div>
 
         <label className="block text-[10px] font-black text-psu-gray/40 uppercase tracking-widest mb-2 text-center">

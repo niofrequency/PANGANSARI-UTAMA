@@ -3,12 +3,14 @@
 // URL construction in one place means the printed codes and the parser can
 // never drift apart.
 
-// Every action except 'room' (which also carries a barak + room number —
-// see buildRoomJobUrl) is just "this site, this one job."
+// Every one of these is site-less by design — one QR per action, printed
+// once, works at every site (see deepLink.ts's file header for why: the
+// site comes from whoever scans it, not the sticker). 'room' is the one
+// exception, since a room is a physical place — see buildRoomJobUrl.
 export type SimpleJobAction = 'fridge' | 'core' | 'clean' | 'wellness' | 'toilet' | 'laundry' | 'ops_logs';
 
-export function buildSimpleJobUrl(action: SimpleJobAction, siteId: string): string {
-  const params = new URLSearchParams({ s: siteId, a: action });
+export function buildSimpleJobUrl(action: SimpleJobAction): string {
+  const params = new URLSearchParams({ a: action });
   return `${window.location.origin}/go?${params.toString()}`;
 }
 

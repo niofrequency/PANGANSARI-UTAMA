@@ -219,3 +219,35 @@ export interface Warning {
   severity: 'LOW' | 'MEDIUM' | 'HIGH';
   timestamp: string;
 }
+
+// "Something's broken" reports — a free-form note a frontline worker can
+// raise any time, outside of any checklist, when they spot a finding worth
+// a supervisor knowing about (a leaking pipe, a broken lock, anything that
+// isn't a pass/fail checklist item). Distinct from Submission: it's not
+// graded, it's tracked to a fix. Housekeeper/Janitor/Laundry reports go to
+// the Housekeeping Supervisor at their site; Food Safety Technician
+// reports go to the Food Safety Supervisor — same site+department scoping
+// as their regular submissions (see lib/siteScope.ts).
+export type FieldReportStatus = 'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED';
+
+export interface FieldReport {
+  id: string;
+  userId: string;
+  userName: string;
+  role: UserRole;
+  siteId: string;
+  siteName: string;
+  department: 'HOUSEKEEPING' | 'FOOD_SAFETY';
+  timestamp: string;
+  message: string;
+  photoUrl?: string;
+  status: FieldReportStatus;
+  acknowledgedBy?: string;
+  acknowledgedAt?: string;
+  resolvedBy?: string;
+  resolvedAt?: string;
+  // Required once RESOLVED — what was actually done about it. Shown back
+  // to whoever filed the report so "it's fixed" isn't just a status flip
+  // with no explanation.
+  resolutionNote?: string;
+}

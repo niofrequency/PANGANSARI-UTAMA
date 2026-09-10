@@ -55,6 +55,13 @@ export default function App() {
   // fall through to the normal Login screen instead of being stuck on a
   // Staff ID pad that isn't for them.
   const [showEmailLoginOverride, setShowEmailLoginOverride] = useState(false);
+  // "Sign in with Staff ID" on the normal Login screen — opens the exact
+  // same StaffIdGate a job QR would, just with no pending job to show a
+  // badge for or route to afterwards. Staff ID login isn't only for
+  // Scan-to-Job: anyone an Admin gave a Staff ID to (AdminPortal's "Staff
+  // ID" action) can use it as their everyday sign-in instead of email/
+  // password, which both keep working exactly as before.
+  const [manualStaffIdLogin, setManualStaffIdLogin] = useState(false);
   // True only when the CURRENT session was created by StaffIdGate rather
   // than a real email/Google sign-in — used to apply the shared-device
   // default of logging out again right after the job is submitted (see
@@ -80,6 +87,7 @@ export default function App() {
     clearDeepLink();
     setPendingJob(null);
     setShowEmailLoginOverride(false);
+    setManualStaffIdLogin(false);
     if (loggedInViaStaffCode) {
       // Shared-device default: don't leave the next person on this
       // device signed in as whoever just finished a scanned job.
@@ -99,6 +107,7 @@ export default function App() {
 
   const handleStaffIdSuccess = () => {
     setLoggedInViaStaffCode(true);
+    setManualStaffIdLogin(false);
   };
 
   // Simple routing based on role
@@ -133,7 +142,7 @@ export default function App() {
         return (
           <LaundryStaffPortal
             store={store}
-            expectedSite={job?.siteId}
+            fromQr={Boolean(job)}
             onDeepLinkHandled={handleDeepLinkHandled}
             onScanJob={handleScanJob}
           />
@@ -144,7 +153,7 @@ export default function App() {
         return (
           <JanitorPortal
             store={store}
-            expectedSite={job?.siteId}
+            fromQr={Boolean(job)}
             onDeepLinkHandled={handleDeepLinkHandled}
             onScanJob={handleScanJob}
           />
@@ -159,7 +168,6 @@ export default function App() {
           <SupervisorPortal
             store={store}
             startTab={job ? 'OPS_LOGS' : undefined}
-            expectedSite={job?.siteId}
             onDeepLinkHandled={handleDeepLinkHandled}
             onScanJob={handleScanJob}
           />
@@ -175,7 +183,6 @@ export default function App() {
           <TechnicianPortal
             store={store}
             startAt={job?.action as 'fridge' | 'core' | 'clean' | 'wellness' | undefined}
-            expectedSite={job?.siteId}
             onDeepLinkHandled={handleDeepLinkHandled}
             onScanJob={handleScanJob}
           />
@@ -205,7 +212,7 @@ export default function App() {
     }
   }, []);
 
-  const showStaffIdGate = !currentUser && !!pendingJob && !showEmailLoginOverride;
+  const showStaffIdGate = !currentUser && (!!pendingJob || manualStaffIdLogin) && !showEmailLoginOverride;
 
   return (
     <div className="min-h-screen bg-psu-bg font-sans">
@@ -226,11 +233,11 @@ export default function App() {
         ) : showStaffIdGate ? (
           <motion.div key="staff-id-gate" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <StaffIdGate
-              pendingJob={pendingJob!}
+              pendingJob={pendingJob}
               sites={sites}
               loginByStaffCode={store.loginByStaffCode}
               onSuccess={handleStaffIdSuccess}
-              onSwitchToEmailLogin={() => setShowEmailLoginOverride(true)}
+              onSwitchToEmailLogin={() => { setShowEmailLoginOverride(true); setManualStaffIdLogin(false); }}
               onScanJob={handleScanJob}
             />
           </motion.div>
@@ -241,7 +248,11 @@ export default function App() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            <Login onLogin={store.login} onLoginWithGoogle={store.loginWithGoogle} />
+            <Login
+              onLogin={store.login}
+              onLoginWithGoogle={store.loginWithGoogle}
+              onSwitchToStaffId={() => { setManualStaffIdLogin(true); setShowEmailLoginOverride(false); }}
+            />
           </motion.div>
         ) : (
           <motion.div

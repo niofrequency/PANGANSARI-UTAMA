@@ -8,6 +8,11 @@ import { cn } from '../utils/cn';
 interface LoginProps {
   onLogin: (email: string, password: string, firstName?: string, lastName?: string) => string | null | Promise<string | null>;
   onLoginWithGoogle?: () => string | null | Promise<string | null>;
+  // Switches to StaffIdGate — the same Staff-ID-only sign-in a job QR
+  // opens, just reached directly instead of via a scan. Email/password
+  // (and Google) keep working exactly as before; this is purely an
+  // alternative for anyone an Admin gave a Staff ID to.
+  onSwitchToStaffId?: () => void;
 }
 
 function GoogleIcon() {
@@ -21,7 +26,7 @@ function GoogleIcon() {
   );
 }
 
-export function Login({ onLogin, onLoginWithGoogle }: LoginProps) {
+export function Login({ onLogin, onLoginWithGoogle, onSwitchToStaffId }: LoginProps) {
   const { t, language, toggleLanguage } = useTranslation();
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [firstName, setFirstName] = useState('');
@@ -246,7 +251,17 @@ export function Login({ onLogin, onLoginWithGoogle }: LoginProps) {
           </button>
         </form>
 
-        <div className="mt-12 text-center">
+        {onSwitchToStaffId && mode === 'login' && (
+          <button
+            type="button"
+            onClick={onSwitchToStaffId}
+            className="w-full text-center text-[11px] text-psu-gray/40 font-bold underline mt-6"
+          >
+            {t('auth.switchToStaffId')}
+          </button>
+        )}
+
+        <div className="mt-8 text-center">
           <span className="text-[9px] text-psu-gray/30 font-black uppercase tracking-[0.2em]">{t('auth.footer')}</span>
         </div>
       </motion.div>

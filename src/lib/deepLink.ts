@@ -1,9 +1,21 @@
-// Scan-to-Job deep links. A job QR is always a plain HTTPS URL of the form
-// `/go?s={siteId}&a={action}` (plus `&r=&b=` for a housekeeping room) — see
-// PSU_QR_JobDeepLink_PRD.md. Deliberately never carries identity, a PIN, or
-// a token: scanning a fridge sticker alone can never log anyone in, it can
+// Scan-to-Job deep links. Deliberately never carries identity, a PIN, or a
+// token: scanning a fridge sticker alone can never log anyone in, it can
 // only tell the app which job to open once someone proves who they are on
 // StaffIdGate.tsx.
+//
+// Two shapes:
+//  - `/go?a={action}` — every "simple job" action (fridge/core/clean/
+//    wellness/toilet/laundry/ops_logs). No site: one QR is printed per
+//    action, period, and works at every site. The site it opens to comes
+//    from whoever scans it — their own Admin-set site assignment (see
+//    hooks/useWorkingSite.ts), not the sticker. That's deliberate: a
+//    site-specific QR either has to be reprinted every time someone's
+//    assignment changes, or risks a "wrong site" block that has nothing to
+//    do with the actual job. Letting the scanner's own account answer
+//    "where am I working" removes both problems.
+//  - `/go?s={siteId}&a=room&r={roomId}&b={barak}` — Housekeeper's room
+//    cleaning (UN.00.65) is the one exception: a room is a physical place,
+//    not a staff assignment, so its QR still pins the exact site + room.
 //
 // Flow: App.tsx calls parseDeepLink() once at boot. If the URL is `/go`
 // with a recognizable job, it's saved to sessionStorage and the URL is
@@ -22,9 +34,10 @@ export type DeepLinkAction =
   | 'ops_logs';                              // Food Safety Supervisor — lands on their Ops Logs tab
 
 export interface DeepLinkJob {
-  siteId: string;
   action: DeepLinkAction;
-  // 'room' only
+  // 'room' only — every other action resolves its site from whoever scans
+  // it (see the file header above), not from the QR.
+  siteId?: string;
   roomId?: string;
   barak?: string;
 }
@@ -38,15 +51,14 @@ function isDeepLinkAction(value: string | null): value is DeepLinkAction {
 }
 
 function jobFromParams(params: URLSearchParams): DeepLinkJob | null {
-  const siteId = params.get('s');
   const action = params.get('a');
-  if (!siteId || !isDeepLinkAction(action)) return null; // missing/unknown `a=` — friendly dead-end, not a job
-  const job: DeepLinkJob = { siteId, action };
+  if (!isDeepLinkAction(action)) return null; // missing/unknown `a=` — friendly dead-end, not a job
   if (action === 'room') {
-    job.roomId = params.get('r') || '';
-    job.barak = params.get('b') || '';
+    const siteId = params.get('s');
+    if (!siteId) return null; // a room QR with no site isn't a valid job at all
+    return { action, siteId, roomId: params.get('r') || '', barak: params.get('b') || '' };
   }
-  return job;
+  return { action };
 }
 
 function saveDeepLink(job: DeepLinkJob) {
