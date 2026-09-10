@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { PhotoCapture } from '../PhotoCapture';
 import { TrainingsTab } from '../TrainingsTab';
-import { ClipboardCheck, History, GraduationCap, CheckCircle2, Clock, XCircle, AlertTriangle, MapPin, Check, X } from 'lucide-react';
+import { ClipboardCheck, History, GraduationCap, CheckCircle2, Clock, XCircle, AlertTriangle, MapPin, Check, X, Pencil } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
@@ -13,6 +13,7 @@ import { ScanJobButton } from '../QrScanner';
 import { useWorkingSite } from '../../hooks/useWorkingSite';
 import { ReportIssueButton } from '../FieldReports/ReportIssueButton';
 import { MyFieldReports } from '../FieldReports/MyFieldReports';
+import { ResubmitNotice } from '../OpsLogs/opsHelpers';
 
 type DeepLinkStartAt = 'fridge' | 'core' | 'clean' | 'wellness';
 
@@ -81,6 +82,12 @@ export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob 
 
   const myHistory = submissions.filter(s => s.userId === currentUser?.id);
   const myWarnings = warnings.filter(w => w.technicianId === currentUser?.id);
+  // Reopening a REJECTED entry to fix and resubmit — see the History tab's
+  // "Fix & Resubmit" button and the sync effect below. Restarts the
+  // sign-off chain from the Supervisor's step (resubmitAfterRejection in
+  // useAppStore.ts), same as every other merged-in submission type.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const editingSubmission = editingId ? myHistory.find(s => s.id === editingId) : undefined;
 
   const totalCriteria = DAILY_FOOD_HANDLER_ALL_CRITERIA.length;
   const markedCount = countMarked(wellnessMarks);
@@ -120,6 +127,32 @@ export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startAt]);
 
+  // Pre-fills the form from the rejected entry the instant editingId is
+  // set — a useState initializer only runs once at mount, so this can't
+  // just be a default value; it has to react to entering edit mode. The
+  // reconstruction is lossless: fridge/core/clean map straight onto
+  // stored fields, and wellness marks collapse to exactly 'v'/'x' either
+  // way (Check/X buttons only), so `answer ? 'v' : 'x'` round-trips.
+  useEffect(() => {
+    if (!editingSubmission) return;
+    const fridge = editingSubmission.items.find(i => i.id === '1');
+    const core = editingSubmission.items.find(i => i.id === '2');
+    const clean = editingSubmission.items.find(i => i.id === '3');
+    setFormData({
+      fridgeTemp: fridge ? String(fridge.answer) : '4',
+      cookingTemp: core ? String(core.answer) : '75',
+      areaClean: Boolean(clean?.answer),
+      photo: clean?.photoUrl || null,
+    });
+    const marks: Record<string, string> = {};
+    editingSubmission.items.forEach(i => {
+      if (DAILY_FOOD_HANDLER_ALL_CRITERIA.some(c => c.id === i.id)) marks[i.id] = i.answer ? 'v' : 'x';
+    });
+    setWellnessMarks(marks);
+    setActiveTab('TASKS');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingId]);
+
   const highlightClass = (section: DeepLinkStartAt) =>
     highlightSection === section ? 'ring-4 ring-psu-blue/30 rounded-2xl' : '';
 
@@ -142,25 +175,32 @@ export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob 
       answer: isGoodMark(wellnessMarks[c.id]),
     }));
     const goodCount = wellnessItems.filter(i => i.answer).length;
+    const items = [
+      { id: '1', question: t('technician.fridgeTemp'), answer: formData.fridgeTemp },
+      { id: '2', question: t('technician.coreTemp'), answer: formData.cookingTemp },
+      { id: '3', question: t('technician.areaClean'), answer: formData.areaClean, photoUrl: formData.photo || undefined },
+      ...wellnessItems,
+    ];
+    const score = Math.round((goodCount / totalCriteria) * 100);
 
-    addSubmission({
-      userId: currentUser!.id,
-      userName: currentUser!.name,
-      role: currentUser!.role,
-      siteId: workingSiteId,
-      siteName: currentSiteName,
-      timestamp: new Date().toISOString(),
-      type: 'FOOD_SAFETY',
-      status: 'PENDING',
-      items: [
-        { id: '1', question: t('technician.fridgeTemp'), answer: formData.fridgeTemp },
-        { id: '2', question: t('technician.coreTemp'), answer: formData.cookingTemp },
-        { id: '3', question: t('technician.areaClean'), answer: formData.areaClean, photoUrl: formData.photo || undefined },
-        ...wellnessItems,
-      ],
-      score: Math.round((goodCount / totalCriteria) * 100),
-      ...(startAt ? { meta: { source: 'qr' as const, qrAction: startAt } } : {}),
-    });
+    if (editingSubmission) {
+      store.resubmitAfterRejection(editingSubmission.id, { items, score });
+      setEditingId(null);
+    } else {
+      addSubmission({
+        userId: currentUser!.id,
+        userName: currentUser!.name,
+        role: currentUser!.role,
+        siteId: workingSiteId,
+        siteName: currentSiteName,
+        timestamp: new Date().toISOString(),
+        type: 'FOOD_SAFETY',
+        status: 'PENDING',
+        items,
+        score,
+        ...(startAt ? { meta: { source: 'qr' as const, qrAction: startAt } } : {}),
+      });
+    }
 
     setFormData({ fridgeTemp: '4', cookingTemp: '75', areaClean: false, photo: null });
     setWellnessMarks({});
@@ -218,6 +258,7 @@ export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob 
             animate={{ opacity: 1, scale: 1 }}
             className="space-y-6"
           >
+            {editingSubmission && <ResubmitNotice />}
             <div className="flex items-center justify-between px-2 gap-3">
               <h2 className="text-xl font-bold tracking-tight text-psu-gray">{t('technician.dailyLogTitle')}</h2>
               <div className="flex items-center gap-3 shrink-0">
@@ -412,33 +453,46 @@ export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob 
             <h2 className="text-lg font-black text-psu-gray">{t('technician.historyTitle')}</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {myHistory.map(s => (
-                <div key={s.id} className="card flex items-center justify-between group hover:border-psu-blue/20 transition-all">
-                  <div className="flex items-center gap-4">
-                    <div className={cn(
-                      "w-12 h-12 rounded-2xl flex items-center justify-center transition-all",
-                      s.status === 'APPROVED' ? "bg-psu-green/10 text-psu-green" :
-                      s.status === 'REJECTED' ? "bg-psu-rejected/10 text-psu-rejected" :
-                      "bg-psu-blue/10 text-psu-blue"
-                    )}>
-                      {s.status === 'APPROVED' ? <CheckCircle2 size={24} /> :
-                       s.status === 'REJECTED' ? <XCircle size={24} /> :
-                       <Clock size={24} />}
+                <div key={s.id} className="card space-y-3 group hover:border-psu-blue/20 transition-all">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className={cn(
+                        "w-12 h-12 rounded-2xl flex items-center justify-center transition-all",
+                        s.status === 'APPROVED' ? "bg-psu-green/10 text-psu-green" :
+                        s.status === 'REJECTED' ? "bg-psu-rejected/10 text-psu-rejected" :
+                        "bg-psu-blue/10 text-psu-blue"
+                      )}>
+                        {s.status === 'APPROVED' ? <CheckCircle2 size={24} /> :
+                         s.status === 'REJECTED' ? <XCircle size={24} /> :
+                         <Clock size={24} />}
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-psu-gray">{new Date(s.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</h4>
+                        <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5">{s.type} • ID {s.id.slice(-6)}</p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-psu-gray">{new Date(s.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</h4>
-                      <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5">{s.type} • ID {s.id.slice(-6)}</p>
+                    <div className="text-right">
+                      <span className={cn(
+                        "text-[9px] font-black uppercase tracking-tighter px-2 py-1 rounded-md",
+                        s.status === 'APPROVED' ? "bg-psu-green/10 text-psu-green" :
+                        s.status === 'REJECTED' ? "bg-psu-rejected/10 text-psu-rejected" :
+                        "bg-psu-blue/10 text-psu-blue"
+                      )}>
+                        {s.status === 'APPROVED' ? t('common.approved') : s.status === 'REJECTED' ? t('common.rejected') : t('common.pending')}
+                      </span>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <span className={cn(
-                      "text-[9px] font-black uppercase tracking-tighter px-2 py-1 rounded-md",
-                      s.status === 'APPROVED' ? "bg-psu-green/10 text-psu-green" :
-                      s.status === 'REJECTED' ? "bg-psu-rejected/10 text-psu-rejected" :
-                      "bg-psu-blue/10 text-psu-blue"
-                    )}>
-                      {s.status === 'APPROVED' ? t('common.approved') : s.status === 'REJECTED' ? t('common.rejected') : t('common.pending')}
-                    </span>
-                  </div>
+                  {s.status === 'REJECTED' && (
+                    <div className="pt-3 border-t border-psu-gray/5 space-y-2">
+                      {s.rejectionReason && <p className="text-xs text-psu-gray/60 font-medium">{s.rejectionReason}</p>}
+                      <button
+                        onClick={() => setEditingId(s.id)}
+                        className="w-full flex items-center justify-center gap-2 py-3 bg-psu-blue text-white rounded-xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all"
+                      >
+                        <Pencil size={14} /> {t('ops.signoff.editAndResubmit')}
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

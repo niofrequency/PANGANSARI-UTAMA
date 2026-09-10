@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ClipboardList, Plus, ChevronRight, ClipboardCheck, Footprints, Users } from 'lucide-react';
+import { ClipboardList, Plus, ChevronRight, ClipboardCheck, Footprints, Users, Pencil } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { useAppStore } from '../../store/useAppStore';
@@ -12,18 +12,9 @@ import { GembaWalkReportView } from './GembaWalkReportView';
 import { DailyFoodHandlerForm } from './DailyFoodHandlerForm';
 import { DailyFoodHandlerReportView } from './DailyFoodHandlerReportView';
 import { userCanSeeSite } from '../../lib/siteScope';
-import { UserRole } from '../../types';
+import { HOUSEKEEPING_GEMBA_ROLES } from '../../data/opsLogsCatalog';
 
 type AuditType = 'FOOD_SAFETY_INSPECTION' | 'GEMBA_WALK' | 'DAILY_FOOD_HANDLER';
-
-// Gemba Walk is the one audit both departments do — Food Safety
-// Supervisor covers Section A + B, Housekeeping Supervisor Section A
-// only (see GembaWalkForm's `sections` prop) — so a HOUSEKEEPING_
-// SUPERVISOR's own Gemba Walks need to be told apart from a Food Safety
-// person's when this tab (and the Manager's Escalations queue) filters
-// by department. Food Safety Inspection and Daily Food Handler stay
-// Food-Safety-only, same as before.
-const HOUSEKEEPING_GEMBA_ROLES: UserRole[] = ['HOUSEKEEPING_SUPERVISOR', 'HOUSEKEEPING_MANAGER'];
 
 const CATEGORY_COLOR: Record<string, string> = {
   A: 'text-psu-green bg-psu-green/10',
@@ -46,13 +37,16 @@ function scoreColor(score?: number) {
 // so each is stored as APPROVED the moment the inspector submits it
 // (mirrors how the paper forms work: once filled in and scored, it *is*
 // the record). Gemba Walk is the exception: it's stored PENDING and shows
-// up in the Manager/Assistant Manager's Escalations queue for approval,
-// same as a daily Housekeeping/Food Safety submission.
+// up in the Manager/Assistant Manager's Ops Logs review queue for
+// approval (OpsLogsTab.tsx), same as a daily Housekeeping/Food Safety
+// submission — and can come back REJECTED, fixed in place here, and
+// resubmitted (see editingSubmission below).
 export function InspectionsTab({ store, department }: { store: ReturnType<typeof useAppStore>; department: 'HOUSEKEEPING' | 'FOOD_SAFETY' }) {
   const { t } = useTranslation();
-  const { currentUser, submissions, addSubmission, sites } = store;
+  const { currentUser, submissions, addSubmission, resubmitAfterRejection, sites } = store;
   const [view, setView] = useState<'LIST' | 'PICKER' | 'NEW_FSI' | 'NEW_GEMBA' | 'NEW_DFH'>('LIST');
   const [selected, setSelected] = useState<Submission | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const currentSite = sites.find(s => s.id === currentUser?.site);
   const currentSiteName = currentSite?.name || currentUser?.site || '';
   const gembaSections: ('A' | 'B')[] = department === 'HOUSEKEEPING' ? ['A'] : ['A', 'B'];
@@ -70,6 +64,12 @@ export function InspectionsTab({ store, department }: { store: ReturnType<typeof
       && (s.type !== 'GEMBA_WALK' || HOUSEKEEPING_GEMBA_ROLES.includes(s.role) === (department === 'HOUSEKEEPING'))
     )
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+  // Reopening a REJECTED Gemba Walk to fix and resubmit — see the "Fix &
+  // Resubmit" button below. FSI/DFH never reach REJECTED (always instant
+  // APPROVED — see this function's header comment), so this only ever
+  // matters for Gemba Walk.
+  const editingSubmission = editingId ? myAudits.find(s => s.id === editingId) : undefined;
 
   const commonSubmissionFields = (type: AuditType) => ({
     userId: currentUser!.id,
@@ -106,12 +106,18 @@ export function InspectionsTab({ store, department }: { store: ReturnType<typeof
   if (view === 'NEW_GEMBA') {
     return (
       <GembaWalkForm
-        inspectorName={currentUser?.name || ''}
+        inspectorName={editingSubmission?.meta?.inspectorName || currentUser?.name || ''}
         sections={gembaSections}
-        onCancel={() => setView('LIST')}
+        editingSubmission={editingSubmission}
+        onCancel={() => { setView('LIST'); setEditingId(null); }}
         onSubmit={(payload) => {
-          addSubmission({ ...payload, ...commonSubmissionFields('GEMBA_WALK') });
+          if (editingSubmission) {
+            resubmitAfterRejection(editingSubmission.id, payload);
+          } else {
+            addSubmission({ ...payload, ...commonSubmissionFields('GEMBA_WALK') });
+          }
           setView('LIST');
+          setEditingId(null);
         }}
       />
     );
@@ -191,36 +197,51 @@ export function InspectionsTab({ store, department }: { store: ReturnType<typeof
                 key={s.id}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                onClick={() => setSelected(s)}
-                className="card flex items-center justify-between cursor-pointer group hover:border-psu-blue/20 transition-all"
+                className="card space-y-3 group hover:border-psu-blue/20 transition-all"
               >
-                <div className="flex items-center gap-4 min-w-0">
-                  <div className={cn(
-                    "w-12 h-12 rounded-2xl flex items-center justify-center text-sm font-black shrink-0",
-                    icon ? scoreColor(s.score) : CATEGORY_COLOR[category]
-                  )}>
-                    {icon ? (icon === Footprints ? <Footprints size={20} /> : <Users size={20} />) : category}
+                <div onClick={() => setSelected(s)} className="flex items-center justify-between cursor-pointer">
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className={cn(
+                      "w-12 h-12 rounded-2xl flex items-center justify-center text-sm font-black shrink-0",
+                      icon ? scoreColor(s.score) : CATEGORY_COLOR[category]
+                    )}>
+                      {icon ? (icon === Footprints ? <Footprints size={20} /> : <Users size={20} />) : category}
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="text-sm font-bold text-psu-gray truncate">{s.meta?.areaAudited || defaultTitle}</h4>
+                      <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5">
+                        {new Date(s.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} · {scoreText} · {typeLabel}
+                        {/* Site shown once this view can span more than one
+                            site — GENERAL_MANAGER by default, or anyone the
+                            Admin gave a Site Access override to. */}
+                        {(currentUser?.role === 'GENERAL_MANAGER' || currentUser?.assignedSites) && s.siteName ? ` · ${s.siteName}` : ''}
+                      </p>
+                      {/* Only Gemba Walk goes through review — see this
+                          file's header comment — so this is the one type
+                          where a status badge is worth showing here. */}
+                      {s.type === 'GEMBA_WALK' && s.status !== 'APPROVED' && (
+                        <span className={cn(
+                          "inline-block mt-1.5 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full",
+                          s.status === 'REJECTED' ? "text-psu-rejected bg-psu-rejected/10" : "text-psu-warning bg-psu-warning/10"
+                        )}>
+                          {s.status === 'REJECTED' ? t('common.rejected') : t('common.pending')}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <h4 className="text-sm font-bold text-psu-gray truncate">{s.meta?.areaAudited || defaultTitle}</h4>
-                    <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5">
-                      {new Date(s.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} · {scoreText} · {typeLabel}
-                      {/* Site shown once this view can span more than one
-                          site — GENERAL_MANAGER by default, or anyone the
-                          Admin gave a Site Access override to. */}
-                      {(currentUser?.role === 'GENERAL_MANAGER' || currentUser?.assignedSites) && s.siteName ? ` · ${s.siteName}` : ''}
-                    </p>
-                    {/* Only Gemba Walk goes through review — see this
-                        file's header comment — so this is the one type
-                        where "still pending" is worth flagging here. */}
-                    {s.type === 'GEMBA_WALK' && s.status === 'PENDING' && (
-                      <span className="inline-block mt-1.5 text-[9px] font-black uppercase tracking-widest text-psu-warning bg-psu-warning/10 px-2 py-0.5 rounded-full">
-                        {t('common.pending')}
-                      </span>
-                    )}
-                  </div>
+                  <ChevronRight size={18} className="text-psu-gray/20 group-hover:text-psu-blue transition-colors shrink-0" />
                 </div>
-                <ChevronRight size={18} className="text-psu-gray/20 group-hover:text-psu-blue transition-colors shrink-0" />
+                {s.type === 'GEMBA_WALK' && s.status === 'REJECTED' && s.userId === currentUser?.id && (
+                  <div className="pt-3 border-t border-psu-gray/5 space-y-2">
+                    {s.rejectionReason && <p className="text-xs text-psu-gray/60 font-medium">{s.rejectionReason}</p>}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setEditingId(s.id); setView('NEW_GEMBA'); }}
+                      className="w-full flex items-center justify-center gap-2 py-3 bg-psu-blue text-white rounded-xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all"
+                    >
+                      <Pencil size={14} /> {t('ops.signoff.editAndResubmit')}
+                    </button>
+                  </div>
+                )}
               </motion.div>
             );
           })}

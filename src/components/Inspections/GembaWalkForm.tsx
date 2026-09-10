@@ -14,6 +14,7 @@ import {
 } from '../../data/gembaWalkData';
 import { scoreGembaEvaluations } from '../../data/gembaWalkScoring';
 import { Submission } from '../../types';
+import { ResubmitNotice } from '../OpsLogs/opsHelpers';
 
 const EVAL_KEY: Record<GembaEvaluation, string> = {
   Conform: 'evalConform',
@@ -39,20 +40,41 @@ interface Props {
   // theirs to assess. Section C ("3 in a Row") is a reference/discussion
   // guide, not a scored section, so it's unaffected and always shown.
   sections: ('A' | 'B')[];
+  // Set only when reopening a REJECTED walk to fix and resubmit — every
+  // field pre-fills from it directly (items/meta already carry everything
+  // needed, no lossy reconstruction like some Ops Log forms need). See
+  // InspectionsTab.tsx's "Fix & Resubmit" button.
+  editingSubmission?: Submission;
 }
 
-export function GembaWalkForm({ onSubmit, onCancel, inspectorName, sections }: Props) {
+export function GembaWalkForm({ onSubmit, onCancel, inspectorName, sections, editingSubmission }: Props) {
   const { t, language } = useTranslation();
-  const [project, setProject] = useState('');
-  const [unit, setUnit] = useState('');
-  const [areaAudited, setAreaAudited] = useState('');
+  const [project, setProject] = useState(editingSubmission?.meta?.project || '');
+  const [unit, setUnit] = useState(editingSubmission?.meta?.unit || '');
+  const [areaAudited, setAreaAudited] = useState(editingSubmission?.meta?.areaAudited || '');
   const [auditors, setAuditors] = useState(inspectorName);
-  const [answers, setAnswers] = useState<Record<string, GembaEvaluation>>({});
-  const [observations, setObservations] = useState<Record<string, string>>({});
-  const [correctiveActions, setCorrectiveActions] = useState<Record<string, string>>({});
-  const [comments, setComments] = useState<Record<string, string>>({});
-  const [positives, setPositives] = useState('');
-  const [improvements, setImprovements] = useState('');
+  const [answers, setAnswers] = useState<Record<string, GembaEvaluation>>(() => {
+    const initial: Record<string, GembaEvaluation> = {};
+    editingSubmission?.items.forEach(i => { if (i.answer) initial[i.id] = i.answer as GembaEvaluation; });
+    return initial;
+  });
+  const [observations, setObservations] = useState<Record<string, string>>(() => {
+    const initial: Record<string, string> = {};
+    editingSubmission?.items.forEach(i => { if (i.remarks) initial[i.id] = i.remarks; });
+    return initial;
+  });
+  const [correctiveActions, setCorrectiveActions] = useState<Record<string, string>>(() => {
+    const initial: Record<string, string> = {};
+    editingSubmission?.items.forEach(i => { if (i.correctiveAction) initial[i.id] = i.correctiveAction; });
+    return initial;
+  });
+  const [comments, setComments] = useState<Record<string, string>>(() => {
+    const initial: Record<string, string> = {};
+    editingSubmission?.items.forEach(i => { if (i.comment) initial[i.id] = i.comment; });
+    return initial;
+  });
+  const [positives, setPositives] = useState(editingSubmission?.meta?.threeInARowNotes?.positives || '');
+  const [improvements, setImprovements] = useState(editingSubmission?.meta?.threeInARowNotes?.improvements || '');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({ 'A-1': true });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showValidation, setShowValidation] = useState(false);
@@ -137,6 +159,7 @@ export function GembaWalkForm({ onSubmit, onCancel, inspectorName, sections }: P
 
   return (
     <div className="space-y-6">
+      {editingSubmission && <ResubmitNotice />}
       <div className="card space-y-1">
         <h2 className="text-lg font-black text-psu-gray">{t('gemba.formTitle')}</h2>
         <p className="text-xs text-psu-gray/50 font-medium">{t('gemba.formSubtitle')}</p>

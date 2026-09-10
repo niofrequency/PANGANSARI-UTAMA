@@ -1,10 +1,38 @@
-import React from 'react';
-import { MapPin, Hash, User as UserIcon, CheckCircle2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { MapPin, Hash, User as UserIcon, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
+import { useAppStore } from '../../store/useAppStore';
 import { Submission } from '../../types';
-import { SignoffStep, SIGNOFF_CHAINS } from '../../data/opsLogsCatalog';
-import { OpsLogType } from '../../types';
+import { SignoffStep, SIGNOFF_CHAINS, SignoffChainType } from '../../data/opsLogsCatalog';
+
+// Every ops-log fill form (the 7 forms in OpsLogsTab's FORM_COMPONENTS)
+// and, since the Escalations/Ops Logs merge, TechnicianPortal's daily
+// log, HousekeeperPortal's room cleaning, and GembaWalkForm all take this
+// same shape. `editingSubmission` is set only when reopening a REJECTED
+// entry to fix and resubmit — each form pre-fills its own state from it
+// and calls store.resubmitAfterRejection() on save instead of
+// addSubmission().
+export interface OpsFormProps {
+  store: ReturnType<typeof useAppStore>;
+  onCancel?: () => void;
+  onSubmitted: () => void;
+  editingSubmission?: Submission;
+}
+
+// Small banner every fill form shows at the top when editingSubmission is
+// set — a quick reminder of what resubmitting actually does, since it's
+// not obvious from the form alone that this is a different mode than a
+// normal fresh submission.
+export function ResubmitNotice() {
+  const { t } = useTranslation();
+  return (
+    <div className="flex items-start gap-2 p-4 bg-psu-blue/5 text-psu-blue text-xs rounded-2xl border border-psu-blue/10 font-medium">
+      <AlertCircle size={14} className="mt-0.5 shrink-0" />
+      <span>{t('ops.signoff.resubmitNote')}</span>
+    </div>
+  );
+}
 
 // Read-only header shown on every ops-log fill screen — site, department,
 // form id, user name, staff code — so nobody has to handwrite lokasi / ID
@@ -65,7 +93,7 @@ const STEP_LABEL_KEY: Record<SignoffStep, string> = {
 // required step in order, filled in green once stamped.
 export function SignoffProgress({ submission }: { submission: Submission }) {
   const { t } = useTranslation();
-  const chain = SIGNOFF_CHAINS[submission.type as OpsLogType];
+  const chain = SIGNOFF_CHAINS[submission.type as SignoffChainType];
   if (!chain) return null;
   return (
     <div className="flex flex-wrap items-center gap-1.5">
@@ -92,9 +120,72 @@ export function SignoffProgress({ submission }: { submission: Submission }) {
 // The next unfilled step in a submission's chain — undefined once every
 // required stamp is in, since the submission is APPROVED by then.
 export function nextSignoffStep(submission: Submission): SignoffStep | undefined {
-  const chain = SIGNOFF_CHAINS[submission.type as OpsLogType];
+  const chain = SIGNOFF_CHAINS[submission.type as SignoffChainType];
   if (!chain) return undefined;
   return chain.find(step => !submission.meta?.signoff?.[step]);
+}
+
+// Reject action shared by every review queue (OpsLogsTab now covers what
+// used to be two separate screens — Field Queue and Escalations — see
+// SIGNOFF_CHAINS's header comment). A reason is required: it's shown back
+// to whoever filed this, as the whole explanation for why they have to
+// fix and resubmit it.
+export function RejectButton({ onReject }: { onReject: (reason: string) => void }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState('');
+  const [error, setError] = useState('');
+
+  const cancel = () => {
+    setOpen(false);
+    setReason('');
+    setError('');
+  };
+
+  const confirm = () => {
+    if (!reason.trim()) {
+      setError(t('ops.signoff.rejectReasonRequired'));
+      return;
+    }
+    onReject(reason.trim());
+    cancel();
+  };
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex-1 py-4 bg-white border-2 border-psu-rejected text-psu-rejected rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2"
+      >
+        <XCircle size={16} />
+        {t('ops.signoff.rejectButton')}
+      </button>
+    );
+  }
+
+  return (
+    <div className="w-full space-y-3">
+      <textarea
+        value={reason}
+        onChange={(e) => { setReason(e.target.value); setError(''); }}
+        placeholder={t('ops.signoff.rejectReasonPlaceholder')}
+        className={cn(
+          "w-full p-4 bg-psu-bg border rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-psu-rejected/20 h-24",
+          error ? "border-psu-rejected" : "border-psu-gray/10"
+        )}
+      />
+      {error && <p className="text-[10px] text-psu-rejected font-bold">{error}</p>}
+      <div className="flex gap-3">
+        <button type="button" onClick={cancel} className="flex-1 py-3 text-psu-gray/40 font-black text-[10px] uppercase tracking-widest">
+          {t('common.cancel')}
+        </button>
+        <button type="button" onClick={confirm} className="flex-[2] py-3 bg-psu-rejected text-white rounded-2xl font-black text-[10px] uppercase tracking-widest">
+          {t('ops.signoff.rejectConfirm')}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 // Small reusable "flag" pill for an out-of-range reading — the paper still

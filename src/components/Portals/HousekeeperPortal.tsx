@@ -4,7 +4,7 @@ import { PhotoCapture } from '../PhotoCapture';
 import { TrainingsTab } from '../TrainingsTab';
 import {
   ClipboardList, History, GraduationCap, CheckCircle2, Clock, XCircle, MapPin, MapPinOff,
-  Check, Sparkles, BedDouble, Bath, Sofa, UtensilsCrossed, Shirt,
+  Check, Sparkles, BedDouble, Bath, Sofa, UtensilsCrossed, Shirt, Pencil,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
@@ -20,6 +20,7 @@ import { userCanSeeSite } from '../../lib/siteScope';
 import { useWorkingSite } from '../../hooks/useWorkingSite';
 import { ReportIssueButton } from '../FieldReports/ReportIssueButton';
 import { MyFieldReports } from '../FieldReports/MyFieldReports';
+import { ResubmitNotice } from '../OpsLogs/opsHelpers';
 
 const GROUP_ICON: Record<RoomCleaningGroupKey, typeof Sparkles> = {
   '1': Sparkles,
@@ -76,6 +77,22 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
   const cameFromQr = startBarak !== undefined || startRoom !== undefined;
 
   const myHistory = submissions.filter(s => s.userId === currentUser?.id);
+
+  // Reopening a REJECTED entry to fix and resubmit — see the History
+  // tab's "Fix & Resubmit" button. Restarts the sign-off chain from the
+  // Supervisor's step (resubmitAfterRejection in useAppStore.ts).
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const editingSubmission = editingId ? myHistory.find(s => s.id === editingId) : undefined;
+
+  useEffect(() => {
+    if (!editingSubmission) return;
+    setBarak(editingSubmission.meta?.barak || '');
+    setRoomId(editingSubmission.meta?.roomId || '');
+    setChecklistState(editingSubmission.meta?.checklistState || {});
+    setPhoto(editingSubmission.meta?.photoUrl || null);
+    setActiveTab('TASKS');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingId]);
 
   // Cadence: daily items are always due; 6.1 (weekly) is due unless this
   // exact room has had a successful 6.1 in the last 7 days; 1.7/1.8/3.6/6.2
@@ -146,25 +163,41 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
       };
     });
 
-    addSubmission({
-      userId: currentUser!.id,
-      userName: currentUser!.name,
-      role: currentUser!.role,
-      siteId: workingSiteId,
-      siteName: currentSiteName,
-      timestamp: new Date().toISOString(),
-      type: 'HOUSEKEEPING',
-      status: 'PENDING',
-      items,
-      score,
-      meta: {
-        formId: 'UN.00.65',
-        barak: barak.trim(),
-        roomId: roomId.trim(),
-        photoUrl: photo || undefined,
-        ...(cameFromQr ? { source: 'qr' as const, qrAction: 'room' as const, qrRoomId: startRoom } : {}),
-      },
-    });
+    if (editingSubmission) {
+      store.resubmitAfterRejection(editingSubmission.id, {
+        items,
+        score,
+        meta: {
+          ...editingSubmission.meta,
+          barak: barak.trim(),
+          roomId: roomId.trim(),
+          photoUrl: photo || undefined,
+          checklistState,
+        },
+      });
+      setEditingId(null);
+    } else {
+      addSubmission({
+        userId: currentUser!.id,
+        userName: currentUser!.name,
+        role: currentUser!.role,
+        siteId: workingSiteId,
+        siteName: currentSiteName,
+        timestamp: new Date().toISOString(),
+        type: 'HOUSEKEEPING',
+        status: 'PENDING',
+        items,
+        score,
+        meta: {
+          formId: 'UN.00.65',
+          barak: barak.trim(),
+          roomId: roomId.trim(),
+          photoUrl: photo || undefined,
+          checklistState,
+          ...(cameFromQr ? { source: 'qr' as const, qrAction: 'room' as const, qrRoomId: startRoom } : {}),
+        },
+      });
+    }
 
     setChecklistState({});
     setPhoto(null);
@@ -229,6 +262,7 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
             exit={{ opacity: 0, scale: 0.98 }}
             className="space-y-6"
           >
+            {editingSubmission && <ResubmitNotice />}
             <div className="flex items-center justify-between px-2 gap-3">
               <h2 className="text-xl font-bold tracking-tight text-psu-gray truncate">{t('housekeeper.today')}</h2>
               <div className="flex items-center gap-3 shrink-0">
@@ -411,35 +445,48 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
             <h2 className="text-xl font-bold tracking-tight text-psu-gray">{t('housekeeper.historyTitle')}</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {myHistory.map(s => (
-                <div key={s.id} className="card flex items-center justify-between group hover:border-psu-green/20 transition-all">
-                  <div className="flex items-center gap-4">
-                    <div className={cn(
-                      "w-12 h-12 rounded-2xl flex items-center justify-center transition-all",
-                      s.status === 'APPROVED' ? "bg-psu-green/10 text-psu-green" :
-                      s.status === 'REJECTED' ? "bg-psu-rejected/10 text-psu-rejected" :
-                      "bg-psu-blue/10 text-psu-blue"
-                    )}>
-                      {s.status === 'APPROVED' ? <CheckCircle2 size={24} /> :
-                       s.status === 'REJECTED' ? <XCircle size={24} /> :
-                       <Clock size={24} />}
+                <div key={s.id} className="card space-y-3 group hover:border-psu-green/20 transition-all">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className={cn(
+                        "w-12 h-12 rounded-2xl flex items-center justify-center transition-all",
+                        s.status === 'APPROVED' ? "bg-psu-green/10 text-psu-green" :
+                        s.status === 'REJECTED' ? "bg-psu-rejected/10 text-psu-rejected" :
+                        "bg-psu-blue/10 text-psu-blue"
+                      )}>
+                        {s.status === 'APPROVED' ? <CheckCircle2 size={24} /> :
+                         s.status === 'REJECTED' ? <XCircle size={24} /> :
+                         <Clock size={24} />}
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-psu-gray">{new Date(s.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</h4>
+                        <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5">
+                          {s.meta?.barak && s.meta?.roomId ? `${s.meta.barak} · ${s.meta.roomId} · ` : ''}{s.type} • ID {s.id.slice(-6)}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-psu-gray">{new Date(s.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</h4>
-                      <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5">
-                        {s.meta?.barak && s.meta?.roomId ? `${s.meta.barak} · ${s.meta.roomId} · ` : ''}{s.type} • ID {s.id.slice(-6)}
-                      </p>
+                    <div className="text-right">
+                      <span className={cn(
+                        "text-[9px] font-black uppercase tracking-tighter px-2 py-1 rounded-md",
+                        s.status === 'APPROVED' ? "bg-psu-green/10 text-psu-green" :
+                        s.status === 'REJECTED' ? "bg-psu-rejected/10 text-psu-rejected" :
+                        "bg-psu-blue/10 text-psu-blue"
+                      )}>
+                        {s.status === 'APPROVED' ? t('common.approved') : s.status === 'REJECTED' ? t('common.rejected') : t('common.pending')}
+                      </span>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <span className={cn(
-                      "text-[9px] font-black uppercase tracking-tighter px-2 py-1 rounded-md",
-                      s.status === 'APPROVED' ? "bg-psu-green/10 text-psu-green" :
-                      s.status === 'REJECTED' ? "bg-psu-rejected/10 text-psu-rejected" :
-                      "bg-psu-blue/10 text-psu-blue"
-                    )}>
-                      {s.status === 'APPROVED' ? t('common.approved') : s.status === 'REJECTED' ? t('common.rejected') : t('common.pending')}
-                    </span>
-                  </div>
+                  {s.status === 'REJECTED' && (
+                    <div className="pt-3 border-t border-psu-gray/5 space-y-2">
+                      {s.rejectionReason && <p className="text-xs text-psu-gray/60 font-medium">{s.rejectionReason}</p>}
+                      <button
+                        onClick={() => setEditingId(s.id)}
+                        className="w-full flex items-center justify-center gap-2 py-3 bg-psu-blue text-white rounded-xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all"
+                      >
+                        <Pencil size={14} /> {t('ops.signoff.editAndResubmit')}
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
               {myHistory.length === 0 && (

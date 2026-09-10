@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import { useAppStore } from '../../store/useAppStore';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { cn } from '../../utils/cn';
-import { OpsHeaderChip } from './opsHelpers';
+import { OpsHeaderChip, OpsFormProps, ResubmitNotice } from './opsHelpers';
 import { LAUNDRY_GARMENT_COLUMNS, LaundryRoomRow, emptyLaundryRow } from '../../data/laundryShopData';
 import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 import { useWorkingSite } from '../../hooks/useWorkingSite';
@@ -10,21 +9,17 @@ import { useWorkingSite } from '../../hooks/useWorkingSite';
 // Daily Check List — Laundryshop. NOT UN.00.65 section 6 — this is the
 // laundry shop's own receiving log. One submit = one date, with one row
 // per room dropped off that day and a count per garment type (blank = 0).
-export function LaundryShopForm({ store, onCancel, onSubmitted }: {
-  store: ReturnType<typeof useAppStore>;
-  // Optional: omitted on the dedicated Laundry Staff portal, where this
-  // is the only screen there is — nothing to cancel back to.
-  onCancel?: () => void;
-  onSubmitted: () => void;
-}) {
+export function LaundryShopForm({ store, onCancel, onSubmitted, editingSubmission }: OpsFormProps) {
   const { t } = useTranslation();
-  const { currentUser, sites, addSubmission } = store;
+  const { currentUser, sites, addSubmission, resubmitAfterRejection } = store;
   const { workingSiteId, workingSiteName: currentSiteName, availableSites, setWorkingSiteId } = useWorkingSite(currentUser, sites);
 
-  const [rows, setRows] = useState<LaundryRoomRow[]>([emptyLaundryRow('room-1')]);
-  const [expandedId, setExpandedId] = useState<string | null>('room-1');
+  const [rows, setRows] = useState<LaundryRoomRow[]>(
+    () => editingSubmission?.meta?.laundryRows?.map(r => ({ ...r, counts: r.counts as LaundryRoomRow['counts'] })) || [emptyLaundryRow('room-1')]
+  );
+  const [expandedId, setExpandedId] = useState<string | null>(rows[0]?.id ?? null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = editingSubmission?.meta?.laundryDate || new Date().toISOString().slice(0, 10);
 
   const addRow = () => {
     const row = emptyLaundryRow(`room-${Date.now()}`);
@@ -46,33 +41,42 @@ export function LaundryShopForm({ store, onCancel, onSubmitted }: {
     if (!canSubmit || !currentUser) return;
     setIsSubmitting(true);
     await new Promise(r => setTimeout(r, 500));
-    addSubmission({
-      userId: currentUser.id, userName: currentUser.name, role: currentUser.role,
-      siteId: workingSiteId, siteName: currentSiteName, timestamp: new Date().toISOString(),
-      type: 'LAUNDRY_SHOP', status: 'PENDING',
-      items: filledRows.map(r => ({
-        id: r.id,
-        question: `${t('ops.laundryShop.roomLabel')} ${r.roomNumber}`,
-        answer: `${totalGarments(r)} ${t('ops.laundryShop.itemsUnit')}`,
-        remarks: [
-          (Object.entries(r.counts) as [string, string][]).filter(([, v]) => parseInt(v, 10) > 0).map(([gId, v]) => {
-            const g = LAUNDRY_GARMENT_COLUMNS.find(c => c.id === gId);
-            return `${g?.labelId} x${v}`;
-          }).join(', '),
-          r.keterangan,
-        ].filter(Boolean).join(' — ') || undefined,
-      })),
-      meta: {
-        formId: 'UN.00-LAUNDRY', laundryDate: today,
-        signoff: { draftedBy: { userId: currentUser.id, name: currentUser.name, staffCode: currentUser.staffCode, at: new Date().toISOString() } },
-      },
-    });
+    const items = filledRows.map(r => ({
+      id: r.id,
+      question: `${t('ops.laundryShop.roomLabel')} ${r.roomNumber}`,
+      answer: `${totalGarments(r)} ${t('ops.laundryShop.itemsUnit')}`,
+      remarks: [
+        (Object.entries(r.counts) as [string, string][]).filter(([, v]) => parseInt(v, 10) > 0).map(([gId, v]) => {
+          const g = LAUNDRY_GARMENT_COLUMNS.find(c => c.id === gId);
+          return `${g?.labelId} x${v}`;
+        }).join(', '),
+        r.keterangan,
+      ].filter(Boolean).join(' — ') || undefined,
+    }));
+    if (editingSubmission) {
+      resubmitAfterRejection(editingSubmission.id, {
+        items,
+        meta: { ...editingSubmission.meta, laundryDate: today, laundryRows: rows },
+      });
+    } else {
+      addSubmission({
+        userId: currentUser.id, userName: currentUser.name, role: currentUser.role,
+        siteId: workingSiteId, siteName: currentSiteName, timestamp: new Date().toISOString(),
+        type: 'LAUNDRY_SHOP', status: 'PENDING',
+        items,
+        meta: {
+          formId: 'UN.00-LAUNDRY', laundryDate: today, laundryRows: rows,
+          signoff: { draftedBy: { userId: currentUser.id, name: currentUser.name, staffCode: currentUser.staffCode, at: new Date().toISOString() } },
+        },
+      });
+    }
     setIsSubmitting(false);
     onSubmitted();
   };
 
   return (
     <div className="space-y-6">
+      {editingSubmission && <ResubmitNotice />}
       <OpsHeaderChip
         siteName={currentSiteName}
         formId="UN.00-LAUNDRY"
