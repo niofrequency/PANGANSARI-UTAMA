@@ -41,7 +41,13 @@ export function Layout({ user, onLogout, children, storageError, rejectedNotices
       <header className="bg-white border-b border-psu-gray/10 sticky top-0 z-30 px-4 sm:px-6 py-3 flex items-center justify-between shadow-sm/5 gap-3">
         <div className="flex items-center gap-3 min-w-0">
           <img src="/icons/psu-mark.png" alt="PSU" className="h-8 w-auto shrink-0" />
-          <div className="hidden xs:block bg-psu-blue/10 text-psu-blue text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider whitespace-nowrap">
+          {/* min-w-0 + truncate (not whitespace-nowrap alone) so this can
+              actually shrink and ellipsis instead of overflowing past the
+              header or getting clipped under the icon buttons — Indonesian
+              role names run noticeably longer than their English ones
+              (e.g. "Petugas Kebersihan Toilet", "Supervisor Keamanan
+              Pangan", "General Manager (seluruh site)"). */}
+          <div className="hidden xs:block min-w-0 max-w-[45vw] sm:max-w-none bg-psu-blue/10 text-psu-blue text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider truncate">
             {t(`roles.${user.role}`)}
           </div>
         </div>
