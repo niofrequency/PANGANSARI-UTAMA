@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
-import { Printer, Thermometer, Flame, Sparkles, HeartPulse, DoorOpen } from 'lucide-react';
+import { Printer, Thermometer, Flame, Sparkles, HeartPulse, DoorOpen, Toilet, WashingMachine, ClipboardList } from 'lucide-react';
 import { Site } from '../../types';
 import { useTranslation } from '../../i18n/LanguageContext';
-import { buildTechnicianJobUrl, buildRoomJobUrl, TechnicianJobAction } from '../../lib/qrLinks';
+import { buildSimpleJobUrl, buildRoomJobUrl, SimpleJobAction } from '../../lib/qrLinks';
 
 // Renders a QR code to an <img> via the `qrcode` package. No canvas element
 // kept around after the data URL is generated — just an image, so it
@@ -53,12 +53,24 @@ function QrCard({ url, icon: Icon, label, sublabel }: QrCardProps) {
   );
 }
 
-const TECHNICIAN_ACTIONS: { action: TechnicianJobAction; icon: typeof Thermometer; labelKey: string }[] = [
+const TECHNICIAN_ACTIONS: { action: SimpleJobAction; icon: typeof Thermometer; labelKey: string }[] = [
   { action: 'fridge', icon: Thermometer, labelKey: 'technician.fridgeTemp' },
   { action: 'core', icon: Flame, labelKey: 'technician.coreTemp' },
   { action: 'clean', icon: Sparkles, labelKey: 'technician.areaClean' },
   { action: 'wellness', icon: HeartPulse, labelKey: 'technician.sectionPersonalCheck' },
 ];
+
+// Each of these roles has exactly one QR-triggerable job — a one-card
+// "pack" — unlike the Technician's four. Food Safety Supervisor's card
+// (action 'ops_logs') doesn't point at one form; scanning it just opens
+// their Ops Logs tab, where all five forms in ops.restroom.title etc. live
+// — see App.tsx's ACTION_ROLE map and SupervisorPortal.tsx's startTab.
+const JANITOR_ACTION: { action: SimpleJobAction; icon: typeof Thermometer; labelKey: string } =
+  { action: 'toilet', icon: Toilet, labelKey: 'ops.restroom.title' };
+const LAUNDRY_ACTION: { action: SimpleJobAction; icon: typeof Thermometer; labelKey: string } =
+  { action: 'laundry', icon: WashingMachine, labelKey: 'ops.laundryShop.title' };
+const SUPERVISOR_ACTION: { action: SimpleJobAction; icon: typeof Thermometer; labelKey: string } =
+  { action: 'ops_logs', icon: ClipboardList, labelKey: 'ops.tabTitle' };
 
 export function PrintQrPanel({ sites }: { sites: Site[] }) {
   const { t } = useTranslation();
@@ -136,7 +148,7 @@ export function PrintQrPanel({ sites }: { sites: Site[] }) {
             {TECHNICIAN_ACTIONS.map((a) => (
               <div key={a.action}>
                 <QrCard
-                  url={buildTechnicianJobUrl(a.action, siteId)}
+                  url={buildSimpleJobUrl(a.action, siteId)}
                   icon={a.icon}
                   label={t(a.labelKey)}
                   sublabel={siteName}
@@ -163,6 +175,42 @@ export function PrintQrPanel({ sites }: { sites: Site[] }) {
             </div>
           </div>
         )}
+
+        <div>
+          <h3 className="text-sm font-black text-psu-gray uppercase tracking-widest mb-3 px-1">{t('admin.printJanitorPack')} — {siteName}</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <QrCard
+              url={buildSimpleJobUrl(JANITOR_ACTION.action, siteId)}
+              icon={JANITOR_ACTION.icon}
+              label={t(JANITOR_ACTION.labelKey)}
+              sublabel={siteName}
+            />
+          </div>
+        </div>
+
+        <div>
+          <h3 className="text-sm font-black text-psu-gray uppercase tracking-widest mb-3 px-1">{t('admin.printLaundryPack')} — {siteName}</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <QrCard
+              url={buildSimpleJobUrl(LAUNDRY_ACTION.action, siteId)}
+              icon={LAUNDRY_ACTION.icon}
+              label={t(LAUNDRY_ACTION.labelKey)}
+              sublabel={siteName}
+            />
+          </div>
+        </div>
+
+        <div>
+          <h3 className="text-sm font-black text-psu-gray uppercase tracking-widest mb-3 px-1">{t('admin.printSupervisorPack')} — {siteName}</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <QrCard
+              url={buildSimpleJobUrl(SUPERVISOR_ACTION.action, siteId)}
+              icon={SUPERVISOR_ACTION.icon}
+              label={t(SUPERVISOR_ACTION.labelKey)}
+              sublabel={siteName}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );

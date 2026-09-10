@@ -3,9 +3,11 @@
 // URL construction in one place means the printed codes and the parser can
 // never drift apart.
 
-export type TechnicianJobAction = 'fridge' | 'core' | 'clean' | 'wellness';
+// Every action except 'room' (which also carries a barak + room number —
+// see buildRoomJobUrl) is just "this site, this one job."
+export type SimpleJobAction = 'fridge' | 'core' | 'clean' | 'wellness' | 'toilet' | 'laundry' | 'ops_logs';
 
-export function buildTechnicianJobUrl(action: TechnicianJobAction, siteId: string): string {
+export function buildSimpleJobUrl(action: SimpleJobAction, siteId: string): string {
   const params = new URLSearchParams({ s: siteId, a: action });
   return `${window.location.origin}/go?${params.toString()}`;
 }

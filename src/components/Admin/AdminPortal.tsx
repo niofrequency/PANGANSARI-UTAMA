@@ -918,9 +918,8 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                       <label className="block text-[10px] font-black text-psu-gray/40 uppercase mb-2 tracking-widest">{t('admin.staffIdOptionalLabel')}</label>
                       <input
                         type="text"
-                        inputMode="numeric"
                         value={newStaffCode}
-                        onChange={(e) => setNewStaffCode(e.target.value.replace(/\D/g, '').slice(0, 12))}
+                        onChange={(e) => setNewStaffCode(e.target.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 12))}
                         placeholder={t('staffIdGate.staffIdPlaceholder')}
                         className="w-full p-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-sm font-mono font-bold tracking-widest focus:outline-none focus:ring-2 focus:ring-psu-green/20 transition-all"
                       />
@@ -1184,9 +1183,8 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                       <label className="block text-[10px] font-black text-psu-gray/40 uppercase mb-2 tracking-widest">{t('staffIdGate.staffIdLabel')}</label>
                       <input
                         type="text"
-                        inputMode="numeric"
                         value={staffIdCode}
-                        onChange={(e) => setStaffIdCode(e.target.value.replace(/\D/g, '').slice(0, 12))}
+                        onChange={(e) => setStaffIdCode(e.target.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 12))}
                         placeholder={t('staffIdGate.staffIdPlaceholder')}
                         className="w-full p-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-sm font-mono font-bold tracking-widest focus:outline-none focus:ring-2 focus:ring-psu-green/20 transition-all"
                       />

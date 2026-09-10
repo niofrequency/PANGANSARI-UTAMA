@@ -17,23 +17,28 @@ import { TechnicianPortal } from './components/Portals/TechnicianPortal';
 import { AdminPortal } from './components/Admin/AdminPortal';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { useTranslation } from './i18n/LanguageContext';
-import { DeepLinkJob, parseDeepLink, consumeDeepLink, clearDeepLink, setDeepLink } from './lib/deepLink';
+import { DeepLinkAction, DeepLinkJob, parseDeepLink, consumeDeepLink, clearDeepLink, setDeepLink } from './lib/deepLink';
 import { UserRole } from './types';
 import { motion, AnimatePresence } from 'motion/react';
 
-// Roles that never take a job QR — see PSU_QR_JobDeepLink_PRD.md's Users
-// table. Anyone in this list keeps their normal email login and portal no
-// matter what `/go` link brought them here.
-const OFFICE_ROLES: UserRole[] = [
-  'ADMIN',
-  'HOUSEKEEPING_SUPERVISOR',
-  'HOUSEKEEPING_MANAGER',
-  'FOOD_SAFETY_SUPERVISOR',
-  'FOOD_SAFETY_MANAGER',
-  'GENERAL_MANAGER',
-];
-
 const TECHNICIAN_ACTIONS: DeepLinkJob['action'][] = ['fridge', 'core', 'clean', 'wellness'];
+
+// Which single role a given job QR is for — anyone else (including every
+// office role: Admin, Manager, GM) keeps their normal email login and
+// portal no matter what `/go` link brought them here. See
+// PSU_QR_JobDeepLink_PRD.md's Users table; 'ops_logs' extends that same
+// idea to Food Safety Supervisor, whose "job" is just landing on their
+// Ops Logs tab rather than one specific field.
+const ACTION_ROLE: Record<DeepLinkAction, UserRole> = {
+  fridge: 'FOOD_SAFETY_TECHNICIAN',
+  core: 'FOOD_SAFETY_TECHNICIAN',
+  clean: 'FOOD_SAFETY_TECHNICIAN',
+  wellness: 'FOOD_SAFETY_TECHNICIAN',
+  room: 'HOUSEKEEPER',
+  toilet: 'HOUSEKEEPING_JANITOR',
+  laundry: 'HOUSEKEEPING_LAUNDRY',
+  ops_logs: 'FOOD_SAFETY_SUPERVISOR',
+};
 
 export default function App() {
   const store = useAppStore();
@@ -57,19 +62,15 @@ export default function App() {
   // session open on a device other staff will pick up next.
   const [loggedInViaStaffCode, setLoggedInViaStaffCode] = useState(false);
 
-  // A pending job that doesn't belong to the person now signed in — either
-  // an office role (job QRs are never for them) or a frontline role whose
-  // department doesn't match the scanned action (e.g. a Housekeeper's ID
+  // A pending job that doesn't belong to the person now signed in — an
+  // office role a job QR was never for, or a frontline/supervisor role
+  // whose action doesn't match the scanned one (e.g. a Housekeeper's ID
   // entered after a fridge scan) — is simply irrelevant. Drop it instead of
   // leaving it to linger: "wrong role after ID" always means "go to your
   // normal home," never a blocked or half-applied job screen.
   useEffect(() => {
     if (!currentUser || !pendingJob) return;
-    const isTechnicianJob = TECHNICIAN_ACTIONS.includes(pendingJob.action);
-    const roleMatches = isTechnicianJob
-      ? currentUser.role === 'FOOD_SAFETY_TECHNICIAN'
-      : currentUser.role === 'HOUSEKEEPER';
-    if (OFFICE_ROLES.includes(currentUser.role) || !roleMatches) {
+    if (currentUser.role !== ACTION_ROLE[pendingJob.action]) {
       clearDeepLink();
       setPendingJob(null);
     }
@@ -127,13 +128,43 @@ export default function App() {
           />
         );
       }
-      case 'HOUSEKEEPING_LAUNDRY':
-        return <LaundryStaffPortal store={store} />;
-      case 'HOUSEKEEPING_JANITOR':
-        return <JanitorPortal store={store} />;
+      case 'HOUSEKEEPING_LAUNDRY': {
+        const job = pendingJob && pendingJob.action === 'laundry' ? pendingJob : null;
+        return (
+          <LaundryStaffPortal
+            store={store}
+            expectedSite={job?.siteId}
+            onDeepLinkHandled={handleDeepLinkHandled}
+            onScanJob={handleScanJob}
+          />
+        );
+      }
+      case 'HOUSEKEEPING_JANITOR': {
+        const job = pendingJob && pendingJob.action === 'toilet' ? pendingJob : null;
+        return (
+          <JanitorPortal
+            store={store}
+            expectedSite={job?.siteId}
+            onDeepLinkHandled={handleDeepLinkHandled}
+            onScanJob={handleScanJob}
+          />
+        );
+      }
       case 'HOUSEKEEPING_SUPERVISOR':
-      case 'FOOD_SAFETY_SUPERVISOR':
-        return <SupervisorPortal store={store} />;
+      case 'FOOD_SAFETY_SUPERVISOR': {
+        // Only a Food Safety Supervisor's own action (ops_logs) ever
+        // reaches here — ACTION_ROLE already dropped anything else above.
+        const job = pendingJob && pendingJob.action === 'ops_logs' && currentUser.role === 'FOOD_SAFETY_SUPERVISOR' ? pendingJob : null;
+        return (
+          <SupervisorPortal
+            store={store}
+            startTab={job ? 'OPS_LOGS' : undefined}
+            expectedSite={job?.siteId}
+            onDeepLinkHandled={handleDeepLinkHandled}
+            onScanJob={handleScanJob}
+          />
+        );
+      }
       case 'HOUSEKEEPING_MANAGER':
       case 'FOOD_SAFETY_MANAGER':
       case 'GENERAL_MANAGER':
