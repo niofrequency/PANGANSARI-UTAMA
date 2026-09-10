@@ -3,7 +3,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { PhotoCapture } from '../PhotoCapture';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { cn } from '../../utils/cn';
-import { OpsHeaderChip } from './opsHelpers';
+import { OpsHeaderChip, ChecklistRow } from './opsHelpers';
 import { MESS_HALL_AREAS, MessHallMark } from '../../data/messHallHygieneData';
 import { useWorkingSite } from '../../hooks/useWorkingSite';
 
@@ -95,12 +95,10 @@ export function MessHallHygieneForm({ store, onCancel, onSubmitted }: {
           const missing = showValidation && !marks[item.id];
           return (
             <div key={item.id} className={cn("p-3 -mx-1 rounded-2xl transition-all", missing && "bg-psu-rejected/5")}>
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-psu-gray">{item.labelId}</p>
-                  <p className="text-[10px] text-psu-gray/40 italic">{item.labelEn}</p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
+              <ChecklistRow
+                label={item.labelId}
+                sublabel={item.labelEn}
+                actions={<>
                   <button
                     type="button"
                     onClick={() => setMark(item.id, 'B')}
@@ -113,8 +111,8 @@ export function MessHallHygieneForm({ store, onCancel, onSubmitted }: {
                     className={cn("w-11 h-11 rounded-2xl flex items-center justify-center border-2 font-black text-xs transition-all active:scale-95",
                       marks[item.id] === 'R' ? "bg-psu-rejected border-psu-rejected text-white" : "bg-psu-bg border-psu-gray/10 text-psu-gray/30")}
                   >R</button>
-                </div>
-              </div>
+                </>}
+              />
               {marks[item.id] === 'R' && (
                 <div className="mt-3">
                   <PhotoCapture uid={currentUser?.id} onCapture={(url) => setPhotos(p => ({ ...p, [item.id]: url }))} />

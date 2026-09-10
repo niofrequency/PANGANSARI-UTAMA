@@ -13,7 +13,7 @@ import { ScanJobButton } from '../QrScanner';
 import { useWorkingSite } from '../../hooks/useWorkingSite';
 import { ReportIssueButton } from '../FieldReports/ReportIssueButton';
 import { MyFieldReports } from '../FieldReports/MyFieldReports';
-import { ResubmitNotice } from '../OpsLogs/opsHelpers';
+import { ResubmitNotice, ChecklistRow } from '../OpsLogs/opsHelpers';
 
 type DeepLinkStartAt = 'fridge' | 'core' | 'clean' | 'wellness';
 
@@ -364,18 +364,19 @@ export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob 
                         const mark = wellnessMarks[criterion.id];
                         const missing = showValidation && !mark;
                         return (
-                          <div key={criterion.id} className={cn("flex items-center justify-between gap-3 py-1.5 px-2 -mx-2 rounded-xl", missing && "bg-psu-rejected/5")}>
-                            <span className="text-xs font-medium text-psu-gray/70 min-w-0">
-                              {criterion.labelEn ? (
-                                <>
-                                  <span className="font-bold text-psu-gray">{criterion.labelEn}</span>{' '}
-                                  <span className="text-psu-gray/50 italic">({criterion.labelId})</span>
-                                </>
-                              ) : (
-                                <span className="font-bold text-psu-gray">{criterion.labelId}</span>
-                              )}
-                            </span>
-                            <div className="flex items-center gap-2 shrink-0">
+                          <ChecklistRow
+                            key={criterion.id}
+                            missing={missing}
+                            className="py-1.5"
+                            label={criterion.labelEn ? (
+                              <>
+                                <span className="font-bold text-psu-gray">{criterion.labelEn}</span>{' '}
+                                <span className="text-psu-gray/50 italic font-normal">({criterion.labelId})</span>
+                              </>
+                            ) : (
+                              <span className="font-bold text-psu-gray">{criterion.labelId}</span>
+                            )}
+                            actions={<>
                               <button
                                 type="button"
                                 onClick={() => setMark(criterion.id, 'v')}
@@ -404,8 +405,8 @@ export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob 
                               >
                                 <X size={16} strokeWidth={3} />
                               </button>
-                            </div>
-                          </div>
+                            </>}
+                          />
                         );
                       })}
                     </div>
