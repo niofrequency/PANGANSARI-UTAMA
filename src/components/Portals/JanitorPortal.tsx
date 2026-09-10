@@ -1,22 +1,23 @@
 import { useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { TrainingsTab } from '../TrainingsTab';
-import { ClipboardList, History, GraduationCap, CheckCircle2, Clock, XCircle, MapPinOff } from 'lucide-react';
+import { ClipboardList, History, GraduationCap, CheckCircle2, Clock, XCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { RestroomForm } from '../OpsLogs/RestroomForm';
 import { DeepLinkJob, parseDeepLinkFromUrl } from '../../lib/deepLink';
-import { userCanSeeSite } from '../../lib/siteScope';
 import { ScanJobButton } from '../QrScanner';
+import { ReportIssueButton } from '../FieldReports/ReportIssueButton';
+import { MyFieldReports } from '../FieldReports/MyFieldReports';
 
 interface JanitorPortalProps {
   store: ReturnType<typeof useAppStore>;
-  // Scan-to-Job (deepLink.ts): the site a "toilet" job QR was scanned at
-  // (blocks the form if this Janitor has no Site Access to it — same
-  // "Lokasi salah" pattern as the other frontline portals), and a
-  // callback to clear the pending job once it's actually been submitted.
-  expectedSite?: string;
+  // Scan-to-Job (deepLink.ts): true when a "toilet" job QR is what got
+  // this Janitor here — the QR carries no site (see deepLink.ts's file
+  // header), so there's nothing to block on; onDeepLinkHandled just clears
+  // the pending job once it's actually been submitted.
+  fromQr?: boolean;
   onDeepLinkHandled?: () => void;
   onScanJob?: (job: DeepLinkJob) => void;
 }
@@ -26,40 +27,24 @@ interface JanitorPortalProps {
 // cleaning checklist (UN.00.45). No site chip up here — RestroomForm's
 // own OpsHeaderChip already shows (and, once this person has Site Access
 // to more than one site, lets them pick) the site.
-export function JanitorPortal({ store, expectedSite, onDeepLinkHandled, onScanJob }: JanitorPortalProps) {
+export function JanitorPortal({ store, fromQr, onDeepLinkHandled, onScanJob }: JanitorPortalProps) {
   const { t } = useTranslation();
   const { currentUser, submissions, trainings, completeTraining, sites } = store;
   const [activeTab, setActiveTab] = useState<'TASKS' | 'HISTORY' | 'TRAINING'>('TASKS');
   const myHistory = submissions.filter(s => s.userId === currentUser?.id);
-  const currentSiteName = sites.find(s => s.id === currentUser?.site)?.name || currentUser?.site || '';
-  const cameFromQr = expectedSite !== undefined;
-  const siteMismatch = Boolean(expectedSite && currentUser && !userCanSeeSite(currentUser, expectedSite));
+  const cameFromQr = Boolean(fromQr);
+  // Report an Issue (types.ts's FieldReport) doesn't have its own site
+  // picker like RestroomForm does — Home Site is close enough for a
+  // free-form "something's broken" note, and keeps this from needing a
+  // second, independently-drifting useWorkingSite instance up here (see
+  // this file's own comment above on why there's no site chip at all).
+  const reportSiteId = currentUser?.site || '';
+  const reportSiteName = sites.find(s => s.id === reportSiteId)?.name || reportSiteId;
 
   const handleScanned = (rawValue: string) => {
     const job = parseDeepLinkFromUrl(rawValue);
     if (job) onScanJob?.(job);
   };
-
-  if (siteMismatch) {
-    const scannedSiteName = sites.find(s => s.id === expectedSite)?.name || expectedSite;
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 text-center">
-        <div className="w-16 h-16 bg-psu-rejected/10 rounded-2xl flex items-center justify-center text-psu-rejected mb-4">
-          <MapPinOff size={28} />
-        </div>
-        <h2 className="text-lg font-bold text-psu-gray">{t('deepLink.wrongLocationTitle')}</h2>
-        <p className="mt-2 text-sm text-psu-gray/60 max-w-xs">
-          {t('deepLink.wrongLocationBody', { site: scannedSiteName || '', mySite: currentSiteName })}
-        </p>
-        <button
-          onClick={() => onDeepLinkHandled?.()}
-          className="mt-6 px-6 py-3 bg-psu-gray text-white rounded-2xl font-black text-[10px] uppercase tracking-widest"
-        >
-          {t('deepLink.continueToMyPortal')}
-        </button>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -88,12 +73,15 @@ export function JanitorPortal({ store, expectedSite, onDeepLinkHandled, onScanJo
           <motion.div key="tasks" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} className="space-y-6">
             <div className="flex items-center justify-between px-2 gap-3">
               <h2 className="text-xl font-bold tracking-tight text-psu-gray truncate">{t('ops.restroom.title')}</h2>
-              <ScanJobButton
-                onScanned={handleScanned}
-                label={t('housekeeper.scanJobButton')}
-                iconOnly
-                className="w-9 h-9 rounded-xl bg-white border border-psu-gray/10 text-psu-gray/50 flex items-center justify-center active:scale-95 transition-all shrink-0"
-              />
+              <div className="flex items-center gap-2 shrink-0">
+                <ReportIssueButton store={store} siteId={reportSiteId} siteName={reportSiteName} department="HOUSEKEEPING" />
+                <ScanJobButton
+                  onScanned={handleScanned}
+                  label={t('housekeeper.scanJobButton')}
+                  iconOnly
+                  className="w-9 h-9 rounded-xl bg-white border border-psu-gray/10 text-psu-gray/50 flex items-center justify-center active:scale-95 transition-all shrink-0"
+                />
+              </div>
             </div>
             <RestroomForm
               store={store}
@@ -135,6 +123,7 @@ export function JanitorPortal({ store, expectedSite, onDeepLinkHandled, onScanJo
                 </div>
               )}
             </div>
+            <MyFieldReports store={store} />
           </motion.div>
         )}
 

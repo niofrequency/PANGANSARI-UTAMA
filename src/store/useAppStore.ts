@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { User, Submission, UserRole, Site, Warning, TrainingModule } from '../types';
-import { INITIAL_USERS, INITIAL_SUBMISSIONS, INITIAL_WARNINGS, SITES, TRAINING_MODULES } from '../data/mockData';
+import { User, Submission, UserRole, Site, Warning, TrainingModule, FieldReport, FieldReportStatus } from '../types';
+import { INITIAL_USERS, INITIAL_SUBMISSIONS, INITIAL_WARNINGS, INITIAL_FIELD_REPORTS, SITES, TRAINING_MODULES } from '../data/mockData';
 import { isFirebaseConfigured } from '../lib/firebase';
 import {
   loginOrRegister,
@@ -26,8 +26,8 @@ import { SIGNOFF_CHAINS } from '../data/opsLogsCatalog';
 //    user accounts, roles, and auth are backed by real Firebase
 //    Authentication + Firestore, so an admin's role assignments actually
 //    persist across devices and are enforced server-side (see
-//    firestore.rules). Submissions/warnings/trainings still use
-//    localStorage in this version — see FIREBASE_SETUP.md for notes on
+//    firestore.rules). Submissions/warnings/trainings/field reports still
+//    use localStorage in this version — see FIREBASE_SETUP.md for notes on
 //    extending that the same way.
 //
 // Every component using this hook is unaffected by which mode is active;
@@ -95,6 +95,11 @@ export function useAppStore() {
   const [warnings, setWarnings] = useState<Warning[]>(() => {
     const saved = localStorage.getItem('psu_warnings_v4');
     return saved ? JSON.parse(saved) : INITIAL_WARNINGS;
+  });
+
+  const [fieldReports, setFieldReports] = useState<FieldReport[]>(() => {
+    const saved = localStorage.getItem('psu_field_reports_v1');
+    return saved ? JSON.parse(saved) : INITIAL_FIELD_REPORTS;
   });
 
   const [trainings, setTrainings] = useState<TrainingModule[]>(() => {
@@ -189,6 +194,10 @@ export function useAppStore() {
   useEffect(() => {
     safeSetItem('psu_warnings_v4', JSON.stringify(warnings));
   }, [warnings]);
+
+  useEffect(() => {
+    safeSetItem('psu_field_reports_v1', JSON.stringify(fieldReports));
+  }, [fieldReports]);
 
   useEffect(() => {
     safeSetItem('psu_trainings_v4', JSON.stringify(trainings));
@@ -474,6 +483,30 @@ export function useAppStore() {
     setWarnings(prev => [newWarning, ...prev]);
   };
 
+  const addFieldReport = (report: Omit<FieldReport, 'id' | 'status'>) => {
+    const newReport: FieldReport = { ...report, id: `fr-${Date.now()}`, status: 'OPEN' };
+    setFieldReports(prev => [newReport, ...prev]);
+  };
+
+  // "Seen, working on it" — doesn't require a note, unlike resolving.
+  const acknowledgeFieldReport = (id: string) => {
+    if (!currentUser) return;
+    setFieldReports(prev => prev.map(r => r.id === id
+      ? { ...r, status: 'ACKNOWLEDGED' as FieldReportStatus, acknowledgedBy: currentUser.name, acknowledgedAt: new Date().toISOString() }
+      : r
+    ));
+  };
+
+  // "Fixed" — the note is required so whoever filed the report actually
+  // sees what was done about it, not just a status flip.
+  const resolveFieldReport = (id: string, note: string) => {
+    if (!currentUser) return;
+    setFieldReports(prev => prev.map(r => r.id === id
+      ? { ...r, status: 'RESOLVED' as FieldReportStatus, resolvedBy: currentUser.name, resolvedAt: new Date().toISOString(), resolutionNote: note.trim() }
+      : r
+    ));
+  };
+
   const completeTraining = (userId: string, moduleId: string) => {
     setTrainings(prev => prev.map(t => 
       t.id === moduleId && !t.completedBy.includes(userId) 
@@ -489,6 +522,7 @@ export function useAppStore() {
     users,
     submissions,
     warnings,
+    fieldReports,
     trainings,
     sites: SITES,
     login,
@@ -507,6 +541,9 @@ export function useAppStore() {
     toggleUserActive,
     deleteUser,
     addWarning,
+    addFieldReport,
+    acknowledgeFieldReport,
+    resolveFieldReport,
     completeTraining
   };
 }

@@ -1,4 +1,4 @@
-import { User, Site, Submission, TrainingModule, Warning } from '../types';
+import { User, Site, Submission, TrainingModule, Warning, FieldReport } from '../types';
 
 // Edit this with your real site(s)/location(s) — the Admin Portal doesn't
 // yet have a "manage sites" UI, so site selection in Add Staff / analytics
@@ -75,3 +75,4 @@ export const INITIAL_SUBMISSIONS: Submission[] = [];
 export const TRAINING_MODULES: TrainingModule[] = [];
 
 export const INITIAL_WARNINGS: Warning[] = [];
+export const INITIAL_FIELD_REPORTS: FieldReport[] = [];

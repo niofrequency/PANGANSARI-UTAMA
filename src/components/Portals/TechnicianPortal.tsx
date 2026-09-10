@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { PhotoCapture } from '../PhotoCapture';
 import { TrainingsTab } from '../TrainingsTab';
-import { ClipboardCheck, History, GraduationCap, CheckCircle2, Clock, XCircle, AlertTriangle, MapPin, Check, X, MapPinOff } from 'lucide-react';
+import { ClipboardCheck, History, GraduationCap, CheckCircle2, Clock, XCircle, AlertTriangle, MapPin, Check, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
@@ -10,8 +10,9 @@ import { DAILY_FOOD_HANDLER_GROUPS, DAILY_FOOD_HANDLER_ALL_CRITERIA } from '../.
 import { computeReadyToWork, countMarked, isGoodMark } from '../../data/dailyFoodHandlerScoring';
 import { DeepLinkJob, parseDeepLinkFromUrl } from '../../lib/deepLink';
 import { ScanJobButton } from '../QrScanner';
-import { userCanSeeSite } from '../../lib/siteScope';
 import { useWorkingSite } from '../../hooks/useWorkingSite';
+import { ReportIssueButton } from '../FieldReports/ReportIssueButton';
+import { MyFieldReports } from '../FieldReports/MyFieldReports';
 
 type DeepLinkStartAt = 'fridge' | 'core' | 'clean' | 'wellness';
 
@@ -38,17 +39,17 @@ function isPlausibleTemp(value: string): boolean {
 interface TechnicianPortalProps {
   store: ReturnType<typeof useAppStore>;
   // Scan-to-Job (deepLink.ts): which section to jump to and highlight when
-  // this technician arrived via a job QR, the site the QR was scanned at
-  // (blocks the whole log if it doesn't match this technician's own site —
-  // see PRD "Wrong site blocks the job"), and a callback to clear the
-  // pending job once it's actually been submitted.
+  // this technician arrived via a job QR, and a callback to clear the
+  // pending job once it's actually been submitted. The QR carries no site
+  // (see deepLink.ts's file header) — this log is always for whichever
+  // site is set on this technician's own account, resolved below by
+  // hooks/useWorkingSite.ts exactly as if they'd opened the app directly.
   startAt?: DeepLinkStartAt;
-  expectedSite?: string;
   onDeepLinkHandled?: () => void;
   onScanJob?: (job: DeepLinkJob) => void;
 }
 
-export function TechnicianPortal({ store, startAt, expectedSite, onDeepLinkHandled, onScanJob }: TechnicianPortalProps) {
+export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob }: TechnicianPortalProps) {
   const { t } = useTranslation();
   const { currentUser, submissions, addSubmission, trainings, completeTraining, warnings, sites } = store;
   const [activeTab, setActiveTab] = useState<'TASKS' | 'HISTORY' | 'TRAINING'>('TASKS');
@@ -57,15 +58,13 @@ export function TechnicianPortal({ store, startAt, expectedSite, onDeepLinkHandl
   const [highlightSection, setHighlightSection] = useState<DeepLinkStartAt | null>(null);
   // Which site this daily log is for — a single, fixed site for most
   // accounts (Home Site only, no picker); once an Admin gives this
-  // Technician Site Access to more than one, a QR scan pins it, and
-  // otherwise a picker on the card below lets them choose. See
-  // hooks/useWorkingSite.ts.
-  const { workingSiteId, workingSiteName: currentSiteName, setWorkingSiteId, availableSites, needsPicker } = useWorkingSite(currentUser, sites, expectedSite);
+  // Technician Site Access to more than one, a picker on the card below
+  // lets them choose. See hooks/useWorkingSite.ts.
+  const { workingSiteId, workingSiteName: currentSiteName, setWorkingSiteId, availableSites, needsPicker } = useWorkingSite(currentUser, sites);
   const fridgeRef = useRef<HTMLDivElement>(null);
   const coreRef = useRef<HTMLDivElement>(null);
   const cleanRef = useRef<HTMLDivElement>(null);
   const wellnessRef = useRef<HTMLDivElement>(null);
-  const siteMismatch = Boolean(expectedSite && currentUser && !userCanSeeSite(currentUser, expectedSite));
   const [formData, setFormData] = useState({
     fridgeTemp: '4',
     cookingTemp: '75',
@@ -100,7 +99,7 @@ export function TechnicianPortal({ store, startAt, expectedSite, onDeepLinkHandl
   // rest of today's log still has to be filled in before submitting (see
   // PRD "Scanning fridge still requires the full current technician log").
   useEffect(() => {
-    if (!startAt || siteMismatch) return;
+    if (!startAt) return;
     setActiveTab('TASKS');
     setHighlightSection(startAt);
     const refs: Record<DeepLinkStartAt, React.RefObject<HTMLDivElement>> = {
@@ -119,7 +118,7 @@ export function TechnicianPortal({ store, startAt, expectedSite, onDeepLinkHandl
       };
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startAt, siteMismatch]);
+  }, [startAt]);
 
   const highlightClass = (section: DeepLinkStartAt) =>
     highlightSection === section ? 'ring-4 ring-psu-blue/30 rounded-2xl' : '';
@@ -170,30 +169,6 @@ export function TechnicianPortal({ store, startAt, expectedSite, onDeepLinkHandl
     setActiveTab('HISTORY');
     if (startAt) onDeepLinkHandled?.();
   };
-
-  // A job QR scanned for a different site than this technician's own —
-  // block the whole log rather than silently ignoring the mismatch (see
-  // PRD "Wrong site (s= on QR != user.site): block the job").
-  if (siteMismatch) {
-    const scannedSiteName = sites.find(s => s.id === expectedSite)?.name || expectedSite;
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 text-center">
-        <div className="w-16 h-16 bg-psu-rejected/10 rounded-2xl flex items-center justify-center text-psu-rejected mb-4">
-          <MapPinOff size={28} />
-        </div>
-        <h2 className="text-lg font-bold text-psu-gray">{t('deepLink.wrongLocationTitle')}</h2>
-        <p className="mt-2 text-sm text-psu-gray/60 max-w-xs">
-          {t('deepLink.wrongLocationBody', { site: scannedSiteName || '', mySite: currentSiteName })}
-        </p>
-        <button
-          onClick={() => onDeepLinkHandled?.()}
-          className="mt-6 px-6 py-3 bg-psu-gray text-white rounded-2xl font-black text-[10px] uppercase tracking-widest"
-        >
-          {t('deepLink.continueToMyPortal')}
-        </button>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -262,6 +237,13 @@ export function TechnicianPortal({ store, startAt, expectedSite, onDeepLinkHandl
                     <MapPin size={12} /> {currentSiteName}
                   </div>
                 )}
+                <ReportIssueButton
+                  store={store}
+                  siteId={workingSiteId}
+                  siteName={currentSiteName}
+                  department="FOOD_SAFETY"
+                  className="w-9 h-9 rounded-xl bg-white border border-psu-gray/10 text-psu-gray/50 flex items-center justify-center active:scale-95 transition-all"
+                />
                 <ScanJobButton
                   onScanned={handleScanned}
                   label={t('technician.scanJobButton')}
@@ -460,6 +442,7 @@ export function TechnicianPortal({ store, startAt, expectedSite, onDeepLinkHandl
                 </div>
               ))}
             </div>
+            <MyFieldReports store={store} />
           </motion.div>
         )}
 
