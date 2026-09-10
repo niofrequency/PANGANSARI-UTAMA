@@ -294,9 +294,19 @@ export function useAppStore() {
   };
 
   const logout = () => {
+    // A Staff ID session never touches Firebase Auth in the first place
+    // (see loginByStaffCode above — currentUser is set directly, no
+    // signInWith... call happens), so signOut(auth) below has no real
+    // session to end and fires no onAuthStateChanged callback — the
+    // watchAuthAndProfile effect that normally clears currentUser on
+    // logout never runs. Without this, the Logout button was a dead click
+    // for anyone signed in with a Staff ID: pinSessionActive flipped off,
+    // but currentUser stayed populated forever.
+    const wasPinSession = pinSessionActive;
     setPinSessionActive(false);
     if (isFirebaseConfigured) {
       firebaseLogout();
+      if (wasPinSession) setCurrentUser(null);
       return;
     }
     setCurrentUser(null);
