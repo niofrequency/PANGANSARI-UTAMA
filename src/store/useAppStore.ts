@@ -281,6 +281,7 @@ export function useAppStore() {
         site: p.site,
         isActive: p.isActive,
         staffCode: p.staffCode,
+        assignedSites: p.assignedSites,
       });
       return { ok: true };
     }
