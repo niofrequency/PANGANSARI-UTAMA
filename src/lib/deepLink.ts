@@ -14,7 +14,12 @@
 // a refresh until the job is actually submitted or cancelled
 // (clearDeepLink()).
 
-export type DeepLinkAction = 'fridge' | 'core' | 'clean' | 'wellness' | 'room';
+export type DeepLinkAction =
+  | 'fridge' | 'core' | 'clean' | 'wellness' // Food Safety Technician's daily log
+  | 'room'                                   // Housekeeper's room cleaning (UN.00.65)
+  | 'toilet'                                 // Bathroom Janitor's one task
+  | 'laundry'                                // Laundry Staff's one task
+  | 'ops_logs';                              // Food Safety Supervisor — lands on their Ops Logs tab
 
 export interface DeepLinkJob {
   siteId: string;
@@ -26,8 +31,10 @@ export interface DeepLinkJob {
 
 const STORAGE_KEY = 'psu.deeplink';
 
+const DEEP_LINK_ACTIONS: DeepLinkAction[] = ['fridge', 'core', 'clean', 'wellness', 'room', 'toilet', 'laundry', 'ops_logs'];
+
 function isDeepLinkAction(value: string | null): value is DeepLinkAction {
-  return value === 'fridge' || value === 'core' || value === 'clean' || value === 'wellness' || value === 'room';
+  return value !== null && (DEEP_LINK_ACTIONS as string[]).includes(value);
 }
 
 function jobFromParams(params: URLSearchParams): DeepLinkJob | null {

@@ -21,21 +21,28 @@ const ACTION_LABEL_KEY: Record<DeepLinkJob['action'], string> = {
   clean: 'technician.areaClean',
   wellness: 'technician.sectionPersonalCheck',
   room: 'housekeeper.tabTasks',
+  toilet: 'ops.restroom.title',
+  laundry: 'ops.laundryShop.title',
+  ops_logs: 'ops.tabTitle',
 };
 
 const MAX_STAFF_ID_LENGTH = 12;
 const MIN_STAFF_ID_LENGTH = 3;
 
+const LETTER_ROWS = ['ABCDEF', 'GHIJKL', 'MNOPQR', 'STUVWX', 'YZ'];
+
 // Scan-to-Job login screen (see deepLink.ts / PSU_QR_JobDeepLink_PRD.md):
 // shown instead of the normal email/password Login whenever a job QR is
 // pending and nobody's signed in yet. Staff ID alone is the credential —
-// no PIN — entered on an on-screen number pad rather than a text field,
-// since IDs are digits only (see utils/staffCode.ts): nothing on this
-// screen ever needs a letter keyboard, which matters on a shared,
-// possibly wet- or gloved-thumb kiosk device.
+// no PIN — entered on an on-screen keypad rather than a text field, for
+// large touch targets on a shared, possibly wet- or gloved-thumb kiosk
+// device. IDs can mix digits and letters (e.g. "TECH01" — see
+// utils/staffCode.ts), so the keypad has a 123/ABC toggle rather than
+// assuming digits-only.
 export function StaffIdGate({ pendingJob, sites, loginByStaffCode, onSuccess, onSwitchToEmailLogin, onScanJob }: StaffIdGateProps) {
   const { t, language, toggleLanguage } = useTranslation();
   const [staffCode, setStaffCode] = useState('');
+  const [keypadMode, setKeypadMode] = useState<'digits' | 'letters'>('digits');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -120,37 +127,93 @@ export function StaffIdGate({ pendingJob, sites, loginByStaffCode, onSuccess, on
           {staffCode || <span className="text-psu-gray/20 text-lg tracking-normal">{t('staffIdGate.staffIdPlaceholder')}</span>}
         </div>
 
-        <div className="grid grid-cols-3 gap-3 mb-6">
-          {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((d) => (
+        {/* 123/ABC toggle — a Staff ID can mix digits and letters (e.g.
+            "TECH01"), so the keypad switches character sets instead of
+            assuming digits-only. Whatever's typed stays in the field
+            either way; this only changes which buttons are showing. */}
+        <div className="flex bg-psu-bg rounded-2xl p-1 mb-3">
+          <button
+            type="button"
+            onClick={() => setKeypadMode('digits')}
+            className={
+              "flex-1 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all " +
+              (keypadMode === 'digits' ? "bg-white text-psu-gray shadow-sm" : "text-psu-gray/40")
+            }
+          >
+            123
+          </button>
+          <button
+            type="button"
+            onClick={() => setKeypadMode('letters')}
+            className={
+              "flex-1 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all " +
+              (keypadMode === 'letters' ? "bg-white text-psu-gray shadow-sm" : "text-psu-gray/40")
+            }
+          >
+            ABC
+          </button>
+        </div>
+
+        {keypadMode === 'digits' ? (
+          <div className="grid grid-cols-3 gap-3 mb-6">
+            {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((d) => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => pressDigit(d)}
+                disabled={isSubmitting}
+                className="h-14 rounded-2xl bg-psu-bg text-psu-gray text-xl font-black active:scale-95 transition-all disabled:opacity-50"
+              >
+                {d}
+              </button>
+            ))}
+            <div />
             <button
-              key={d}
               type="button"
-              onClick={() => pressDigit(d)}
+              onClick={() => pressDigit('0')}
               disabled={isSubmitting}
               className="h-14 rounded-2xl bg-psu-bg text-psu-gray text-xl font-black active:scale-95 transition-all disabled:opacity-50"
             >
-              {d}
+              0
             </button>
-          ))}
-          <div />
-          <button
-            type="button"
-            onClick={() => pressDigit('0')}
-            disabled={isSubmitting}
-            className="h-14 rounded-2xl bg-psu-bg text-psu-gray text-xl font-black active:scale-95 transition-all disabled:opacity-50"
-          >
-            0
-          </button>
-          <button
-            type="button"
-            onClick={pressBackspace}
-            disabled={isSubmitting}
-            className="h-14 rounded-2xl bg-psu-bg text-psu-gray/50 flex items-center justify-center active:scale-95 transition-all disabled:opacity-50"
-            aria-label={t('staffIdGate.backspace')}
-          >
-            <Delete size={20} />
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={pressBackspace}
+              disabled={isSubmitting}
+              className="h-14 rounded-2xl bg-psu-bg text-psu-gray/50 flex items-center justify-center active:scale-95 transition-all disabled:opacity-50"
+              aria-label={t('staffIdGate.backspace')}
+            >
+              <Delete size={20} />
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-2 mb-6">
+            {LETTER_ROWS.map((row) => (
+              <div key={row} className="grid grid-cols-6 gap-2">
+                {row.split('').map((letter) => (
+                  <button
+                    key={letter}
+                    type="button"
+                    onClick={() => pressDigit(letter)}
+                    disabled={isSubmitting}
+                    className="h-11 rounded-xl bg-psu-bg text-psu-gray text-base font-black active:scale-95 transition-all disabled:opacity-50"
+                  >
+                    {letter}
+                  </button>
+                ))}
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={pressBackspace}
+              disabled={isSubmitting}
+              className="w-full h-11 rounded-xl bg-psu-bg text-psu-gray/50 flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-50 text-[11px] font-black uppercase tracking-widest"
+              aria-label={t('staffIdGate.backspace')}
+            >
+              <Delete size={16} /> {t('staffIdGate.backspace')}
+            </button>
+          </div>
+        )}
 
         <AnimatePresence>
           {error && (

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../../store/useAppStore';
-import { CheckCircle2, XCircle, Clock, Eye, AlertTriangle, User, MapPin, ClipboardCheck, ListChecks, ClipboardList } from 'lucide-react';
+import { CheckCircle2, XCircle, Clock, Eye, AlertTriangle, User, MapPin, ClipboardCheck, ListChecks, ClipboardList, MapPinOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
 import { Submission } from '../../types';
@@ -9,6 +9,8 @@ import { InspectionsTab } from '../Inspections/InspectionsTab';
 import { OpsLogsTab } from '../OpsLogs/OpsLogsTab';
 import { userCanSeeSite } from '../../lib/siteScope';
 import { DAILY_FOOD_HANDLER_ALL_CRITERIA } from '../../data/dailyFoodHandlerData';
+import { DeepLinkJob, parseDeepLinkFromUrl } from '../../lib/deepLink';
+import { ScanJobButton } from '../QrScanner';
 
 // A Food Safety Technician's daily log folds in a personal wellness/hygiene/
 // PPE self-check (same 19 criteria as the Inspections roster tool — see
@@ -20,15 +22,49 @@ const isNotReadyToWork = (s: Submission) =>
   s.type === 'FOOD_SAFETY' &&
   DAILY_FOOD_HANDLER_ALL_CRITERIA.some(c => s.items.find(i => i.id === c.id)?.answer === false);
 
-export function SupervisorPortal({ store }: { store: ReturnType<typeof useAppStore> }) {
+interface SupervisorPortalProps {
+  store: ReturnType<typeof useAppStore>;
+  // Scan-to-Job (deepLink.ts): a Food Safety Supervisor's "ops_logs" QR
+  // just needs to land them on the Ops Logs tab at the right site — see
+  // PSU_QR_JobDeepLink_PRD.md's Users table. expectedSite blocks that tab
+  // if this Supervisor has no Site Access there (same "Lokasi salah"
+  // pattern as the frontline portals); onDeepLinkHandled clears the
+  // pending job once they've landed (there's no single form submit to
+  // wait for — the whole tab is the destination).
+  startTab?: 'OPS_LOGS';
+  expectedSite?: string;
+  onDeepLinkHandled?: () => void;
+  onScanJob?: (job: DeepLinkJob) => void;
+}
+
+export function SupervisorPortal({ store, startTab, expectedSite, onDeepLinkHandled, onScanJob }: SupervisorPortalProps) {
   const { t } = useTranslation();
-  const { currentUser, submissions, updateSubmissionStatus, addWarning, users } = store;
+  const { currentUser, submissions, updateSubmissionStatus, addWarning, users, sites } = store;
   const isFoodSafety = currentUser?.role === 'FOOD_SAFETY_SUPERVISOR';
-  const [activeTab, setActiveTab] = useState<'QUEUE' | 'INSPECTIONS' | 'OPS_LOGS'>('QUEUE');
+  const [activeTab, setActiveTab] = useState<'QUEUE' | 'INSPECTIONS' | 'OPS_LOGS'>(startTab ?? 'QUEUE');
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [showWarningDialog, setShowWarningDialog] = useState(false);
   const [warningData, setWarningData] = useState({ userId: '', reason: '', severity: 'LOW' as any });
+  const currentSiteName = sites.find(s => s.id === currentUser?.site)?.name || currentUser?.site || '';
+  const siteMismatch = Boolean(expectedSite && currentUser && !userCanSeeSite(currentUser, expectedSite));
+
+  // A QR only ever gets someone to the right tab — once they're here (and
+  // not blocked by a site mismatch below), the job is done. There's no
+  // discrete submit event to wait for, unlike the Technician's fridge/core
+  // entries.
+  useEffect(() => {
+    if (startTab === 'OPS_LOGS' && !siteMismatch) {
+      setActiveTab('OPS_LOGS');
+      onDeepLinkHandled?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startTab, siteMismatch]);
+
+  const handleScanned = (rawValue: string) => {
+    const job = parseDeepLinkFromUrl(rawValue);
+    if (job) onScanJob?.(job);
+  };
 
   // Site-scoped (Home Site by default, or wider if the Admin gave this
   // Supervisor a Site Access override — see lib/siteScope.ts) *and*
@@ -78,28 +114,59 @@ export function SupervisorPortal({ store }: { store: ReturnType<typeof useAppSto
     setWarningData({ userId: '', reason: '', severity: 'LOW' });
   };
 
+  if (siteMismatch) {
+    const scannedSiteName = sites.find(s => s.id === expectedSite)?.name || expectedSite;
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] p-8 text-center">
+        <div className="w-16 h-16 bg-psu-rejected/10 rounded-2xl flex items-center justify-center text-psu-rejected mb-4">
+          <MapPinOff size={28} />
+        </div>
+        <h2 className="text-lg font-bold text-psu-gray">{t('deepLink.wrongLocationTitle')}</h2>
+        <p className="mt-2 text-sm text-psu-gray/60 max-w-xs">
+          {t('deepLink.wrongLocationBody', { site: scannedSiteName || '', mySite: currentSiteName })}
+        </p>
+        <button
+          onClick={() => onDeepLinkHandled?.()}
+          className="mt-6 px-6 py-3 bg-psu-gray text-white rounded-2xl font-black text-[10px] uppercase tracking-widest"
+        >
+          {t('deepLink.continueToMyPortal')}
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex bg-white rounded-2xl p-1.5 shadow-sm border border-psu-gray/5">
-        {[
-          { id: 'QUEUE' as const, icon: ListChecks, label: t('supervisorHK.queueTitle') },
-          { id: 'OPS_LOGS' as const, icon: ClipboardList, label: t('ops.tabTitle') },
-          ...(isFoodSafety ? [{ id: 'INSPECTIONS' as const, icon: ClipboardCheck, label: t('inspection.tabTitle') }] : []),
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={cn(
-              "flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
-              activeTab === tab.id
-                ? "bg-psu-blue text-white shadow-md shadow-psu-blue/20"
-                : "text-psu-gray/40 hover:text-psu-gray"
-            )}
-          >
-            <tab.icon size={18} />
-            {tab.label}
-          </button>
-        ))}
+      <div className="flex items-center gap-3">
+        <div className="flex flex-1 bg-white rounded-2xl p-1.5 shadow-sm border border-psu-gray/5">
+          {[
+            { id: 'QUEUE' as const, icon: ListChecks, label: t('supervisorHK.queueTitle') },
+            { id: 'OPS_LOGS' as const, icon: ClipboardList, label: t('ops.tabTitle') },
+            ...(isFoodSafety ? [{ id: 'INSPECTIONS' as const, icon: ClipboardCheck, label: t('inspection.tabTitle') }] : []),
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                "flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+                activeTab === tab.id
+                  ? "bg-psu-blue text-white shadow-md shadow-psu-blue/20"
+                  : "text-psu-gray/40 hover:text-psu-gray"
+              )}
+            >
+              <tab.icon size={18} />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        {isFoodSafety && (
+          <ScanJobButton
+            onScanned={handleScanned}
+            label={t('housekeeper.scanJobButton')}
+            iconOnly
+            className="w-11 h-11 rounded-2xl bg-white border border-psu-gray/5 shadow-sm text-psu-gray/50 flex items-center justify-center active:scale-95 transition-all shrink-0"
+          />
+        )}
       </div>
 
       {isFoodSafety && activeTab === 'INSPECTIONS' && <InspectionsTab store={store} />}
