@@ -33,9 +33,15 @@ interface Props {
   onSubmit: (payload: Omit<Submission, 'id' | 'userId' | 'userName' | 'role' | 'siteId' | 'siteName' | 'timestamp' | 'status'>) => void;
   onCancel: () => void;
   inspectorName: string;
+  // Which sections this walk covers — Food Safety Supervisor does both A
+  // (Health & Safety) and B (Food Safety Rules); Housekeeping Supervisor's
+  // walk is Section A only, since B is food-production-specific and isn't
+  // theirs to assess. Section C ("3 in a Row") is a reference/discussion
+  // guide, not a scored section, so it's unaffected and always shown.
+  sections: ('A' | 'B')[];
 }
 
-export function GembaWalkForm({ onSubmit, onCancel, inspectorName }: Props) {
+export function GembaWalkForm({ onSubmit, onCancel, inspectorName, sections }: Props) {
   const { t, language } = useTranslation();
   const [project, setProject] = useState('');
   const [unit, setUnit] = useState('');
@@ -56,19 +62,20 @@ export function GembaWalkForm({ onSubmit, onCancel, inspectorName }: Props) {
   const categoryRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const areaFieldRef = useRef<HTMLInputElement>(null);
 
-  const allItems = useMemo(() => GEMBA_SECTIONS.flatMap(s => s.categories.flatMap(c => c.items)), []);
+  const visibleSections = useMemo(() => GEMBA_SECTIONS.filter(s => sections.includes(s.key)), [sections]);
+  const allItems = useMemo(() => visibleSections.flatMap(s => s.categories.flatMap(c => c.items)), [visibleSections]);
   const totalItems = allItems.length;
 
   const categoryStats = useMemo(() => {
     const map: Record<string, { answered: number; total: number }> = {};
-    for (const section of GEMBA_SECTIONS) {
+    for (const section of visibleSections) {
       for (const cat of section.categories) {
         const codes = cat.items.map(i => answers[i.id]);
         map[cat.key] = { answered: codes.filter(Boolean).length, total: cat.items.length };
       }
     }
     return map;
-  }, [answers]);
+  }, [answers, visibleSections]);
 
   const overall = scoreGembaEvaluations(allItems.map(i => answers[i.id]));
   const canSubmit = overall.answered === totalItems && areaAudited.trim().length > 0;
@@ -168,6 +175,9 @@ export function GembaWalkForm({ onSubmit, onCancel, inspectorName }: Props) {
           </div>
         </div>
         <p className="text-[11px] text-psu-gray/40 font-medium leading-relaxed border-t border-psu-gray/5 pt-4">{t('gemba.instructionNote')}</p>
+        {sections.length === 1 && (
+          <p className="text-[11px] text-psu-blue font-bold bg-psu-blue/5 rounded-xl px-3 py-2">{t('gemba.sectionAOnlyNote')}</p>
+        )}
       </div>
 
       {/* Sticky progress/score summary */}
@@ -183,7 +193,7 @@ export function GembaWalkForm({ onSubmit, onCancel, inspectorName }: Props) {
         </div>
       </div>
 
-      {GEMBA_SECTIONS.map(section => (
+      {visibleSections.map(section => (
         <div key={section.key} className="space-y-3">
           <h3 className="text-[11px] font-black text-psu-gray/50 uppercase tracking-[0.15em] px-2">
             {t(`gemba.section${section.key}`)}
