@@ -20,7 +20,7 @@ import { userCanSeeSite } from '../../lib/siteScope';
 import { useWorkingSite } from '../../hooks/useWorkingSite';
 import { ReportIssueButton } from '../FieldReports/ReportIssueButton';
 import { MyFieldReports } from '../FieldReports/MyFieldReports';
-import { ResubmitNotice } from '../OpsLogs/opsHelpers';
+import { ResubmitNotice, ChecklistRow } from '../OpsLogs/opsHelpers';
 
 const GROUP_ICON: Record<RoomCleaningGroupKey, typeof Sparkles> = {
   '1': Sparkles,
@@ -347,32 +347,32 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
                       const missing = showValidation && ((item.cadence === 'daily' && !state?.checked) || (item.cadence !== 'daily' && due && !isAnswered(item.id)));
                       return (
                         <div key={item.id} className={cn("p-3 -mx-1 rounded-2xl transition-all", missing && "bg-psu-rejected/5")}>
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="min-w-0">
-                              <p className="text-sm font-bold text-psu-gray">{item.labelId}</p>
-                              <p className="text-[10px] text-psu-gray/40 italic">{item.labelEn}</p>
-                              {item.cadence !== 'daily' && (
-                                <span className={cn(
-                                  "inline-block mt-1.5 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md",
-                                  due ? "bg-psu-warning/10 text-psu-warning" : "bg-psu-gray/5 text-psu-gray/30"
-                                )}>
-                                  {item.cadence === 'weekly' ? t('housekeeper.cadenceWeekly') : t('housekeeper.cadenceMonthly')}
-                                  {' · '}
-                                  {due ? t('housekeeper.due') : t('housekeeper.notDue')}
-                                </span>
-                              )}
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => toggleChecked(item.id)}
-                              className={cn(
-                                "w-11 h-11 rounded-2xl flex items-center justify-center border-2 shrink-0 transition-all active:scale-95",
-                                state?.checked ? "bg-psu-green border-psu-green text-white" : "bg-psu-bg border-psu-gray/10 text-psu-gray/20"
-                              )}
-                            >
-                              {state?.checked && <Check size={20} strokeWidth={3} />}
-                            </button>
-                          </div>
+                          <ChecklistRow
+                            label={item.labelId}
+                            sublabel={item.labelEn}
+                            extra={item.cadence !== 'daily' && (
+                              <span className={cn(
+                                "inline-block mt-1.5 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md",
+                                due ? "bg-psu-warning/10 text-psu-warning" : "bg-psu-gray/5 text-psu-gray/30"
+                              )}>
+                                {item.cadence === 'weekly' ? t('housekeeper.cadenceWeekly') : t('housekeeper.cadenceMonthly')}
+                                {' · '}
+                                {due ? t('housekeeper.due') : t('housekeeper.notDue')}
+                              </span>
+                            )}
+                            actions={
+                              <button
+                                type="button"
+                                onClick={() => toggleChecked(item.id)}
+                                className={cn(
+                                  "w-11 h-11 rounded-2xl flex items-center justify-center border-2 shrink-0 transition-all active:scale-95",
+                                  state?.checked ? "bg-psu-green border-psu-green text-white" : "bg-psu-bg border-psu-gray/10 text-psu-gray/20"
+                                )}
+                              >
+                                {state?.checked && <Check size={20} strokeWidth={3} />}
+                              </button>
+                            }
+                          />
 
                           {item.cadence !== 'daily' && due && !state?.checked && (
                             <div className="flex flex-wrap gap-2 mt-3">

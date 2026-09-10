@@ -6,6 +6,7 @@ import { useTranslation } from '../../i18n/LanguageContext';
 import { DAILY_FOOD_HANDLER_GROUPS, DAILY_FOOD_HANDLER_ALL_CRITERIA } from '../../data/dailyFoodHandlerData';
 import { computeReadyToWork, countMarked, isGoodMark, scoreRoster } from '../../data/dailyFoodHandlerScoring';
 import { DailyFoodHandlerRosterEntry, Submission } from '../../types';
+import { ChecklistRow } from '../OpsLogs/opsHelpers';
 
 interface RowState {
   key: string;
@@ -195,18 +196,17 @@ export function DailyFoodHandlerForm({ onSubmit, onCancel, siteName }: Props) {
                             {group.criteria.map(criterion => {
                               const mark = row.marks[criterion.id];
                               return (
-                                <div key={criterion.id} className="flex items-center justify-between gap-3 py-1">
-                                  <span className="text-xs font-medium text-psu-gray/70 min-w-0">
-                                    {criterion.labelEn ? (
-                                      <>
-                                        <span className="font-bold text-psu-gray">{criterion.labelEn}</span>{' '}
-                                        <span className="text-psu-gray/50 italic">({criterion.labelId})</span>
-                                      </>
-                                    ) : (
-                                      <span className="font-bold text-psu-gray">{criterion.labelId}</span>
-                                    )}
-                                  </span>
-                                  <div className="flex items-center gap-2 shrink-0">
+                                <ChecklistRow
+                                  key={criterion.id}
+                                  label={criterion.labelEn ? (
+                                    <>
+                                      <span className="font-bold text-psu-gray">{criterion.labelEn}</span>{' '}
+                                      <span className="text-psu-gray/50 italic font-normal">({criterion.labelId})</span>
+                                    </>
+                                  ) : (
+                                    <span className="font-bold text-psu-gray">{criterion.labelId}</span>
+                                  )}
+                                  actions={<>
                                     <button
                                       type="button"
                                       onClick={() => setMark(row.key, criterion.id, 'v')}
@@ -235,8 +235,8 @@ export function DailyFoodHandlerForm({ onSubmit, onCancel, siteName }: Props) {
                                     >
                                       <X size={16} strokeWidth={3} />
                                     </button>
-                                  </div>
-                                </div>
+                                  </>}
+                                />
                               );
                             })}
                           </div>

@@ -188,6 +188,59 @@ export function RejectButton({ onReject }: { onReject: (reason: string) => void 
   );
 }
 
+// A checklist item's label plus its mark/answer button(s) — on one row
+// when there's room for both, wrapping the buttons down to their own row
+// below the label the moment there isn't, instead of both squeezing
+// sideways into an unreadable sliver. That's what was happening before:
+// every checklist-style row was hand-rolled as a plain non-wrapping
+// `flex justify-between`, so a long compound label (e.g. "Dinding/Fan/
+// Cermin/Penerangan" — Wall/Fan/Mirror/Lighting merged into one row) next
+// to 2-3 buttons had nowhere to go on a phone but get crushed into a
+// few-pixel-wide column. min-w-[140px] on the label column is what
+// actually triggers the wrap: it refuses to shrink past a legible width,
+// so once the label's minimum plus the buttons' natural width can't both
+// fit, flex-wrap pushes the buttons onto their own line — no breakpoint
+// to pick, it adapts continuously from the narrowest phone up.
+//
+// Every checklist-style item row (Ops Logs forms, Housekeeper's room
+// checklist, Technician's daily wellness marks, Daily Food Handler
+// criteria) should use this instead of hand-rolling the same flex row.
+export function ChecklistRow({
+  label, sublabel, extra, actions, missing, className,
+}: {
+  // Declared (never read) purely so `key={...}` type-checks when this is
+  // rendered from a .map() — React strips it before the component ever
+  // sees props, same as any other component; this line exists only to
+  // satisfy the type checker in environments with a stricter/incomplete
+  // React types setup.
+  key?: React.Key;
+  label: React.ReactNode;
+  sublabel?: React.ReactNode;
+  // Anything else that belongs in the label column, below sublabel (e.g.
+  // Housekeeper's weekly/monthly due badge).
+  extra?: React.ReactNode;
+  actions: React.ReactNode;
+  missing?: boolean;
+  className?: string;
+}) {
+  return (
+    <div className={cn(
+      "flex flex-wrap items-center justify-between gap-x-3 gap-y-2",
+      missing && "bg-psu-rejected/5 rounded-xl px-2 -mx-2 py-1",
+      className
+    )}>
+      <div className="min-w-[140px] flex-1">
+        <p className="text-sm font-bold text-psu-gray">{label}</p>
+        {sublabel && <p className="text-[10px] text-psu-gray/40 italic">{sublabel}</p>}
+        {extra}
+      </div>
+      <div className="flex items-center gap-1.5 flex-wrap justify-end shrink-0 ml-auto">
+        {actions}
+      </div>
+    </div>
+  );
+}
+
 // Small reusable "flag" pill for an out-of-range reading — the paper still
 // records the number either way, this just calls attention to it.
 export function OutOfRangeFlag({ label }: { label: string }) {

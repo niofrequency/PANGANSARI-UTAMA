@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { cn } from '../../utils/cn';
-import { OpsHeaderChip, OpsFormProps, ResubmitNotice } from './opsHelpers';
+import { OpsHeaderChip, OpsFormProps, ResubmitNotice, ChecklistRow } from './opsHelpers';
 import { RESTROOM_GROUPS, RESTROOM_SLOTS, RestroomSlot, RESTROOM_EXAMPLE_SECTION } from '../../data/restroomData';
 import { Clock } from 'lucide-react';
 import { useWorkingSite } from '../../hooks/useWorkingSite';
@@ -117,29 +117,27 @@ export function RestroomForm({ store, onCancel, onSubmitted, editingSubmission }
           {group.items.map(item => {
             const missing = showValidation && !marks[item.id];
             return (
-              <div key={item.id} className={cn("flex items-center justify-between gap-3 py-1", missing && "bg-psu-rejected/5 rounded-xl px-2 -mx-2")}>
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-psu-gray">{item.labelId}</p>
-                  <p className="text-[10px] text-psu-gray/40 italic">{item.labelEn}</p>
-                </div>
-                <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
-                  {group.marks.map(mark => (
-                    <button
-                      key={mark}
-                      type="button"
-                      onClick={() => setMark(item.id, mark)}
-                      className={cn(
-                        "px-3 py-2 rounded-xl text-[10px] font-black uppercase transition-all",
-                        marks[item.id] === mark
-                          ? (mark === 'rusak' || mark === 'tidak' ? "bg-psu-rejected text-white" : "bg-psu-green text-white")
-                          : "bg-psu-bg text-psu-gray/40 border border-psu-gray/10"
-                      )}
-                    >
-                      {t(`ops.restroom.mark.${mark}`)}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <ChecklistRow
+                key={item.id}
+                missing={missing}
+                label={item.labelId}
+                sublabel={item.labelEn}
+                actions={group.marks.map(mark => (
+                  <button
+                    key={mark}
+                    type="button"
+                    onClick={() => setMark(item.id, mark)}
+                    className={cn(
+                      "px-3 py-2 rounded-xl text-[10px] font-black uppercase transition-all",
+                      marks[item.id] === mark
+                        ? (mark === 'rusak' || mark === 'tidak' ? "bg-psu-rejected text-white" : "bg-psu-green text-white")
+                        : "bg-psu-bg text-psu-gray/40 border border-psu-gray/10"
+                    )}
+                  >
+                    {t(`ops.restroom.mark.${mark}`)}
+                  </button>
+                ))}
+              />
             );
           })}
         </div>
