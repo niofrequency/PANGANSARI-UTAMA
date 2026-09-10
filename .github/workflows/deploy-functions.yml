@@ -1,0 +1,51 @@
+name: Deploy Firebase Functions
+
+# Cloud Functions have no auto-deploy path today (see functions/package.json's
+# own "deploy" script, meant to be run by hand) — the main app auto-deploys to
+# Vercel on every push, but a function's `invoker`/`cors` config, or any other
+# change under functions/src, only takes effect once someone remembers to run
+# `firebase deploy --only functions` themselves. This closes that gap: any
+# push to main touching functions/ deploys automatically, and it's always
+# available on demand via the Actions tab (workflow_dispatch).
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'functions/**'
+      - '.github/workflows/deploy-functions.yml'
+  workflow_dispatch: {}
+
+env:
+  FIREBASE_PROJECT_ID: pangansari-utama
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install function dependencies
+        working-directory: functions
+        run: npm install
+
+      - name: Build functions
+        working-directory: functions
+        run: npm run build
+
+      # Authenticates as a GCP service account (see repo secret
+      # FIREBASE_SERVICE_ACCOUNT below) — the Firebase CLI picks up the
+      # credentials this exports via GOOGLE_APPLICATION_CREDENTIALS
+      # automatically, no login:ci token needed.
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Deploy to Firebase
+        run: npx firebase-tools@13 deploy --only functions --project "$FIREBASE_PROJECT_ID" --non-interactive

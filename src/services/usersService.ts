@@ -3,7 +3,7 @@
 // lowercased email so authService can look a profile up directly without
 // a query. See authService.ts for how accounts actually get activated.
 
-import { collection, doc, deleteDoc, deleteField, getDoc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, doc, deleteDoc, deleteField, getDoc, onSnapshot, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { User, UserRole } from '../types';
 
@@ -109,16 +109,23 @@ export async function toggleUserActiveDoc(email: string, isActive: boolean): Pro
 
 // Permanently removes the Firestore profile — the person disappears from
 // the Admin Portal and immediately loses access (their next login attempt
-// finds no invite and no active profile). This only deletes the Firestore
-// record, not the underlying Firebase Auth account (the client SDK can't
-// delete other users' Auth accounts without the Admin SDK/a Cloud
-// Function) — see the note in AdminPortal.tsx's confirmation dialog.
-// firestore.rules independently blocks this for anyone but the
-// super-admin, and blocks deleting the super-admin's own doc.
-export async function deleteUserDoc(email: string): Promise<void> {
+// finds no invite and no active profile). Also frees up their Staff ID: if
+// they had one set (see setStaffIdentityDoc below), the staffCodes/{CODE}
+// index entry pointing at them is deleted in the same batch, so that
+// number stops being permanently unreusable and someone new can be handed
+// it later. This only deletes Firestore records, not the underlying
+// Firebase Auth account (the client SDK can't delete other users' Auth
+// accounts without the Admin SDK/a Cloud Function) — see the note in
+// AdminPortal.tsx's confirmation dialog. firestore.rules independently
+// blocks both deletes for anyone but an admin, and blocks deleting the
+// super-admin's own doc.
+export async function deleteUserDoc(email: string, staffCode?: string): Promise<void> {
   if (!db) return;
   const emailLower = email.trim().toLowerCase();
-  await deleteDoc(doc(db, 'users', emailLower));
+  const batch = writeBatch(db);
+  batch.delete(doc(db, 'users', emailLower));
+  if (staffCode) batch.delete(doc(db, 'staffCodes', staffCode.trim().toUpperCase()));
+  await batch.commit();
 }
 
 export type SetStaffIdentityResult = { ok: true } | { ok: false; error: 'staffcode-taken' | 'not-configured' };
