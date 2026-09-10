@@ -501,7 +501,7 @@ export function useAppStore() {
     const target = users.find(u => u.id === userId);
     if (!target || target.email.toLowerCase() === SUPER_ADMIN_EMAIL) return; // super-admin can never be deleted
     if (isFirebaseConfigured) {
-      deleteUserDoc(target.email);
+      deleteUserDoc(target.email, target.staffCode);
       return;
     }
     setUsers(prev => prev.filter(u => u.id !== userId));
