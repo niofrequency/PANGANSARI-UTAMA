@@ -21,7 +21,12 @@ export function StaffReadyForm({ store, onCancel, onSubmitted }: {
   // Roster suggestions are for whichever site this submission is
   // actually for — not necessarily the supervisor's own Home Site once
   // they have Site Access to more than one (see hooks/useWorkingSite.ts).
-  const siteStaff = users.filter(u => u.site === workingSiteId && u.id !== currentUser?.id);
+  // Scoped to Food Safety Technicians specifically — same role scope as
+  // the Issue Warning picker in SupervisorPortal.tsx — not every account
+  // at the site: this is a Supervisor checking their own line staff's
+  // shift-readiness, not a roster of Housekeeping/other departments who
+  // just happen to share a site, or of other Supervisors/Managers.
+  const siteStaff = users.filter(u => u.site === workingSiteId && u.role === 'FOOD_SAFETY_TECHNICIAN');
 
   const [shift, setShift] = useState<'day' | 'night'>('day');
   const [rows, setRows] = useState<StaffReadyRow[]>([]);
