@@ -18,6 +18,7 @@ import { AdminPortal } from './components/Admin/AdminPortal';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { useTranslation } from './i18n/LanguageContext';
 import { DeepLinkAction, DeepLinkJob, parseDeepLink, consumeDeepLink, clearDeepLink, setDeepLink } from './lib/deepLink';
+import { titleKeyForChainType } from './data/opsLogsCatalog';
 import { UserRole } from './types';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -211,6 +212,21 @@ export default function App() {
     }
   }, []);
 
+  // Notification bell (Layout.tsx): this person's own submissions
+  // currently sitting REJECTED, across every type — the daily logs,
+  // Gemba Walk, and every Ops Log form all share the same reject/
+  // resubmit mechanism now (see opsLogsCatalog.ts's SIGNOFF_CHAINS), so
+  // one bell covers all of them regardless of which portal they'd go fix
+  // it in.
+  const rejectedNotices = currentUser
+    ? store.submissions
+        .filter(s => s.userId === currentUser.id && s.status === 'REJECTED')
+        .map(s => {
+          const titleKey = titleKeyForChainType(s.type);
+          return { id: s.id, title: titleKey ? t(titleKey) : s.type, reason: s.rejectionReason };
+        })
+    : [];
+
   const showStaffIdGate = !currentUser && (!!pendingJob || manualStaffIdLogin) && !showEmailLoginOverride;
 
   return (
@@ -261,7 +277,7 @@ export default function App() {
             exit={{ opacity: 0, y: -10 }}
             className="pb-20"
           >
-            <Layout user={currentUser} onLogout={logout} storageError={storageError}>
+            <Layout user={currentUser} onLogout={logout} storageError={storageError} rejectedNotices={rejectedNotices}>
               {renderPortal()}
             </Layout>
           </motion.div>

@@ -1,28 +1,25 @@
 import { useState } from 'react';
-import { useAppStore } from '../../store/useAppStore';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { cn } from '../../utils/cn';
-import { OpsHeaderChip } from './opsHelpers';
+import { OpsHeaderChip, OpsFormProps, ResubmitNotice } from './opsHelpers';
 import { RESTROOM_GROUPS, RESTROOM_SLOTS, RestroomSlot, RESTROOM_EXAMPLE_SECTION } from '../../data/restroomData';
 import { Clock } from 'lucide-react';
 import { useWorkingSite } from '../../hooks/useWorkingSite';
 
 // UN.00.45 Pembersihan Toilet — one submit = one restroom/section + one
 // slot (08/11/16). Two groups of points, each with its own mark set.
-export function RestroomForm({ store, onCancel, onSubmitted }: {
-  store: ReturnType<typeof useAppStore>;
-  // Optional: omitted on the dedicated Bathroom Janitor portal, where
-  // this is the only screen there is — nothing to cancel back to.
-  onCancel?: () => void;
-  onSubmitted: () => void;
-}) {
+export function RestroomForm({ store, onCancel, onSubmitted, editingSubmission }: OpsFormProps) {
   const { t, language } = useTranslation();
-  const { currentUser, sites, addSubmission } = store;
+  const { currentUser, sites, addSubmission, resubmitAfterRejection } = store;
   const { workingSiteId, workingSiteName: currentSiteName, availableSites, setWorkingSiteId } = useWorkingSite(currentUser, sites);
 
-  const [section, setSection] = useState('');
-  const [slot, setSlot] = useState<RestroomSlot>('08');
-  const [marks, setMarks] = useState<Record<string, string>>({});
+  const [section, setSection] = useState(editingSubmission?.meta?.section || '');
+  const [slot, setSlot] = useState<RestroomSlot>(editingSubmission?.meta?.slot || '08');
+  const [marks, setMarks] = useState<Record<string, string>>(() => {
+    const initial: Record<string, string> = {};
+    editingSubmission?.items.forEach(i => { initial[i.id] = String(i.answer); });
+    return initial;
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showValidation, setShowValidation] = useState(false);
 
@@ -39,33 +36,42 @@ export function RestroomForm({ store, onCancel, onSubmitted }: {
     }
     setIsSubmitting(true);
     await new Promise(r => setTimeout(r, 500));
-    addSubmission({
-      userId: currentUser.id,
-      userName: currentUser.name,
-      role: currentUser.role,
-      siteId: workingSiteId,
-      siteName: currentSiteName,
-      timestamp: new Date().toISOString(),
-      type: 'RESTROOM',
-      status: 'PENDING',
-      items: allItems.map(i => ({
-        id: i.id,
-        question: `${i.labelId} (${i.labelEn})`,
-        answer: marks[i.id],
-      })),
-      meta: {
-        formId: 'UN.00.45',
-        section: section.trim(),
-        slot,
-        signoff: { draftedBy: { userId: currentUser.id, name: currentUser.name, staffCode: currentUser.staffCode, at: new Date().toISOString() } },
-      },
-    });
+    const items = allItems.map(i => ({
+      id: i.id,
+      question: `${i.labelId} (${i.labelEn})`,
+      answer: marks[i.id],
+    }));
+    if (editingSubmission) {
+      resubmitAfterRejection(editingSubmission.id, {
+        items,
+        meta: { ...editingSubmission.meta, section: section.trim(), slot },
+      });
+    } else {
+      addSubmission({
+        userId: currentUser.id,
+        userName: currentUser.name,
+        role: currentUser.role,
+        siteId: workingSiteId,
+        siteName: currentSiteName,
+        timestamp: new Date().toISOString(),
+        type: 'RESTROOM',
+        status: 'PENDING',
+        items,
+        meta: {
+          formId: 'UN.00.45',
+          section: section.trim(),
+          slot,
+          signoff: { draftedBy: { userId: currentUser.id, name: currentUser.name, staffCode: currentUser.staffCode, at: new Date().toISOString() } },
+        },
+      });
+    }
     setIsSubmitting(false);
     onSubmitted();
   };
 
   return (
     <div className="space-y-6">
+      {editingSubmission && <ResubmitNotice />}
       <OpsHeaderChip
         siteName={currentSiteName}
         formId="UN.00.45"

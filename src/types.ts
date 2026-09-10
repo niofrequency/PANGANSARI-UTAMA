@@ -155,6 +155,13 @@ export interface Submission {
     qrRoomId?: string;
     // One proof photo for the whole submission, not per section.
     photoUrl?: string;
+    // The structured per-item state behind the formatted `items` above —
+    // `items[].remarks` stores the reason as translated display text, not
+    // the raw code, so it can't be read back reliably (especially across
+    // a language switch). This is what HousekeeperPortal actually reads
+    // when reopening a REJECTED submission to fix and resubmit (see
+    // resubmitAfterRejection in useAppStore.ts).
+    checklistState?: Record<string, { checked: boolean; reason?: 'occupied' | 'no_linen' | 'broken' }>;
 
     // Paper document number this submission corresponds to — shown on the
     // read-only header chip (site / department / form id / user / staff
@@ -199,6 +206,13 @@ export interface Submission {
 
     // LAUNDRY_SHOP (Laundryshop daily list)
     laundryDate?: string;
+    // The structured per-room input behind the formatted `items` above —
+    // `items` is display-only (a formatted summary string per room), so
+    // this is what LaundryShopForm actually reads back when reopening a
+    // REJECTED submission to fix and resubmit (see resubmitAfterRejection
+    // in useAppStore.ts) — without it, editing would mean retyping every
+    // room's counts from scratch.
+    laundryRows?: { id: string; roomNumber: string; counts: Record<string, string>; keterangan: string }[];
   };
 }
 

@@ -306,18 +306,17 @@ export function useAppStore() {
     setSubmissions(prev => [newSubmission, ...prev]);
   };
 
-  const updateSubmissionStatus = (id: string, status: Submission['status'], reason?: string) => {
-    setSubmissions(prev => prev.map(s => s.id === id ? { ...s, status, rejectionReason: reason } : s));
-  };
-
-  // Named sign-off chain for the additional ops logs (PSU_Additional_Ops_
-  // Forms_PRD.md section 6) — logged-in user + timestamp, not a signature
-  // canvas. Stamps a named slot (checkedBy/approvedBy/verifiedBy) on the
-  // submission's meta.signoff; if that was the LAST stamp its type's
-  // chain requires (see opsLogsCatalog.ts's SIGNOFF_CHAINS), the
-  // submission also flips from PENDING to APPROVED. Earlier stamps don't
-  // change status — the paper stays "in progress" until the final name
-  // signs it, same as the source forms.
+  // Named sign-off chain — every submission type now goes through one
+  // (Escalations and Ops Logs merged into one mechanism; see
+  // opsLogsCatalog.ts's SIGNOFF_CHAINS). Stamps a named slot (checkedBy/
+  // approvedBy/verifiedBy) on the submission's meta.signoff, logged-in
+  // user + timestamp, not a signature canvas; if that was the LAST stamp
+  // its type's chain requires, the submission also flips from PENDING to
+  // APPROVED. Earlier stamps don't change status — the paper stays "in
+  // progress" until the final name signs it, same as the source forms.
+  // The old single-step Approve/Reject this replaced, updateSubmission
+  // Status(), is gone: rejectSignoff() below covers what Reject used to
+  // do, and every Approve is now a stamp on some step.
   const addSignoffStamp = (submissionId: string, step: 'checkedBy' | 'approvedBy' | 'verifiedBy') => {
     if (!currentUser) return;
     setSubmissions(prev => prev.map(s => {
@@ -330,6 +329,36 @@ export function useAppStore() {
         ...s,
         meta: { ...s.meta, signoff: nextSignoff },
         status: isFinalStep ? 'APPROVED' : s.status,
+      };
+    }));
+  };
+
+  // Sends a submission back to whoever filed it instead of advancing the
+  // chain — same "someone has to decide" moment a plain Reject always
+  // was, just with the sign-off chain's partial progress left in place
+  // (as a record of how far it got) until it's actually resubmitted.
+  const rejectSignoff = (submissionId: string, reason: string) => {
+    setSubmissions(prev => prev.map(s => s.id === submissionId
+      ? { ...s, status: 'REJECTED' as const, rejectionReason: reason.trim() }
+      : s
+    ));
+  };
+
+  // The submitter fixes and resubmits the SAME record — not a new one —
+  // so its original id/timestamp/history stay intact. Restarts the chain
+  // from the first step: whatever had already been stamped before this
+  // doesn't carry over, since it was stamped against the old content.
+  const resubmitAfterRejection = (submissionId: string, updates: Partial<Pick<Submission, 'items' | 'meta' | 'score'>>) => {
+    if (!currentUser) return;
+    setSubmissions(prev => prev.map(s => {
+      if (s.id !== submissionId) return s;
+      const draftedBy = { userId: currentUser.id, name: currentUser.name, staffCode: currentUser.staffCode, at: new Date().toISOString() };
+      return {
+        ...s,
+        ...updates,
+        status: 'PENDING' as const,
+        rejectionReason: undefined,
+        meta: { ...s.meta, ...updates.meta, signoff: { draftedBy } },
       };
     }));
   };
@@ -530,8 +559,9 @@ export function useAppStore() {
     loginByStaffCode,
     logout,
     addSubmission,
-    updateSubmissionStatus,
     addSignoffStamp,
+    rejectSignoff,
+    resubmitAfterRejection,
     addUser,
     updateUserRole,
     updateUserSite,
