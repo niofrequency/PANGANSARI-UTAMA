@@ -3,7 +3,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { AnalyticsDashboard } from '../Dashboard/AnalyticsDashboard';
 import {
   Users, UserPlus, Shield, Trash2, XCircle, Search, Activity as ActivityIcon,
-  User as UserIcon, AlertTriangle, Copy, Check, Eye, EyeOff, RefreshCw, KeyRound, Hash, Printer,
+  User as UserIcon, AlertTriangle, Copy, Check, Eye, EyeOff, RefreshCw, KeyRound, Hash, Printer, Mail,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
@@ -93,7 +93,7 @@ function SiteAccessPicker({
 
 export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }) {
   const { t } = useTranslation();
-  const { users, sites, submissions, warnings, addUser, updateUserRole, updateUserSite, updateUserAssignedSites, resetUserCredentials, setStaffIdentity, deleteUser } = store;
+  const { users, sites, submissions, warnings, addUser, updateUserRole, updateUserSite, updateUserAssignedSites, resetUserCredentials, changeUserEmail, setStaffIdentity, deleteUser } = store;
   const [activeTab, setActiveTab] = useState<'USERS' | 'ACTIVITY' | 'ANALYTICS' | 'PRINT'>('USERS');
   const [search, setSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -120,6 +120,19 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
   const [isResetting, setIsResetting] = useState(false);
   const [resetError, setResetError] = useState('');
   const [resetSuccess, setResetSuccess] = useState(false);
+
+  // Change Email modal — client-only alternative to the Cloud-Function
+  // path above (see adminChangeEmailDirect.ts): briefly signs in AS the
+  // target person, so it needs their CURRENT password up front. Separate
+  // from Reset Login on purpose — password resets keep using the existing
+  // mechanism above; this one is just for email.
+  const [emailChangeTarget, setEmailChangeTarget] = useState<User | null>(null);
+  const [emailChangeCurrentPassword, setEmailChangeCurrentPassword] = useState('');
+  const [showEmailChangeCurrentPassword, setShowEmailChangeCurrentPassword] = useState(false);
+  const [emailChangeNewEmail, setEmailChangeNewEmail] = useState('');
+  const [isChangingEmail, setIsChangingEmail] = useState(false);
+  const [emailChangeError, setEmailChangeError] = useState('');
+  const [emailChangeSuccess, setEmailChangeSuccess] = useState(false);
 
   // Staff ID modal — sets/changes a user's Scan-to-Job Staff ID (see
   // StaffIdGate.tsx). No PIN — the code itself is the credential.
@@ -288,6 +301,49 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
       return;
     }
     setResetSuccess(true);
+  };
+
+  const openChangeEmailModal = (user: User) => {
+    setEmailChangeTarget(user);
+    setEmailChangeCurrentPassword('');
+    setShowEmailChangeCurrentPassword(false);
+    setEmailChangeNewEmail(user.email);
+    setEmailChangeError('');
+    setEmailChangeSuccess(false);
+  };
+
+  const closeChangeEmailModal = () => {
+    setEmailChangeTarget(null);
+  };
+
+  const handleChangeEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!emailChangeTarget) return;
+    setEmailChangeError('');
+
+    const newEmail = emailChangeNewEmail.trim().toLowerCase();
+    if (newEmail === emailChangeTarget.email.toLowerCase()) {
+      setEmailChangeError(t('admin.resetNothingToChange'));
+      return;
+    }
+    if (!emailChangeCurrentPassword) {
+      setEmailChangeError(t('admin.currentPasswordRequired'));
+      return;
+    }
+
+    setIsChangingEmail(true);
+    const result = await changeUserEmail(emailChangeTarget.id, emailChangeCurrentPassword, newEmail);
+    setIsChangingEmail(false);
+
+    if (!result.ok) {
+      setEmailChangeError(
+        result.error === 'already-exists' ? t('admin.emailAlreadyExists')
+          : result.error === 'wrong-password' ? t('admin.currentPasswordWrong')
+          : t('admin.createAccountFailed')
+      );
+      return;
+    }
+    setEmailChangeSuccess(true);
   };
 
   const openStaffIdModal = (user: User) => {
@@ -467,6 +523,15 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                         aria-label={t('admin.resetLoginButton')}
                       >
                         <KeyRound size={18} />
+                      </button>
+                    )}
+                    {user.email.toLowerCase() !== SUPER_ADMIN_EMAIL && isFirebaseConfigured && (
+                      <button
+                        onClick={() => openChangeEmailModal(user)}
+                        className="p-2 rounded-xl transition-all shrink-0 text-psu-blue bg-psu-blue/5 hover:bg-psu-blue/10"
+                        aria-label={t('admin.changeEmailButton')}
+                      >
+                        <Mail size={18} />
                       </button>
                     )}
                     {user.email.toLowerCase() !== SUPER_ADMIN_EMAIL && (
@@ -1125,6 +1190,111 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                         className="flex-[2] py-4 bg-psu-blue text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-psu-blue/20 active:scale-95 transition-all disabled:opacity-60"
                       >
                         {isResetting ? t('common.loading') : t('admin.resetLoginButton')}
+                      </button>
+                    </div>
+                  </form>
+                </>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {emailChangeTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-psu-gray/60 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white w-full max-w-sm rounded-[32px] p-8 shadow-2xl max-h-[90vh] overflow-y-auto"
+            >
+              {emailChangeSuccess ? (
+                <>
+                  <div className="flex flex-col items-center mb-6 text-center">
+                    <div className="w-16 h-16 bg-psu-green/10 rounded-2xl flex items-center justify-center text-psu-green mb-4">
+                      <Check size={28} />
+                    </div>
+                    <h3 className="text-lg font-bold tracking-tight text-psu-gray">{t('admin.changeEmailSuccessTitle')}</h3>
+                    <p className="text-xs text-psu-gray/60 font-medium mt-2 leading-relaxed">
+                      {t('admin.changeEmailSuccessBody', { name: emailChangeTarget.name, email: emailChangeNewEmail.trim().toLowerCase() })}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={closeChangeEmailModal}
+                    className="w-full py-4 bg-psu-green text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-psu-green/20 active:scale-95 transition-all"
+                  >
+                    {t('common.close')}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="flex flex-col items-center mb-8 text-center">
+                    <div className="w-16 h-16 bg-psu-blue/10 rounded-2xl flex items-center justify-center text-psu-blue mb-4">
+                      <Mail size={28} />
+                    </div>
+                    <h3 className="text-lg font-bold tracking-tight text-psu-gray">{t('admin.changeEmailTitle')}</h3>
+                    <p className="text-xs text-psu-gray/60 font-medium mt-2 leading-relaxed">
+                      {t('admin.changeEmailBody', { name: emailChangeTarget.name })}
+                    </p>
+                  </div>
+
+                  <form onSubmit={handleChangeEmail} className="space-y-5">
+                    <div>
+                      <label className="block text-[10px] font-black text-psu-gray/40 uppercase mb-2 tracking-widest">{t('admin.currentPasswordLabel')}</label>
+                      <div className="relative">
+                        <input
+                          type={showEmailChangeCurrentPassword ? 'text' : 'password'}
+                          value={emailChangeCurrentPassword}
+                          onChange={(e) => setEmailChangeCurrentPassword(e.target.value)}
+                          placeholder={t('admin.currentPasswordPlaceholder')}
+                          className="w-full p-4 pr-12 bg-psu-bg border border-psu-gray/10 rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-psu-blue/20 transition-all"
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowEmailChangeCurrentPassword(s => !s)}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-psu-gray/30"
+                          aria-label={showEmailChangeCurrentPassword ? t('auth.hidePassword') : t('auth.showPassword')}
+                        >
+                          {showEmailChangeCurrentPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-psu-gray/40 font-medium mt-2">{t('admin.currentPasswordNote')}</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-black text-psu-gray/40 uppercase mb-2 tracking-widest">{t('admin.newEmailLabel')}</label>
+                      <input
+                        type="email"
+                        value={emailChangeNewEmail}
+                        onChange={(e) => setEmailChangeNewEmail(e.target.value)}
+                        className="w-full p-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-psu-blue/20 transition-all"
+                      />
+                    </div>
+
+                    {emailChangeError && (
+                      <div className="flex items-start gap-2 p-3 bg-psu-rejected/5 text-psu-rejected text-xs rounded-xl">
+                        <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                        <span>{emailChangeError}</span>
+                      </div>
+                    )}
+
+                    <div className="flex gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={closeChangeEmailModal}
+                        className="flex-1 py-4 text-psu-gray/40 font-black text-[10px] uppercase tracking-widest"
+                      >
+                        {t('common.cancel')}
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isChangingEmail}
+                        className="flex-[2] py-4 bg-psu-blue text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-psu-blue/20 active:scale-95 transition-all disabled:opacity-60"
+                      >
+                        {isChangingEmail ? t('common.loading') : t('admin.changeEmailButton')}
                       </button>
                     </div>
                   </form>
