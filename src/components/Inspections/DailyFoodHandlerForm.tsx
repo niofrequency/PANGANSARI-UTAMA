@@ -1,10 +1,10 @@
 import { useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronDown, ClipboardCheck, Clock, Plus, Trash2, XCircle, User } from 'lucide-react';
+import { ChevronDown, ClipboardCheck, Clock, Plus, Trash2, XCircle, User, Check, X } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { DAILY_FOOD_HANDLER_GROUPS, DAILY_FOOD_HANDLER_ALL_CRITERIA } from '../../data/dailyFoodHandlerData';
-import { computeReadyToWork, countMarked, isGoodMark, isUnrecognizedMark, scoreRoster } from '../../data/dailyFoodHandlerScoring';
+import { computeReadyToWork, countMarked, isGoodMark, scoreRoster } from '../../data/dailyFoodHandlerScoring';
 import { DailyFoodHandlerRosterEntry, Submission } from '../../types';
 
 interface RowState {
@@ -206,23 +206,35 @@ export function DailyFoodHandlerForm({ onSubmit, onCancel, siteName }: Props) {
                                       <span className="font-bold text-psu-gray">{criterion.labelId}</span>
                                     )}
                                   </span>
-                                  <div className="flex flex-col items-end gap-1 shrink-0">
-                                    <input
-                                      value={mark || ''}
-                                      onChange={e => setMark(row.key, criterion.id, e.target.value)}
-                                      placeholder={t('dfh.markPlaceholder')}
-                                      maxLength={8}
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={() => setMark(row.key, criterion.id, 'v')}
+                                      aria-label={t('technician.markGood')}
+                                      aria-pressed={isGoodMark(mark)}
                                       className={cn(
-                                        "w-16 text-center p-2 rounded-lg text-xs font-black border-2 uppercase focus:outline-none transition-colors",
-                                        !mark ? "bg-psu-bg border-psu-gray/10 text-psu-gray/60" :
-                                        isGoodMark(mark) ? "bg-psu-green/10 border-psu-green text-psu-green" :
-                                        isUnrecognizedMark(mark) ? "bg-psu-warning/10 border-psu-warning text-psu-warning" :
-                                        "bg-psu-rejected/10 border-psu-rejected text-psu-rejected"
+                                        "w-9 h-9 rounded-xl flex items-center justify-center border-2 transition-all active:scale-95",
+                                        isGoodMark(mark)
+                                          ? "bg-psu-green border-psu-green text-white shadow-sm shadow-psu-green/30"
+                                          : "bg-psu-bg border-psu-gray/10 text-psu-gray/30 hover:border-psu-green/40 hover:text-psu-green"
                                       )}
-                                    />
-                                    {isUnrecognizedMark(mark) && (
-                                      <span className="text-[8.5px] font-bold text-psu-warning text-right leading-tight max-w-[90px]">{t('dfh.markUnrecognized')}</span>
-                                    )}
+                                    >
+                                      <Check size={16} strokeWidth={3} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setMark(row.key, criterion.id, 'x')}
+                                      aria-label={t('technician.markNotGood')}
+                                      aria-pressed={mark === 'x'}
+                                      className={cn(
+                                        "w-9 h-9 rounded-xl flex items-center justify-center border-2 transition-all active:scale-95",
+                                        mark === 'x'
+                                          ? "bg-psu-rejected border-psu-rejected text-white shadow-sm shadow-psu-rejected/30"
+                                          : "bg-psu-bg border-psu-gray/10 text-psu-gray/30 hover:border-psu-rejected/40 hover:text-psu-rejected"
+                                      )}
+                                    >
+                                      <X size={16} strokeWidth={3} />
+                                    </button>
                                   </div>
                                 </div>
                               );
