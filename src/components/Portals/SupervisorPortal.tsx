@@ -9,8 +9,6 @@ import { InspectionsTab } from '../Inspections/InspectionsTab';
 import { OpsLogsTab } from '../OpsLogs/OpsLogsTab';
 import { userCanSeeSite } from '../../lib/siteScope';
 import { DAILY_FOOD_HANDLER_ALL_CRITERIA } from '../../data/dailyFoodHandlerData';
-import { DeepLinkJob, parseDeepLinkFromUrl } from '../../lib/deepLink';
-import { ScanJobButton } from '../QrScanner';
 import { FieldReportsTab } from '../FieldReports/FieldReportsTab';
 
 // A Food Safety Technician's daily log folds in a personal wellness/hygiene/
@@ -33,10 +31,9 @@ interface SupervisorPortalProps {
   // wait for — the whole tab is the destination).
   startTab?: 'OPS_LOGS';
   onDeepLinkHandled?: () => void;
-  onScanJob?: (job: DeepLinkJob) => void;
 }
 
-export function SupervisorPortal({ store, startTab, onDeepLinkHandled, onScanJob }: SupervisorPortalProps) {
+export function SupervisorPortal({ store, startTab, onDeepLinkHandled }: SupervisorPortalProps) {
   const { t } = useTranslation();
   const { currentUser, submissions, updateSubmissionStatus, addWarning, users } = store;
   const isFoodSafety = currentUser?.role === 'FOOD_SAFETY_SUPERVISOR';
@@ -56,11 +53,6 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled, onScanJob
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startTab]);
-
-  const handleScanned = (rawValue: string) => {
-    const job = parseDeepLinkFromUrl(rawValue);
-    if (job) onScanJob?.(job);
-  };
 
   // Site-scoped (Home Site by default, or wider if the Admin gave this
   // Supervisor a Site Access override — see lib/siteScope.ts) *and*
@@ -112,39 +104,29 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled, onScanJob
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="flex flex-1 bg-white rounded-2xl p-1.5 shadow-sm border border-psu-gray/5">
-          {[
-            { id: 'QUEUE' as const, icon: ListChecks, label: t('supervisorHK.queueTitle') },
-            { id: 'OPS_LOGS' as const, icon: ClipboardList, label: t('ops.tabTitle') },
-            { id: 'REPORTS' as const, icon: MessageSquareWarning, label: t('fieldReport.tabTitle') },
-            // Housekeeping Supervisor gets this too now, restricted to
-            // Gemba Walk's Section A only — see InspectionsTab.tsx.
-            { id: 'INSPECTIONS' as const, icon: ClipboardCheck, label: t('inspection.tabTitle') },
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={cn(
-                "flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
-                activeTab === tab.id
-                  ? "bg-psu-blue text-white shadow-md shadow-psu-blue/20"
-                  : "text-psu-gray/40 hover:text-psu-gray"
-              )}
-            >
-              <tab.icon size={18} />
-              {tab.label}
-            </button>
-          ))}
-        </div>
-        {isFoodSafety && (
-          <ScanJobButton
-            onScanned={handleScanned}
-            label={t('housekeeper.scanJobButton')}
-            iconOnly
-            className="w-11 h-11 rounded-2xl bg-white border border-psu-gray/5 shadow-sm text-psu-gray/50 flex items-center justify-center active:scale-95 transition-all shrink-0"
-          />
-        )}
+      <div className="flex bg-white rounded-2xl p-1.5 shadow-sm border border-psu-gray/5">
+        {[
+          { id: 'QUEUE' as const, icon: ListChecks, label: t('supervisorHK.queueTitle') },
+          { id: 'OPS_LOGS' as const, icon: ClipboardList, label: t('ops.tabTitle') },
+          { id: 'REPORTS' as const, icon: MessageSquareWarning, label: t('fieldReport.tabTitle') },
+          // Housekeeping Supervisor gets this too now, restricted to
+          // Gemba Walk's Section A only — see InspectionsTab.tsx.
+          { id: 'INSPECTIONS' as const, icon: ClipboardCheck, label: t('inspection.tabTitle') },
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={cn(
+              "flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+              activeTab === tab.id
+                ? "bg-psu-blue text-white shadow-md shadow-psu-blue/20"
+                : "text-psu-gray/40 hover:text-psu-gray"
+            )}
+          >
+            <tab.icon size={18} />
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {activeTab === 'INSPECTIONS' && (
