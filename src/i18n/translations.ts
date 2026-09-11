@@ -307,6 +307,12 @@ export const translations = {
       bannerTitle: 'Training Library',
       bannerSubtitle: 'Complete modules to stay compliant',
     },
+    hazmat: {
+      sectionTitle: 'Safety Reference',
+      sectionSubtitle: 'Tap a symbol to see what it means and what to do',
+      whatToDoLabel: 'What to do',
+      foundOnLabel: 'Found on',
+    },
     photoCapture: {
       takePhoto: 'Take Photo',
       stamping: 'Stamping photo...',
@@ -936,6 +942,12 @@ export const translations = {
     trainings: {
       bannerTitle: 'Pustaka Pelatihan',
       bannerSubtitle: 'Selesaikan modul untuk tetap patuh',
+    },
+    hazmat: {
+      sectionTitle: 'Referensi Keselamatan',
+      sectionSubtitle: 'Ketuk simbol untuk melihat artinya dan apa yang harus dilakukan',
+      whatToDoLabel: 'Yang harus dilakukan',
+      foundOnLabel: 'Ditemukan pada',
     },
     photoCapture: {
       takePhoto: 'Ambil Foto',

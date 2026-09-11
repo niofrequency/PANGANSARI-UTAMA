@@ -4,6 +4,7 @@ import { PlayCircle, FileText, CheckCircle2, ChevronRight } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '../utils/cn';
 import { useTranslation } from '../i18n/LanguageContext';
+import { HazmatGuide } from './HazmatGuide';
 
 interface TrainingsTabProps {
   trainings: TrainingModule[];
@@ -14,16 +15,19 @@ interface TrainingsTabProps {
 export function TrainingsTab({ trainings, userId, onComplete }: TrainingsTabProps) {
   const { t } = useTranslation();
   return (
-    <div className="space-y-6">
-      <div className="bg-psu-blue/10 p-5 rounded-2xl border border-psu-blue/5 shadow-lg shadow-psu-blue/5">
-        <h3 className="text-psu-blue text-sm font-black flex items-center gap-2 uppercase tracking-widest">
-          <PlayCircle size={20} />
-          {t('trainings.bannerTitle')}
-        </h3>
-        <p className="text-[10px] text-psu-blue/50 mt-1 uppercase font-bold tracking-widest">{t('trainings.bannerSubtitle')}</p>
-      </div>
+    <div className="space-y-8">
+      <HazmatGuide />
 
-      <div className="grid gap-3">
+      <div className="space-y-6">
+        <div className="bg-psu-blue/10 p-5 rounded-2xl border border-psu-blue/5 shadow-lg shadow-psu-blue/5">
+          <h3 className="text-psu-blue text-sm font-black flex items-center gap-2 uppercase tracking-widest">
+            <PlayCircle size={20} />
+            {t('trainings.bannerTitle')}
+          </h3>
+          <p className="text-[10px] text-psu-blue/50 mt-1 uppercase font-bold tracking-widest">{t('trainings.bannerSubtitle')}</p>
+        </div>
+
+        <div className="grid gap-3">
         {trainings.map((module) => {
           const isCompleted = module.completedBy.includes(userId);
           
@@ -59,6 +63,7 @@ export function TrainingsTab({ trainings, userId, onComplete }: TrainingsTabProp
             </motion.div>
           );
         })}
+        </div>
       </div>
     </div>
   );
