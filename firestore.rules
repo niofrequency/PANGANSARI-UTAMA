@@ -7,27 +7,32 @@ rules_version = '2';
 //   users        — accounts + roles
 //   submissions  — checklist/work-order submissions
 //   warnings     — supervisor-issued warnings
+//   fieldReports — "something's broken" reports
 //   trainings    — training module completion
 //
-// NOTE: as of this version, `users`, `submissions`, and `warnings` are all
-// actually read/written from Firestore by the client (authService.ts /
-// usersService.ts, submissionsService.ts, warningsService.ts) — see
-// useAppStore.ts. `trainings` is still pending that same migration and
-// still lives in each browser's localStorage for now; its rules below are
-// ready for whenever that happens, same as the other three were before
-// this version.
+// NOTE: as of this version, all five collections above are actually
+// read/written from Firestore by the client (authService.ts/
+// usersService.ts, submissionsService.ts, warningsService.ts,
+// fieldReportsService.ts, trainingsService.ts) — see useAppStore.ts.
+// Module content itself (trainings/{moduleId}'s name/description/etc.,
+// as opposed to who's completed it) is still expected to be added
+// directly in the Firebase Console — nothing in the client ever creates
+// or deletes a module, hence create/delete staying isAdmin()-only below
+// rather than open to any signed-in caller.
 //
-// KNOWN GAP even after this version: a Staff ID login (StaffIdGate.tsx)
-// never establishes a real Firebase Auth session at all (see
-// loginByStaffCode's comment in authService.ts) — isSignedIn() below is
-// request.auth != null, which is never true for that kind of session. So
-// anyone signed in via Staff ID currently cannot read OR write ANY
-// collection gated by isSignedIn(), submissions included — every attempt
-// fails with permission-denied. Fixing that needs a server-side custom
-// Auth token minted from a verified Staff ID (a Cloud Function, since
-// only the Admin SDK can mint one) — not something a rules change alone
-// can solve, since there's no client-side way to prove identity to
-// Firestore without a real Firebase Auth session of some kind.
+// Staff ID logins (StaffIdGate.tsx) used to never establish a real
+// Firebase Auth session at all, meaning isSignedIn() below (request.auth
+// != null) was never true for that kind of session — every read/write
+// gated by it, submissions included, failed with permission-denied. As of
+// this version that's fixed on a best-effort basis: loginByStaffCode
+// (authService.ts) now calls mintStaffCodeToken (functions/src/index.ts)
+// to mint a real custom Auth token, server-side, for that same account's
+// existing uid — but that Cloud Function has to actually be deployed
+// (`firebase deploy --only functions`) for the upgrade to take effect. A
+// Staff ID session on a project where it isn't deployed yet (or where the
+// call fails for any other reason) still falls back to the old
+// no-real-session behavior — same isSignedIn()-blocked limitation as
+// before, not a regression, just not yet upgraded.
 //
 // Open self-signup is allowed: a new user may create their OWN users/{email}
 // doc once, with a non-ADMIN role. Admin still controls role changes after that.
@@ -173,7 +178,29 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // ── trainings (not yet used by the client — see note above) ───────
+    // ── fieldReports ────────────────────────────────────────────────
+    // "Something's broken" reports (ReportIssueButton.tsx) — a frontline
+    // worker files one, a Supervisor/Manager acknowledges then resolves
+    // it (FieldReportsTab.tsx / MyFieldReports.tsx). Same two-actor shape
+    // as submissions' checkedBy/approvedBy stamps, just a flatter status
+    // (OPEN -> ACKNOWLEDGED -> RESOLVED) instead of a named chain.
+    match /fieldReports/{reportId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == 'OPEN';
+
+      // A reviewer (not the filer) acknowledging or resolving — never
+      // rewrites the original message/photo.
+      allow update: if isSignedIn()
+        && request.auth.uid != resource.data.userId
+        && onlyChanged(['status', 'acknowledgedBy', 'acknowledgedAt', 'resolvedBy', 'resolvedAt', 'resolutionNote']);
+
+      allow delete: if false;
+    }
+
+    // ── trainings ───────────────────────────────────────────────────
     match /trainings/{moduleId} {
       allow read: if isSignedIn();
 

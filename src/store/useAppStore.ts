@@ -16,6 +16,8 @@ import { resetStaffCredentials } from '../services/adminResetCredentials';
 import { changeUserEmailDirect } from '../services/adminChangeEmailDirect';
 import { subscribeSubmissions, addSubmissionDoc, updateSubmissionDoc, CLEAR_FIELD } from '../services/submissionsService';
 import { subscribeWarnings, addWarningDoc } from '../services/warningsService';
+import { subscribeFieldReports, addFieldReportDoc, updateFieldReportDoc } from '../services/fieldReportsService';
+import { subscribeTrainings, completeTrainingDoc } from '../services/trainingsService';
 import { isValidStaffCode } from '../utils/staffCode';
 import { SIGNOFF_CHAINS } from '../data/opsLogsCatalog';
 
@@ -103,11 +105,13 @@ export function useAppStore() {
   });
 
   const [fieldReports, setFieldReports] = useState<FieldReport[]>(() => {
+    if (isFirebaseConfigured) return []; // populated by subscribeFieldReports below
     const saved = localStorage.getItem('psu_field_reports_v1');
     return saved ? JSON.parse(saved) : INITIAL_FIELD_REPORTS;
   });
 
   const [trainings, setTrainings] = useState<TrainingModule[]>(() => {
+    if (isFirebaseConfigured) return []; // populated by subscribeTrainings below
     const saved = localStorage.getItem('psu_trainings_v4');
     return saved ? JSON.parse(saved) : TRAINING_MODULES;
   });
@@ -186,6 +190,28 @@ export function useAppStore() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isFirebaseConfigured, currentUser?.id, pinSessionActive]);
 
+  useEffect(() => {
+    if (!isFirebaseConfigured) return;
+    if (!currentUser || pinSessionActive) {
+      setFieldReports([]);
+      return;
+    }
+    const unsubFieldReports = subscribeFieldReports(setFieldReports);
+    return () => unsubFieldReports();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFirebaseConfigured, currentUser?.id, pinSessionActive]);
+
+  useEffect(() => {
+    if (!isFirebaseConfigured) return;
+    if (!currentUser || pinSessionActive) {
+      setTrainings([]);
+      return;
+    }
+    const unsubTrainings = subscribeTrainings(setTrainings);
+    return () => unsubTrainings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFirebaseConfigured, currentUser?.id, pinSessionActive]);
+
   // Set (and cleared) whenever a localStorage write below fails — almost
   // always QuotaExceededError once the browser's per-origin storage limit
   // is hit, which is a real risk here: submissions carry full photos as
@@ -234,10 +260,12 @@ export function useAppStore() {
   }, [warnings]);
 
   useEffect(() => {
+    if (isFirebaseConfigured) return;
     safeSetItem('psu_field_reports_v1', JSON.stringify(fieldReports));
   }, [fieldReports]);
 
   useEffect(() => {
+    if (isFirebaseConfigured) return;
     safeSetItem('psu_trainings_v4', JSON.stringify(trainings));
   }, [trainings]);
 
@@ -633,6 +661,10 @@ export function useAppStore() {
   };
 
   const addFieldReport = (report: Omit<FieldReport, 'id' | 'status'>) => {
+    if (isFirebaseConfigured) {
+      addFieldReportDoc({ ...report, status: 'OPEN' }).catch((err) => console.error('addFieldReport failed:', err));
+      return;
+    }
     const newReport: FieldReport = { ...report, id: `fr-${Date.now()}`, status: 'OPEN' };
     setFieldReports(prev => [newReport, ...prev]);
   };
@@ -640,8 +672,13 @@ export function useAppStore() {
   // "Seen, working on it" — doesn't require a note, unlike resolving.
   const acknowledgeFieldReport = (id: string) => {
     if (!currentUser) return;
+    const patch = { status: 'ACKNOWLEDGED', acknowledgedBy: currentUser.name, acknowledgedAt: new Date().toISOString() };
+    if (isFirebaseConfigured) {
+      updateFieldReportDoc(id, patch).catch((err) => console.error('acknowledgeFieldReport failed:', err));
+      return;
+    }
     setFieldReports(prev => prev.map(r => r.id === id
-      ? { ...r, status: 'ACKNOWLEDGED' as FieldReportStatus, acknowledgedBy: currentUser.name, acknowledgedAt: new Date().toISOString() }
+      ? { ...r, ...patch as Partial<FieldReport>, status: 'ACKNOWLEDGED' as FieldReportStatus }
       : r
     ));
   };
@@ -650,16 +687,25 @@ export function useAppStore() {
   // sees what was done about it, not just a status flip.
   const resolveFieldReport = (id: string, note: string) => {
     if (!currentUser) return;
+    const patch = { status: 'RESOLVED', resolvedBy: currentUser.name, resolvedAt: new Date().toISOString(), resolutionNote: note.trim() };
+    if (isFirebaseConfigured) {
+      updateFieldReportDoc(id, patch).catch((err) => console.error('resolveFieldReport failed:', err));
+      return;
+    }
     setFieldReports(prev => prev.map(r => r.id === id
-      ? { ...r, status: 'RESOLVED' as FieldReportStatus, resolvedBy: currentUser.name, resolvedAt: new Date().toISOString(), resolutionNote: note.trim() }
+      ? { ...r, ...patch as Partial<FieldReport>, status: 'RESOLVED' as FieldReportStatus }
       : r
     ));
   };
 
   const completeTraining = (userId: string, moduleId: string) => {
-    setTrainings(prev => prev.map(t => 
-      t.id === moduleId && !t.completedBy.includes(userId) 
-        ? { ...t, completedBy: [...t.completedBy, userId] } 
+    if (isFirebaseConfigured) {
+      completeTrainingDoc(moduleId, userId).catch((err) => console.error('completeTraining failed:', err));
+      return;
+    }
+    setTrainings(prev => prev.map(t =>
+      t.id === moduleId && !t.completedBy.includes(userId)
+        ? { ...t, completedBy: [...t.completedBy, userId] }
         : t
     ));
   };
