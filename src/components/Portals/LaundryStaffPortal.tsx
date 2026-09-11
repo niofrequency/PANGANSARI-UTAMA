@@ -10,6 +10,7 @@ import { DeepLinkJob, parseDeepLinkFromUrl } from '../../lib/deepLink';
 import { ScanJobButton } from '../QrScanner';
 import { ReportIssueButton } from '../FieldReports/ReportIssueButton';
 import { MyFieldReports } from '../FieldReports/MyFieldReports';
+import { PortalHeaderRow } from '../OpsLogs/opsHelpers';
 
 interface LaundryStaffPortalProps {
   store: ReturnType<typeof useAppStore>;
@@ -72,9 +73,9 @@ export function LaundryStaffPortal({ store, fromQr, onDeepLinkHandled, onScanJob
       <AnimatePresence mode="wait">
         {activeTab === 'TASKS' && (
           <motion.div key="tasks" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} className="space-y-6">
-            <div className="flex items-center justify-between px-2 gap-3">
-              <h2 className="text-xl font-bold tracking-tight text-psu-gray truncate">{t('ops.laundryShop.title')}</h2>
-              <div className="flex items-center gap-2 shrink-0">
+            <PortalHeaderRow
+              title={t('ops.laundryShop.title')}
+              controls={<>
                 <ReportIssueButton store={store} siteId={reportSiteId} siteName={reportSiteName} department="HOUSEKEEPING" />
                 <ScanJobButton
                   onScanned={handleScanned}
@@ -82,8 +83,8 @@ export function LaundryStaffPortal({ store, fromQr, onDeepLinkHandled, onScanJob
                   iconOnly
                   className="w-9 h-9 rounded-xl bg-white border border-psu-gray/10 text-psu-gray/50 flex items-center justify-center active:scale-95 transition-all shrink-0"
                 />
-              </div>
-            </div>
+              </>}
+            />
             <LaundryShopForm
               store={store}
               onSubmitted={() => { setActiveTab('HISTORY'); if (cameFromQr) onDeepLinkHandled?.(); }}
