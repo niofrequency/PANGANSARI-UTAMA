@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { AnalyticsDashboard } from '../Dashboard/AnalyticsDashboard';
-import { LayoutDashboard, Settings, ClipboardCheck, ClipboardList } from 'lucide-react';
+import { LayoutDashboard, ClipboardCheck, ClipboardList, ListTodo } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { InspectionsTab } from '../Inspections/InspectionsTab';
 import { OpsLogsTab } from '../OpsLogs/OpsLogsTab';
+import { CorrectiveActionsTab } from '../CorrectiveActions/CorrectiveActionsTab';
 import { userCanSeeSite } from '../../lib/siteScope';
 
 // The daily Housekeeping/Food Safety Escalations queue used to live here
@@ -27,7 +28,7 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
   // departments' Ops Logs queue, below.
   const isGeneralManager = currentUser?.role === 'GENERAL_MANAGER';
   const isFoodSafety = currentUser?.role === 'FOOD_SAFETY_MANAGER' || isGeneralManager;
-  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'OPS_LOGS' | 'INSPECTIONS'>('DASHBOARD');
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'OPS_LOGS' | 'ACTIONS' | 'INSPECTIONS'>('DASHBOARD');
 
   // The Dashboard tab used to get the raw, unfiltered store data — every
   // site's submissions, blended together, regardless of who was looking at
@@ -47,6 +48,7 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
   const tabs = [
     { id: 'DASHBOARD' as const, icon: LayoutDashboard, label: t('manager.tabAnalytics') },
     { id: 'OPS_LOGS' as const, icon: ClipboardList, label: t('ops.tabTitle') },
+    { id: 'ACTIONS' as const, icon: ListTodo, label: t('correctiveAction.tabTitle') },
     ...(isFoodSafety ? [{ id: 'INSPECTIONS' as const, icon: ClipboardCheck, label: t('inspection.tabTitle') }] : []),
   ];
 
@@ -78,11 +80,15 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.98 }}
           >
-            <div className="flex items-center justify-between mb-6 px-2">
+            {/* This used to sit next to a gear-icon "Settings" button that
+                had no onClick at all — dead decoration left over from an
+                early scaffold, not a feature anyone could ever open.
+                There's no dashboard-level settings concept anywhere else
+                in the app to wire it to (language/account/logout already
+                live in the header — see Layout.tsx), so it's removed
+                rather than left to silently do nothing when tapped. */}
+            <div className="mb-6 px-2">
               <h2 className="text-xl font-bold tracking-tight text-psu-gray">{t('manager.dashboardTitle')}</h2>
-              <button className="w-10 h-10 flex items-center justify-center text-psu-gray/30 bg-white rounded-xl border border-psu-gray/5 shadow-sm">
-                <Settings size={18} />
-              </button>
             </div>
             <AnalyticsDashboard submissions={dashboardSubmissions} warnings={dashboardWarnings} sites={dashboardSites} users={users} />
           </motion.div>
@@ -123,6 +129,17 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
                 <OpsLogsTab store={store} department="FOOD_SAFETY" tier="manager" />
               </div>
             )}
+          </motion.div>
+        )}
+
+        {activeTab === 'ACTIONS' && (
+          <motion.div
+            key="actions"
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+          >
+            <CorrectiveActionsTab store={store} department={isFoodSafety ? 'FOOD_SAFETY' : 'HOUSEKEEPING'} isGeneralManager={isGeneralManager} />
           </motion.div>
         )}
       </AnimatePresence>

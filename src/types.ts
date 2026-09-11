@@ -244,6 +244,67 @@ export interface Warning {
 // as their regular submissions (see lib/siteScope.ts).
 export type FieldReportStatus = 'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED';
 
+// Corrective Actions — a lightweight CAPA-style tracker: a Supervisor,
+// Manager, or GM raises one (comment on what's wrong + the action to
+// take), assigns it to anyone in their own site/department scope
+// (including frontline staff, not just other reviewers), with a due
+// date. Deliberately its own collection rather than a mode of
+// FieldReport: a field report is "something I noticed," a corrective
+// action is "something someone else has to go do by a date" — different
+// shape (assignedTo/dueDate have no equivalent on FieldReport) and a
+// two-step closure FieldReport's flat OPEN->ACKNOWLEDGED->RESOLVED
+// doesn't have.
+//
+// Closure is two-step by design: the ASSIGNEE marking it "done" isn't
+// enough to close it — the person who assigned it (createdBy, who is
+// always the verifier) has to check the completion note and either
+// verify (closing it) or reject it back to OPEN with a note of their own
+// if the work isn't actually done, same reopen-for-another-try shape as
+// a rejected Submission.
+//
+// No push/email/SMS exists anywhere in this app (see App.tsx/Layout.tsx
+// — there's no messaging infrastructure at all), so an overdue action can
+// only ever be a visual flag wherever it's listed, never a notification.
+export type CorrectiveActionStatus = 'OPEN' | 'DONE' | 'VERIFIED';
+
+export interface CorrectiveAction {
+  id: string;
+  comment: string; // what's wrong
+  action: string; // what to do about it
+  assignedToId: string;
+  assignedToName: string;
+  createdById: string;
+  createdByName: string;
+  // The assignee's site/department at creation time — same purpose as
+  // FieldReport.siteId/department: lets the Admin Portal's Activity tab
+  // scope-filter this collection the same way it does submissions/
+  // warnings/field reports, without re-deriving it from a live user
+  // lookup every render.
+  siteId: string;
+  siteName: string;
+  department: 'HOUSEKEEPING' | 'FOOD_SAFETY';
+  createdAt: string;
+  dueDate: string; // ISO date (yyyy-mm-dd) — no time-of-day, matches how due dates are actually set (a day, not a moment)
+  status: CorrectiveActionStatus;
+  // Optional link back to whatever prompted this action — a Gemba Walk
+  // finding, a submission, or a field report. No enforced shape beyond
+  // "some record, somewhere" since which collection sourceId points into
+  // depends on sourceType; nothing currently deep-links off of this, it's
+  // just provenance.
+  sourceType?: 'SUBMISSION' | 'FIELD_REPORT';
+  sourceId?: string;
+  // Step 1: the assignee marks it done.
+  completedAt?: string;
+  completionNote?: string;
+  // Step 2: the creator (verifier) either closes it...
+  verifiedAt?: string;
+  // ...or sends it back to OPEN with a reason — same record, so the
+  // assignee still sees their own completionNote/completedAt from the
+  // attempt that got rejected, right alongside why it wasn't accepted.
+  reopenedAt?: string;
+  reopenedNote?: string;
+}
+
 export interface FieldReport {
   id: string;
   userId: string;

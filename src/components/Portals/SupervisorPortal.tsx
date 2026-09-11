@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../../store/useAppStore';
-import { AlertTriangle, ClipboardCheck, ListChecks, ClipboardList, MessageSquareWarning } from 'lucide-react';
+import { AlertTriangle, ClipboardCheck, ListChecks, ListTodo, MessageSquareWarning } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { InspectionsTab } from '../Inspections/InspectionsTab';
 import { OpsLogsTab } from '../OpsLogs/OpsLogsTab';
 import { FieldReportsTab } from '../FieldReports/FieldReportsTab';
+import { CorrectiveActionsTab } from '../CorrectiveActions/CorrectiveActionsTab';
 
 interface SupervisorPortalProps {
   store: ReturnType<typeof useAppStore>;
@@ -31,7 +32,7 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled }: Supervi
   const { t } = useTranslation();
   const { currentUser, addWarning, users } = store;
   const isFoodSafety = currentUser?.role === 'FOOD_SAFETY_SUPERVISOR';
-  const [activeTab, setActiveTab] = useState<'OPS_LOGS' | 'REPORTS' | 'INSPECTIONS'>(startTab ?? 'OPS_LOGS');
+  const [activeTab, setActiveTab] = useState<'OPS_LOGS' | 'REPORTS' | 'ACTIONS' | 'INSPECTIONS'>(startTab ?? 'OPS_LOGS');
   const [showWarningDialog, setShowWarningDialog] = useState(false);
   const [warningData, setWarningData] = useState({ userId: '', reason: '', severity: 'LOW' as any });
 
@@ -69,6 +70,7 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled }: Supervi
         {[
           { id: 'OPS_LOGS' as const, icon: ListChecks, label: t('ops.tabTitle') },
           { id: 'REPORTS' as const, icon: MessageSquareWarning, label: t('fieldReport.tabTitle') },
+          { id: 'ACTIONS' as const, icon: ListTodo, label: t('correctiveAction.tabTitle') },
           // Housekeeping Supervisor gets this too now, restricted to
           // Gemba Walk's Section A only — see InspectionsTab.tsx.
           { id: 'INSPECTIONS' as const, icon: ClipboardCheck, label: t('inspection.tabTitle') },
@@ -99,6 +101,10 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled }: Supervi
 
       {activeTab === 'REPORTS' && (
         <FieldReportsTab store={store} department={isFoodSafety ? 'FOOD_SAFETY' : 'HOUSEKEEPING'} />
+      )}
+
+      {activeTab === 'ACTIONS' && (
+        <CorrectiveActionsTab store={store} department={isFoodSafety ? 'FOOD_SAFETY' : 'HOUSEKEEPING'} />
       )}
 
       {/* Not tied to any one tab — a Food Safety Supervisor can flag a

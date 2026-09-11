@@ -13,6 +13,7 @@ import { ScanJobButton } from '../QrScanner';
 import { useWorkingSite } from '../../hooks/useWorkingSite';
 import { ReportIssueButton } from '../FieldReports/ReportIssueButton';
 import { MyFieldReports } from '../FieldReports/MyFieldReports';
+import { MyActionItems } from '../CorrectiveActions/MyActionItems';
 import { ResubmitNotice, ChecklistRow, PortalHeaderRow } from '../OpsLogs/opsHelpers';
 
 type DeepLinkStartAt = 'fridge' | 'core' | 'clean' | 'wellness';
@@ -498,6 +499,7 @@ export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob 
               ))}
             </div>
             <MyFieldReports store={store} />
+            <MyActionItems store={store} />
           </motion.div>
         )}
 

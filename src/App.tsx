@@ -16,6 +16,10 @@ import { ManagerPortal } from './components/Portals/ManagerPortal';
 import { TechnicianPortal } from './components/Portals/TechnicianPortal';
 import { AdminPortal } from './components/Admin/AdminPortal';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
+import { PrivacyPolicyPage } from './components/Legal/PrivacyPolicyPage';
+import { TermsOfServicePage } from './components/Legal/TermsOfServicePage';
+import { CookiePolicyPage } from './components/Legal/CookiePolicyPage';
+import { NotFoundPage } from './components/Legal/NotFoundPage';
 import { useTranslation } from './i18n/LanguageContext';
 import { DeepLinkAction, DeepLinkJob, parseDeepLink, consumeDeepLink, clearDeepLink, setDeepLink } from './lib/deepLink';
 import { titleKeyForChainType } from './data/opsLogsCatalog';
@@ -228,6 +232,20 @@ export default function App() {
     : [];
 
   const showStaffIdGate = !currentUser && (!!pendingJob || manualStaffIdLogin) && !showEmailLoginOverride;
+
+  // Standalone pages that live outside the login/portal flow entirely —
+  // reachable directly at these URLs (vercel.json rewrites every path to
+  // index.html, so this is the only routing these need), no account
+  // required. Checked after every hook above so hook order never changes
+  // between renders, but before any of the auth/portal JSX below.
+  // window.location.pathname is stable for the life of this mounted
+  // instance (the app has no client-side navigation), so it always
+  // resolves to the same branch on every re-render.
+  const pathname = window.location.pathname;
+  if (pathname === '/privacy') return <PrivacyPolicyPage />;
+  if (pathname === '/terms') return <TermsOfServicePage />;
+  if (pathname === '/cookies') return <CookiePolicyPage />;
+  if (pathname !== '/' && pathname !== '/go') return <NotFoundPage />;
 
   return (
     <div className="min-h-screen bg-psu-bg font-sans">
