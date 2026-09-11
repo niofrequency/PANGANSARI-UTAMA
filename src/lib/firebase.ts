@@ -23,7 +23,7 @@
 
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
 import { getAuth, setPersistence, browserLocalPersistence, type Auth } from 'firebase/auth';
-import { getFirestore, type Firestore } from 'firebase/firestore';
+import { initializeFirestore, type Firestore } from 'firebase/firestore';
 import { getFunctions, type Functions } from 'firebase/functions';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
 
@@ -48,7 +48,14 @@ export const app: FirebaseApp | null = isFirebaseConfigured
   : null;
 
 export const auth: Auth | null = app ? getAuth(app) : null;
-export const db: Firestore | null = app ? getFirestore(app) : null;
+// ignoreUndefinedProperties matters here specifically: form code all over
+// this app builds submission fields like `remarks: [...].join(' · ') ||
+// undefined` (omit if empty) — Firestore's default behavior is to THROW
+// on any explicit `undefined` value instead of just dropping the field,
+// which would otherwise break most submission writes the moment any
+// optional field is left unset. getFirestore() doesn't expose this
+// option; initializeFirestore() does.
+export const db: Firestore | null = app ? initializeFirestore(app, { ignoreUndefinedProperties: true }) : null;
 // Powers calls to Cloud Functions (see functions/src/index.ts) — e.g.
 // reclaimAbandonedSignup, called from authService.ts when a self-signup
 // hits an orphaned Auth account. Region must match the Cloud Functions

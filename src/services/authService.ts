@@ -26,6 +26,7 @@
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  signInWithCustomToken,
   signInWithPopup,
   GoogleAuthProvider,
   signOut,
@@ -424,34 +425,44 @@ export async function loginWithGoogle(): Promise<LoginResult> {
 }
 
 export type StaffCodeLoginResult =
-  | { ok: true; profile: FirestoreUserProfile }
+  // authUpgraded: true once this session also has a real Firebase Auth
+  // session behind it (see below) — false means it's running in the old
+  // local-only mode, where firestore.rules' isSignedIn() blocks every
+  // read/write, submissions and warnings included. useAppStore.ts uses
+  // this to decide whether to skip subscribing to the live collections
+  // (pinSessionActive), same as it always has for a session that never
+  // got a real Auth token.
+  | { ok: true; profile: FirestoreUserProfile; authUpgraded: boolean }
   | { ok: false; error: 'unknown-id' | 'inactive' };
 
 // Scan-to-Job login (StaffIdGate.tsx): a Staff ID instead of email/
 // password — no PIN, the code itself is the credential (only an Admin
-// ever hands one out; see AdminPortal.tsx). Deliberately doesn't go
-// through Firebase Auth at all — there's no password to sign in with, and
-// creating a parallel Auth mechanism (custom tokens, a Cloud Function) for
-// this would be a lot of machinery for what this app actually needs.
-// Submissions/warnings/trainings are always localStorage regardless of
-// Firebase mode (see useAppStore.ts), so nothing downstream actually
-// requires a real Firebase Auth session to work — this just resolves a
-// staffCode to a profile, and useAppStore.ts sets that profile as
-// currentUser directly.
+// ever hands one out; see AdminPortal.tsx).
 //
-// One real consequence of skipping Auth: this session won't survive a page
-// refresh in Firebase mode (there's no persisted Auth token backing it),
-// and useAppStore.ts deliberately doesn't subscribe it to the live `users`
-// collection either (that query requires isSignedIn(), which this session
-// isn't). Both match the product default for a shared/kiosk device — see
-// PRD "Defaults if nobody decides: log out after submit if session started
-// from QR" — rather than being a bug to fix later.
+// This used to deliberately skip Firebase Auth entirely — there's no
+// password to sign in with, and submissions/warnings lived only in
+// localStorage regardless of Firebase mode anyway, so nothing downstream
+// needed a real Auth session. Now that those actually sync through
+// Firestore (submissionsService.ts / warningsService.ts), that no longer
+// holds: firestore.rules gates every read/write on isSignedIn(), which a
+// session with no real Auth token can never satisfy. This now calls
+// mintStaffCodeToken (functions/src/index.ts) to get a real session via a
+// custom Auth token minted for the SAME uid this profile already has —
+// signInWithCustomToken below resolves to the exact identity everything
+// else in the app already expects.
 //
-// Two-step lookup because Firestore can't fetch a doc by an arbitrary
-// field without a `list`-permission query (which firestore.rules gates on
-// isSignedIn() — not available pre-login here, same reason the users/{id}
-// doc itself allows a public single-doc `get`): staffCodes/{CODE} is a
-// small public-read index doc that only stores which email owns that code.
+// That call is best-effort, not required: if the Cloud Function isn't
+// deployed yet, or the call fails for any other reason, this still
+// returns ok:true with authUpgraded:false — the old local-only session,
+// exactly as it always worked, rather than blocking login on a function
+// that might not exist yet.
+//
+// Two-step lookup (staffCode -> email -> profile) because Firestore can't
+// fetch a doc by an arbitrary field without a `list`-permission query
+// (which firestore.rules gates on isSignedIn() — not available pre-login
+// here, same reason the users/{id} doc itself allows a public single-doc
+// `get`): staffCodes/{CODE} is a small public-read index doc that only
+// stores which email owns that code.
 //
 // Wrapped in try/catch on purpose: if this ever throws instead of
 // resolving (e.g. firestore.rules for staffCodes hasn't actually been
@@ -475,7 +486,24 @@ export async function loginByStaffCode(staffCode: string): Promise<StaffCodeLogi
 
     if (data.isActive === false) return { ok: false, error: 'inactive' };
 
-    return { ok: true, profile: data };
+    let authUpgraded = false;
+    if (functions && auth) {
+      try {
+        const callable = httpsCallable(functions, 'mintStaffCodeToken');
+        const result = await callable({ staffCode: codeUpper });
+        const token = (result.data as { token: string }).token;
+        await signInWithCustomToken(auth, token);
+        authUpgraded = true;
+        // watchAuthAndProfile's listener takes it from here — it'll fire
+        // with this real signed-in uid and set currentUser itself, on top
+        // of the profile this function is about to return directly for
+        // instant feedback.
+      } catch (err) {
+        console.error('mintStaffCodeToken failed, falling back to local-only Staff ID session:', err);
+      }
+    }
+
+    return { ok: true, profile: data, authUpgraded };
   } catch (err) {
     console.error('loginByStaffCode failed:', err);
     return { ok: false, error: 'unknown-id' };

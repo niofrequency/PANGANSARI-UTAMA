@@ -155,6 +155,73 @@ export const reclaimAbandonedSignup = onCall(
   }
 );
 
+// Upgrades a Staff ID login (StaffIdGate.tsx) to a real Firebase Auth
+// session. Staff ID sign-in was originally built to deliberately skip
+// Firebase Auth entirely (no password to sign in with) — see
+// loginByStaffCode's comment in src/services/authService.ts — on the
+// premise that nothing downstream needed a real Auth session anyway,
+// since submissions/warnings lived only in localStorage regardless of
+// Firebase mode. Now that those actually sync through Firestore (see
+// submissionsService.ts / warningsService.ts), that premise no longer
+// holds: firestore.rules gates every read/write on isSignedIn(), i.e.
+// request.auth != null, which is never true for a session that skipped
+// Auth — so a Staff-ID-only session could never read or write anything.
+//
+// A custom Auth token is the only way to fix this client-side-adjacent:
+// only the Admin SDK can mint one, and it has to be minted for the SAME
+// uid already on that person's users/{email} profile (set when their
+// account was created — see adminCreateAccount.ts's
+// createStaffAccountDirect, which always creates a real Firebase Auth
+// account even for someone who'll only ever sign in with a Staff ID), so
+// that signing in with it resolves to the exact same identity everywhere
+// else in the app already expects (submission ownership, Site Access,
+// the works).
+//
+// No auth required to call this — same reasoning as reclaimAbandonedSignup
+// above: it's the pre-auth entry point itself. It only ever mints a token
+// for a uid that a real, active users/{email} profile already names, gated
+// by the same staffCode -> email -> profile lookup the client already did
+// itself before Firebase Auth existed in this flow — this doesn't widen
+// who could already sign in, it just gives that same person a real session.
+export const mintStaffCodeToken = onCall(
+  { region: 'us-central1', invoker: 'public', cors: true },
+  async (request) => {
+    const staffCode = String(request.data?.staffCode || '').trim().toUpperCase();
+    if (!staffCode) {
+      throw new HttpsError('invalid-argument', 'Missing staff code.');
+    }
+
+    const mapSnap = await admin.firestore().collection('staffCodes').doc(staffCode).get();
+    if (!mapSnap.exists) {
+      throw new HttpsError('not-found', 'unknown-id');
+    }
+    const { email } = mapSnap.data() as { email?: string };
+    if (!email) {
+      throw new HttpsError('not-found', 'unknown-id');
+    }
+
+    const userSnap = await admin.firestore().collection('users').doc(email).get();
+    if (!userSnap.exists) {
+      throw new HttpsError('not-found', 'unknown-id');
+    }
+    const profile = userSnap.data() as { uid?: string; isActive?: boolean };
+
+    if (profile.isActive === false) {
+      throw new HttpsError('permission-denied', 'inactive');
+    }
+    if (!profile.uid) {
+      // A Staff ID was assigned before this profile was ever activated via
+      // email (createStaffAccountDirect always creates the Auth account up
+      // front, so this shouldn't normally happen) — fail clearly rather
+      // than minting a token for a uid that doesn't exist.
+      throw new HttpsError('failed-precondition', 'not-activated');
+    }
+
+    const token = await admin.auth().createCustomToken(profile.uid);
+    return { token };
+  }
+);
+
 // Best-effort split for a single display-name string — first token is the
 // first name, the rest is the last name. Mirrors splitName() in
 // src/services/authService.ts; duplicated here because Cloud Functions is a

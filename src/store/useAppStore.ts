@@ -14,6 +14,8 @@ import { subscribeUsers, updateUserRoleDoc, updateUserSiteDoc, updateUserAssigne
 import { createStaffAccountDirect } from '../services/adminCreateAccount';
 import { resetStaffCredentials } from '../services/adminResetCredentials';
 import { changeUserEmailDirect } from '../services/adminChangeEmailDirect';
+import { subscribeSubmissions, addSubmissionDoc, updateSubmissionDoc, CLEAR_FIELD } from '../services/submissionsService';
+import { subscribeWarnings, addWarningDoc } from '../services/warningsService';
 import { isValidStaffCode } from '../utils/staffCode';
 import { SIGNOFF_CHAINS } from '../data/opsLogsCatalog';
 
@@ -89,11 +91,13 @@ export function useAppStore() {
   });
 
   const [submissions, setSubmissions] = useState<Submission[]>(() => {
+    if (isFirebaseConfigured) return []; // populated by subscribeSubmissions below
     const saved = localStorage.getItem('psu_submissions_v4');
     return saved ? JSON.parse(saved) : INITIAL_SUBMISSIONS;
   });
 
   const [warnings, setWarnings] = useState<Warning[]>(() => {
+    if (isFirebaseConfigured) return []; // populated by subscribeWarnings below
     const saved = localStorage.getItem('psu_warnings_v4');
     return saved ? JSON.parse(saved) : INITIAL_WARNINGS;
   });
@@ -151,6 +155,37 @@ export function useAppStore() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isFirebaseConfigured, currentUser?.id, pinSessionActive]);
 
+  // Same live-subscription pattern as users above — this is what actually
+  // makes a submission a Technician files show up on a Supervisor's
+  // different device. pinSessionActive is skipped for the same reason it
+  // is above: a Staff ID session never establishes a real Firebase Auth
+  // session (see loginByStaffCode's comment), so firestore.rules'
+  // isSignedIn() check has nothing to check against — every read/write
+  // attempt would just fail. That's a real, separate gap (Staff ID
+  // sessions currently can't read or write Firestore at all) that needs
+  // its own fix, not something this effect can route around.
+  useEffect(() => {
+    if (!isFirebaseConfigured) return;
+    if (!currentUser || pinSessionActive) {
+      setSubmissions([]);
+      return;
+    }
+    const unsubSubmissions = subscribeSubmissions(setSubmissions);
+    return () => unsubSubmissions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFirebaseConfigured, currentUser?.id, pinSessionActive]);
+
+  useEffect(() => {
+    if (!isFirebaseConfigured) return;
+    if (!currentUser || pinSessionActive) {
+      setWarnings([]);
+      return;
+    }
+    const unsubWarnings = subscribeWarnings(setWarnings);
+    return () => unsubWarnings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFirebaseConfigured, currentUser?.id, pinSessionActive]);
+
   // Set (and cleared) whenever a localStorage write below fails — almost
   // always QuotaExceededError once the browser's per-origin storage limit
   // is hit, which is a real risk here: submissions carry full photos as
@@ -189,10 +224,12 @@ export function useAppStore() {
   }, [users]);
 
   useEffect(() => {
+    if (isFirebaseConfigured) return;
     safeSetItem('psu_submissions_v4', JSON.stringify(submissions));
   }, [submissions]);
 
   useEffect(() => {
+    if (isFirebaseConfigured) return;
     safeSetItem('psu_warnings_v4', JSON.stringify(warnings));
   }, [warnings]);
 
@@ -259,8 +296,14 @@ export function useAppStore() {
 
   // Scan-to-Job login (StaffIdGate.tsx): a Staff ID instead of email/
   // password — no PIN, the code itself is the credential (only an Admin
-  // ever hands one out). See authService.ts's loginByStaffCode for why
-  // this deliberately never touches Firebase Auth.
+  // ever hands one out). See authService.ts's loginByStaffCode: this now
+  // tries to upgrade to a real Firebase Auth session (needed for
+  // submissions/warnings to actually sync — see submissionsService.ts),
+  // falling back to the old local-only session if that upgrade fails
+  // (e.g. the mintStaffCodeToken Cloud Function isn't deployed yet).
+  // pinSessionActive stays true only for that fallback case — see the
+  // subscription effects above, which skip live Firestore subscriptions
+  // for exactly the sessions that have no real Auth token to back them.
   const loginByStaffCode = async (
     staffCode: string
   ): Promise<{ ok: boolean; error?: 'unknown-id' | 'inactive' }> => {
@@ -270,7 +313,7 @@ export function useAppStore() {
       const result = await loginByStaffCodeService(codeUpper);
       if (!result.ok) return result;
       const p = result.profile;
-      setPinSessionActive(true);
+      setPinSessionActive(!result.authUpgraded);
       setCurrentUser({
         id: p.uid || codeUpper,
         name: p.name,
@@ -314,6 +357,13 @@ export function useAppStore() {
   };
 
   const addSubmission = (submission: Omit<Submission, 'id'>) => {
+    if (isFirebaseConfigured) {
+      // Fire-and-forget, same convention as every other Firestore write in
+      // this file — the live subscription above updates `submissions` once
+      // it round-trips, not this call directly.
+      addSubmissionDoc(submission).catch((err) => console.error('addSubmission failed:', err));
+      return;
+    }
     const newSubmission = { ...submission, id: `s-${Date.now()}` };
     setSubmissions(prev => [newSubmission, ...prev]);
   };
@@ -331,10 +381,22 @@ export function useAppStore() {
   // do, and every Approve is now a stamp on some step.
   const addSignoffStamp = (submissionId: string, step: 'checkedBy' | 'approvedBy' | 'verifiedBy') => {
     if (!currentUser) return;
+    const stamp = { userId: currentUser.id, name: currentUser.name, at: new Date().toISOString() };
+
+    if (isFirebaseConfigured) {
+      const target = submissions.find(s => s.id === submissionId);
+      const chain = target && target.type in SIGNOFF_CHAINS ? SIGNOFF_CHAINS[target.type as keyof typeof SIGNOFF_CHAINS] : undefined;
+      const isFinalStep = chain ? chain[chain.length - 1] === step : false;
+      updateSubmissionDoc(submissionId, {
+        [`meta.signoff.${step}`]: stamp,
+        ...(isFinalStep ? { status: 'APPROVED' } : {}),
+      }).catch((err) => console.error('addSignoffStamp failed:', err));
+      return;
+    }
+
     setSubmissions(prev => prev.map(s => {
       if (s.id !== submissionId) return s;
       const chain = s.type in SIGNOFF_CHAINS ? SIGNOFF_CHAINS[s.type as keyof typeof SIGNOFF_CHAINS] : undefined;
-      const stamp = { userId: currentUser.id, name: currentUser.name, at: new Date().toISOString() };
       const nextSignoff = { ...s.meta?.signoff, [step]: stamp };
       const isFinalStep = chain ? chain[chain.length - 1] === step : false;
       return {
@@ -350,6 +412,11 @@ export function useAppStore() {
   // was, just with the sign-off chain's partial progress left in place
   // (as a record of how far it got) until it's actually resubmitted.
   const rejectSignoff = (submissionId: string, reason: string) => {
+    if (isFirebaseConfigured) {
+      updateSubmissionDoc(submissionId, { status: 'REJECTED', rejectionReason: reason.trim() })
+        .catch((err) => console.error('rejectSignoff failed:', err));
+      return;
+    }
     setSubmissions(prev => prev.map(s => s.id === submissionId
       ? { ...s, status: 'REJECTED' as const, rejectionReason: reason.trim() }
       : s
@@ -362,9 +429,21 @@ export function useAppStore() {
   // doesn't carry over, since it was stamped against the old content.
   const resubmitAfterRejection = (submissionId: string, updates: Partial<Pick<Submission, 'items' | 'meta' | 'score'>>) => {
     if (!currentUser) return;
+    const draftedBy = { userId: currentUser.id, name: currentUser.name, staffCode: currentUser.staffCode, at: new Date().toISOString() };
+
+    if (isFirebaseConfigured) {
+      const target = submissions.find(s => s.id === submissionId);
+      updateSubmissionDoc(submissionId, {
+        ...updates,
+        meta: { ...target?.meta, ...updates.meta, signoff: { draftedBy } },
+        status: 'PENDING',
+        rejectionReason: CLEAR_FIELD,
+      }).catch((err) => console.error('resubmitAfterRejection failed:', err));
+      return;
+    }
+
     setSubmissions(prev => prev.map(s => {
       if (s.id !== submissionId) return s;
-      const draftedBy = { userId: currentUser.id, name: currentUser.name, staffCode: currentUser.staffCode, at: new Date().toISOString() };
       return {
         ...s,
         ...updates,
@@ -545,6 +624,10 @@ export function useAppStore() {
   };
 
   const addWarning = (warning: Omit<Warning, 'id'>) => {
+    if (isFirebaseConfigured) {
+      addWarningDoc(warning).catch((err) => console.error('addWarning failed:', err));
+      return;
+    }
     const newWarning = { ...warning, id: `w-${Date.now()}` };
     setWarnings(prev => [newWarning, ...prev]);
   };
