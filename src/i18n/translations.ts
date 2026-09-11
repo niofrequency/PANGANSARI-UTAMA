@@ -314,6 +314,10 @@ export const translations = {
       whatToDoLabel: 'What to do',
       foundOnLabel: 'Found on',
     },
+    hazardWarning: {
+      sectionTitle: 'General Hazard Signs',
+      sectionSubtitle: 'Yellow triangle signs seen around site — tap one to see what to do',
+    },
     legal: {
       privacyTitle: 'Privacy Policy',
       termsTitle: 'Terms of Service',
@@ -1004,6 +1008,10 @@ export const translations = {
       sectionSubtitle: 'Ketuk simbol untuk melihat artinya dan apa yang harus dilakukan',
       whatToDoLabel: 'Yang harus dilakukan',
       foundOnLabel: 'Ditemukan pada',
+    },
+    hazardWarning: {
+      sectionTitle: 'Rambu Bahaya Umum',
+      sectionSubtitle: 'Rambu segitiga kuning yang terlihat di lokasi — ketuk untuk melihat apa yang harus dilakukan',
     },
     legal: {
       privacyTitle: 'Kebijakan Privasi',

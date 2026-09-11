@@ -5,6 +5,7 @@ import { motion } from 'motion/react';
 import { cn } from '../utils/cn';
 import { useTranslation } from '../i18n/LanguageContext';
 import { HazmatGuide } from './HazmatGuide';
+import { HazardWarningGuide } from './HazardWarningGuide';
 
 interface TrainingsTabProps {
   trainings: TrainingModule[];
@@ -17,6 +18,7 @@ export function TrainingsTab({ trainings, userId, onComplete }: TrainingsTabProp
   return (
     <div className="space-y-8">
       <HazmatGuide />
+      <HazardWarningGuide />
 
       <div className="space-y-6">
         <div className="bg-psu-blue/10 p-5 rounded-2xl border border-psu-blue/5 shadow-lg shadow-psu-blue/5">
