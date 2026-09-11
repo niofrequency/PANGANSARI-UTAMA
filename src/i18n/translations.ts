@@ -313,6 +313,20 @@ export const translations = {
       whatToDoLabel: 'What to do',
       foundOnLabel: 'Found on',
     },
+    legal: {
+      privacyTitle: 'Privacy Policy',
+      termsTitle: 'Terms of Service',
+      cookiesTitle: 'Cookie Policy',
+      lastUpdated: 'Last updated',
+      backHome: 'Back to home',
+      companyLine: 'Pangansari Utama · Food Resources Solutions',
+      contactNote: 'Questions about this page? Contact your site Admin.',
+    },
+    pageNotFound: {
+      title: 'Page Not Found',
+      body: "The page you're looking for doesn't exist or may have moved.",
+      backButton: 'Back to home',
+    },
     photoCapture: {
       takePhoto: 'Take Photo',
       stamping: 'Stamping photo...',
@@ -948,6 +962,20 @@ export const translations = {
       sectionSubtitle: 'Ketuk simbol untuk melihat artinya dan apa yang harus dilakukan',
       whatToDoLabel: 'Yang harus dilakukan',
       foundOnLabel: 'Ditemukan pada',
+    },
+    legal: {
+      privacyTitle: 'Kebijakan Privasi',
+      termsTitle: 'Syarat & Ketentuan',
+      cookiesTitle: 'Kebijakan Cookie',
+      lastUpdated: 'Terakhir diperbarui',
+      backHome: 'Kembali ke beranda',
+      companyLine: 'Pangansari Utama · Food Resources Solutions',
+      contactNote: 'Ada pertanyaan tentang halaman ini? Hubungi Admin lokasi Anda.',
+    },
+    pageNotFound: {
+      title: 'Halaman Tidak Ditemukan',
+      body: 'Halaman yang Anda cari tidak ada atau mungkin telah dipindahkan.',
+      backButton: 'Kembali ke beranda',
     },
     photoCapture: {
       takePhoto: 'Ambil Foto',

@@ -261,8 +261,15 @@ export function Login({ onLogin, onLoginWithGoogle, onSwitchToStaffId }: LoginPr
           </button>
         )}
 
-        <div className="mt-8 text-center">
-          <span className="text-[9px] text-psu-gray/30 font-black uppercase tracking-[0.2em]">{t('auth.footer')}</span>
+        <div className="mt-8 text-center space-y-2">
+          <span className="text-[9px] text-psu-gray/30 font-black uppercase tracking-[0.2em] block">{t('auth.footer')}</span>
+          <div className="flex items-center justify-center gap-3 text-[10px] font-bold text-psu-gray/30">
+            <a href="/privacy" className="hover:text-psu-gray/60 underline">{t('legal.privacyTitle')}</a>
+            <span>·</span>
+            <a href="/terms" className="hover:text-psu-gray/60 underline">{t('legal.termsTitle')}</a>
+            <span>·</span>
+            <a href="/cookies" className="hover:text-psu-gray/60 underline">{t('legal.cookiesTitle')}</a>
+          </div>
         </div>
       </motion.div>
     </div>

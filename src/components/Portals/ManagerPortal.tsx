@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { AnalyticsDashboard } from '../Dashboard/AnalyticsDashboard';
-import { LayoutDashboard, Settings, ClipboardCheck, ClipboardList } from 'lucide-react';
+import { LayoutDashboard, ClipboardCheck, ClipboardList } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
@@ -78,11 +78,15 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.98 }}
           >
-            <div className="flex items-center justify-between mb-6 px-2">
+            {/* This used to sit next to a gear-icon "Settings" button that
+                had no onClick at all — dead decoration left over from an
+                early scaffold, not a feature anyone could ever open.
+                There's no dashboard-level settings concept anywhere else
+                in the app to wire it to (language/account/logout already
+                live in the header — see Layout.tsx), so it's removed
+                rather than left to silently do nothing when tapped. */}
+            <div className="mb-6 px-2">
               <h2 className="text-xl font-bold tracking-tight text-psu-gray">{t('manager.dashboardTitle')}</h2>
-              <button className="w-10 h-10 flex items-center justify-center text-psu-gray/30 bg-white rounded-xl border border-psu-gray/5 shadow-sm">
-                <Settings size={18} />
-              </button>
             </div>
             <AnalyticsDashboard submissions={dashboardSubmissions} warnings={dashboardWarnings} sites={dashboardSites} users={users} />
           </motion.div>
