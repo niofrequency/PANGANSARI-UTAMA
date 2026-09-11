@@ -318,6 +318,13 @@ export const translations = {
       sectionTitle: 'General Hazard Signs',
       sectionSubtitle: 'Yellow triangle signs seen around site — tap one to see what to do',
     },
+    confirmDelete: {
+      defaultTitle: 'Remove this entry?',
+      defaultBody: "This will permanently remove everything entered for this row. This can't be undone.",
+      typeToConfirm: 'Type DELETE to confirm',
+      inputPlaceholder: 'DELETE',
+      removeButton: 'Remove',
+    },
     legal: {
       privacyTitle: 'Privacy Policy',
       termsTitle: 'Terms of Service',
@@ -1012,6 +1019,13 @@ export const translations = {
     hazardWarning: {
       sectionTitle: 'Rambu Bahaya Umum',
       sectionSubtitle: 'Rambu segitiga kuning yang terlihat di lokasi — ketuk untuk melihat apa yang harus dilakukan',
+    },
+    confirmDelete: {
+      defaultTitle: 'Hapus entri ini?',
+      defaultBody: 'Ini akan menghapus secara permanen semua yang telah diisi pada baris ini. Tindakan ini tidak dapat dibatalkan.',
+      typeToConfirm: 'Ketik DELETE untuk konfirmasi',
+      inputPlaceholder: 'DELETE',
+      removeButton: 'Hapus',
     },
     legal: {
       privacyTitle: 'Kebijakan Privasi',

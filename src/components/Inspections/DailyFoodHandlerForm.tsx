@@ -7,6 +7,7 @@ import { DAILY_FOOD_HANDLER_GROUPS, DAILY_FOOD_HANDLER_ALL_CRITERIA } from '../.
 import { computeReadyToWork, countMarked, isGoodMark, scoreRoster } from '../../data/dailyFoodHandlerScoring';
 import { DailyFoodHandlerRosterEntry, Submission } from '../../types';
 import { ChecklistRow } from '../OpsLogs/opsHelpers';
+import { ConfirmDeleteModal } from '../ConfirmDeleteModal';
 
 interface RowState {
   key: string;
@@ -36,6 +37,10 @@ export function DailyFoodHandlerForm({ onSubmit, onCancel, siteName }: Props) {
   const [verifiedBy, setVerifiedBy] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showValidation, setShowValidation] = useState(false);
+  // Same type-DELETE-to-confirm fail-safe as AdminPortal.tsx's delete-user
+  // flow — a whole staff member's completed 19-item checklist used to
+  // vanish on one accidental tap of "Remove staff".
+  const [rowToDelete, setRowToDelete] = useState<string | null>(null);
 
   const totalCriteria = DAILY_FOOD_HANDLER_ALL_CRITERIA.length;
 
@@ -259,7 +264,7 @@ export function DailyFoodHandlerForm({ onSubmit, onCancel, siteName }: Props) {
 
                       {rows.length > 1 && (
                         <button
-                          onClick={() => removeRow(row.key)}
+                          onClick={() => setRowToDelete(row.key)}
                           className="flex items-center gap-2 text-[10px] font-black text-psu-rejected/70 uppercase tracking-widest"
                         >
                           <Trash2 size={13} /> {t('dfh.removeStaff')}
@@ -323,6 +328,12 @@ export function DailyFoodHandlerForm({ onSubmit, onCancel, siteName }: Props) {
           {isSubmitting ? t('dfh.submitting') : t('dfh.submitButton')}
         </button>
       </div>
+
+      <ConfirmDeleteModal
+        open={!!rowToDelete}
+        onCancel={() => setRowToDelete(null)}
+        onConfirm={() => { removeRow(rowToDelete!); setRowToDelete(null); }}
+      />
     </div>
   );
 }
