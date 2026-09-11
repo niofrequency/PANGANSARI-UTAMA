@@ -9,12 +9,25 @@ rules_version = '2';
 //   warnings     — supervisor-issued warnings
 //   trainings    — training module completion
 //
-// NOTE: as of this version, only `users` is actually read/written from
-// Firestore by the client (src/services/authService.ts, usersService.ts) —
-// submissions/warnings/trainings still live in each browser's localStorage
-// (see useAppStore.ts, FIREBASE_SETUP.md). The rules below for those three
-// collections are ready for whenever that migration happens; they're inert
-// until then, not currently exercised by any client code.
+// NOTE: as of this version, `users`, `submissions`, and `warnings` are all
+// actually read/written from Firestore by the client (authService.ts /
+// usersService.ts, submissionsService.ts, warningsService.ts) — see
+// useAppStore.ts. `trainings` is still pending that same migration and
+// still lives in each browser's localStorage for now; its rules below are
+// ready for whenever that happens, same as the other three were before
+// this version.
+//
+// KNOWN GAP even after this version: a Staff ID login (StaffIdGate.tsx)
+// never establishes a real Firebase Auth session at all (see
+// loginByStaffCode's comment in authService.ts) — isSignedIn() below is
+// request.auth != null, which is never true for that kind of session. So
+// anyone signed in via Staff ID currently cannot read OR write ANY
+// collection gated by isSignedIn(), submissions included — every attempt
+// fails with permission-denied. Fixing that needs a server-side custom
+// Auth token minted from a verified Staff ID (a Cloud Function, since
+// only the Admin SDK can mint one) — not something a rules change alone
+// can solve, since there's no client-side way to prove identity to
+// Firestore without a real Firebase Auth session of some kind.
 //
 // Open self-signup is allowed: a new user may create their OWN users/{email}
 // doc once, with a non-ADMIN role. Admin still controls role changes after that.
@@ -117,7 +130,7 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
-    // ── submissions (not yet used by the client — see note above) ─────
+    // ── submissions ─────────────────────────────────────────────────
     match /submissions/{submissionId} {
       allow read: if isSignedIn();
 
@@ -125,16 +138,31 @@ service cloud.firestore {
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.status == 'PENDING';
 
-      // A reviewer (not the submitter) may change status/rejectionReason
-      // only — never rewrite someone else's submitted answers.
-      allow update: if isSignedIn()
-        && request.auth.uid != resource.data.userId
-        && onlyChanged(['status', 'rejectionReason']);
+      // Two distinct actions share this collection's update path — see
+      // useAppStore.ts's addSignoffStamp/rejectSignoff/resubmitAfterRejection:
+      //
+      // 1. A reviewer (not the submitter) stamps a sign-off step or
+      //    rejects a still-PENDING submission — changes meta (the stamp)
+      //    and/or status/rejectionReason, never the submitted answers
+      //    themselves (items is not in this list).
+      // 2. The original submitter fixes and resubmits their OWN
+      //    REJECTED submission in place — changes items/meta/score and
+      //    flips status back to PENDING, clearing rejectionReason.
+      allow update: if isSignedIn() && (
+        (request.auth.uid != resource.data.userId
+          && resource.data.status == 'PENDING'
+          && onlyChanged(['meta', 'status', 'rejectionReason']))
+        ||
+        (request.auth.uid == resource.data.userId
+          && resource.data.status == 'REJECTED'
+          && request.resource.data.status == 'PENDING'
+          && onlyChanged(['items', 'meta', 'score', 'status', 'rejectionReason']))
+      );
 
       allow delete: if false;
     }
 
-    // ── warnings (not yet used by the client — see note above) ────────
+    // ── warnings ────────────────────────────────────────────────────
     match /warnings/{warningId} {
       allow read: if isSignedIn();
 
