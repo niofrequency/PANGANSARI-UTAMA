@@ -296,8 +296,14 @@ export function useAppStore() {
 
   // Scan-to-Job login (StaffIdGate.tsx): a Staff ID instead of email/
   // password — no PIN, the code itself is the credential (only an Admin
-  // ever hands one out). See authService.ts's loginByStaffCode for why
-  // this deliberately never touches Firebase Auth.
+  // ever hands one out). See authService.ts's loginByStaffCode: this now
+  // tries to upgrade to a real Firebase Auth session (needed for
+  // submissions/warnings to actually sync — see submissionsService.ts),
+  // falling back to the old local-only session if that upgrade fails
+  // (e.g. the mintStaffCodeToken Cloud Function isn't deployed yet).
+  // pinSessionActive stays true only for that fallback case — see the
+  // subscription effects above, which skip live Firestore subscriptions
+  // for exactly the sessions that have no real Auth token to back them.
   const loginByStaffCode = async (
     staffCode: string
   ): Promise<{ ok: boolean; error?: 'unknown-id' | 'inactive' }> => {
@@ -307,7 +313,7 @@ export function useAppStore() {
       const result = await loginByStaffCodeService(codeUpper);
       if (!result.ok) return result;
       const p = result.profile;
-      setPinSessionActive(true);
+      setPinSessionActive(!result.authUpgraded);
       setCurrentUser({
         id: p.uid || codeUpper,
         name: p.name,
