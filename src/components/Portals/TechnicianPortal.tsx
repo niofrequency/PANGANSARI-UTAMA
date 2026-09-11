@@ -13,7 +13,7 @@ import { ScanJobButton } from '../QrScanner';
 import { useWorkingSite } from '../../hooks/useWorkingSite';
 import { ReportIssueButton } from '../FieldReports/ReportIssueButton';
 import { MyFieldReports } from '../FieldReports/MyFieldReports';
-import { ResubmitNotice, ChecklistRow } from '../OpsLogs/opsHelpers';
+import { ResubmitNotice, ChecklistRow, PortalHeaderRow } from '../OpsLogs/opsHelpers';
 
 type DeepLinkStartAt = 'fridge' | 'core' | 'clean' | 'wellness';
 
@@ -259,9 +259,9 @@ export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob 
             className="space-y-6"
           >
             {editingSubmission && <ResubmitNotice />}
-            <div className="flex items-center justify-between px-2 gap-3">
-              <h2 className="text-xl font-bold tracking-tight text-psu-gray">{t('technician.dailyLogTitle')}</h2>
-              <div className="flex items-center gap-3 shrink-0">
+            <PortalHeaderRow
+              title={t('technician.dailyLogTitle')}
+              controls={<>
                 {needsPicker ? (
                   <div className="flex items-center gap-1 text-[10px] font-black text-psu-gray/50 uppercase tracking-widest">
                     <MapPin size={12} className="shrink-0" />
@@ -291,8 +291,8 @@ export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob 
                   iconOnly
                   className="w-9 h-9 rounded-xl bg-white border border-psu-gray/10 text-psu-gray/50 flex items-center justify-center active:scale-95 transition-all"
                 />
-              </div>
-            </div>
+              </>}
+            />
 
             <div className="card space-y-8">
               <h4 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em] border-b border-psu-gray/5 pb-2 -mb-2">{t('technician.sectionOperations')}</h4>

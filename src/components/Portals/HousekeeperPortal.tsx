@@ -20,7 +20,7 @@ import { userCanSeeSite } from '../../lib/siteScope';
 import { useWorkingSite } from '../../hooks/useWorkingSite';
 import { ReportIssueButton } from '../FieldReports/ReportIssueButton';
 import { MyFieldReports } from '../FieldReports/MyFieldReports';
-import { ResubmitNotice, ChecklistRow } from '../OpsLogs/opsHelpers';
+import { ResubmitNotice, ChecklistRow, PortalHeaderRow } from '../OpsLogs/opsHelpers';
 
 const GROUP_ICON: Record<RoomCleaningGroupKey, typeof Sparkles> = {
   '1': Sparkles,
@@ -263,9 +263,9 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
             className="space-y-6"
           >
             {editingSubmission && <ResubmitNotice />}
-            <div className="flex items-center justify-between px-2 gap-3">
-              <h2 className="text-xl font-bold tracking-tight text-psu-gray truncate">{t('housekeeper.today')}</h2>
-              <div className="flex items-center gap-3 shrink-0">
+            <PortalHeaderRow
+              title={t('housekeeper.today')}
+              controls={<>
                 {needsPicker ? (
                   <div className="flex items-center gap-1 text-[10px] font-black text-psu-gray/50 uppercase tracking-widest">
                     <MapPin size={12} className="shrink-0" />
@@ -295,8 +295,8 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
                   iconOnly
                   className="w-9 h-9 rounded-xl bg-white border border-psu-gray/10 text-psu-gray/50 flex items-center justify-center active:scale-95 transition-all"
                 />
-              </div>
-            </div>
+              </>}
+            />
 
             {/* BARAK + NO. KAMAR */}
             <div className="card grid grid-cols-2 gap-4">

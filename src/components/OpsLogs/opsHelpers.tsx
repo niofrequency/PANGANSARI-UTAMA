@@ -241,6 +241,33 @@ export function ChecklistRow({
   );
 }
 
+// A portal's "TASKS" home-screen header — a page title plus a cluster of
+// small controls (site picker/indicator, Report Issue, Scan Job). On a
+// phone, the title and the control cluster used to fight for the same
+// non-wrapping line: the cluster was shrink-0 (never gives up width), so
+// the title either hard-truncated to something like "Today's ..." or, in
+// the one form that didn't even truncate, just got squeezed illegibly
+// narrow. Same "wrap, don't squish" fix as ChecklistRow above: the title
+// gets a min-width floor and the row wraps once both can't fit, dropping
+// the whole control cluster to its own line below instead of ever
+// shrinking the title past legible.
+//
+// Used by every frontline "fill a task" portal (Housekeeper, Janitor,
+// Laundry Staff, Technician) — same repeated header shape each of them
+// used to hand-roll separately.
+export function PortalHeaderRow({ title, controls, className }: {
+  title: React.ReactNode;
+  controls: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-2", className)}>
+      <h2 className="text-xl font-bold tracking-tight text-psu-gray min-w-[180px] flex-1">{title}</h2>
+      <div className="flex items-center gap-3 flex-wrap shrink-0">{controls}</div>
+    </div>
+  );
+}
+
 // Small reusable "flag" pill for an out-of-range reading — the paper still
 // records the number either way, this just calls attention to it.
 export function OutOfRangeFlag({ label }: { label: string }) {
