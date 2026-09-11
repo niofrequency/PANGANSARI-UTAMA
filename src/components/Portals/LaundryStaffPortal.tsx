@@ -10,6 +10,7 @@ import { DeepLinkJob, parseDeepLinkFromUrl } from '../../lib/deepLink';
 import { ScanJobButton } from '../QrScanner';
 import { ReportIssueButton } from '../FieldReports/ReportIssueButton';
 import { MyFieldReports } from '../FieldReports/MyFieldReports';
+import { MyActionItems } from '../CorrectiveActions/MyActionItems';
 import { PortalHeaderRow } from '../OpsLogs/opsHelpers';
 
 interface LaundryStaffPortalProps {
@@ -126,6 +127,7 @@ export function LaundryStaffPortal({ store, fromQr, onDeepLinkHandled, onScanJob
               )}
             </div>
             <MyFieldReports store={store} />
+            <MyActionItems store={store} />
           </motion.div>
         )}
 

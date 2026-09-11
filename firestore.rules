@@ -8,6 +8,7 @@ rules_version = '2';
 //   submissions  — checklist/work-order submissions
 //   warnings     — supervisor-issued warnings
 //   fieldReports — "something's broken" reports
+//   correctiveActions — CAPA-style assigned action items (two-step close)
 //   trainings    — training module completion
 //
 // NOTE: as of this version, all five collections above are actually
@@ -196,6 +197,53 @@ service cloud.firestore {
       allow update: if isSignedIn()
         && request.auth.uid != resource.data.userId
         && onlyChanged(['status', 'acknowledgedBy', 'acknowledgedAt', 'resolvedBy', 'resolvedAt', 'resolutionNote']);
+
+      allow delete: if false;
+    }
+
+    // ── correctiveActions ───────────────────────────────────────────
+    // CAPA-style assigned action items (comment/action/assignedTo/
+    // dueDate) — see types.ts's CorrectiveAction for the full shape.
+    // Who may create one, and who they may assign it to, is enforced
+    // client-side (same trust level this app already gives siteId/
+    // department on submissions and fieldReports, neither of which is
+    // re-verified against the caller's own profile here either) — this
+    // rule only verifies the caller is who they claim to be for whichever
+    // one of the three transitions below they're making.
+    match /correctiveActions/{actionId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && request.resource.data.createdById == request.auth.uid
+        && request.resource.data.status == 'OPEN';
+
+      // Three distinct actions share this collection's update path — see
+      // useAppStore.ts's markCorrectiveActionDone/verifyCorrectiveAction/
+      // reopenCorrectiveAction:
+      //
+      // 1. The ASSIGNEE marks it done (OPEN -> DONE) with a completion
+      //    note. Only them, and only while still OPEN.
+      // 2. The CREATOR (always the verifier) closes it for good
+      //    (DONE -> VERIFIED) once satisfied.
+      // 3. The CREATOR instead sends it back (DONE -> OPEN) with a note
+      //    of their own if the work isn't actually done — same
+      //    reopen-for-another-try shape as a rejected submission.
+      allow update: if isSignedIn() && (
+        (request.auth.uid == resource.data.assignedToId
+          && resource.data.status == 'OPEN'
+          && request.resource.data.status == 'DONE'
+          && onlyChanged(['status', 'completedAt', 'completionNote']))
+        ||
+        (request.auth.uid == resource.data.createdById
+          && resource.data.status == 'DONE'
+          && request.resource.data.status == 'VERIFIED'
+          && onlyChanged(['status', 'verifiedAt']))
+        ||
+        (request.auth.uid == resource.data.createdById
+          && resource.data.status == 'DONE'
+          && request.resource.data.status == 'OPEN'
+          && onlyChanged(['status', 'reopenedAt', 'reopenedNote']))
+      );
 
       allow delete: if false;
     }

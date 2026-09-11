@@ -20,6 +20,7 @@ import { userCanSeeSite } from '../../lib/siteScope';
 import { useWorkingSite } from '../../hooks/useWorkingSite';
 import { ReportIssueButton } from '../FieldReports/ReportIssueButton';
 import { MyFieldReports } from '../FieldReports/MyFieldReports';
+import { MyActionItems } from '../CorrectiveActions/MyActionItems';
 import { ResubmitNotice, ChecklistRow, PortalHeaderRow } from '../OpsLogs/opsHelpers';
 
 const GROUP_ICON: Record<RoomCleaningGroupKey, typeof Sparkles> = {
@@ -497,6 +498,7 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
               )}
             </div>
             <MyFieldReports store={store} />
+            <MyActionItems store={store} />
           </motion.div>
         )}
 

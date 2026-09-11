@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { User, Submission, UserRole, Site, Warning, TrainingModule, FieldReport, FieldReportStatus } from '../types';
-import { INITIAL_USERS, INITIAL_SUBMISSIONS, INITIAL_WARNINGS, INITIAL_FIELD_REPORTS, SITES, TRAINING_MODULES } from '../data/mockData';
+import { User, Submission, UserRole, Site, Warning, TrainingModule, FieldReport, FieldReportStatus, CorrectiveAction, CorrectiveActionStatus } from '../types';
+import { INITIAL_USERS, INITIAL_SUBMISSIONS, INITIAL_WARNINGS, INITIAL_FIELD_REPORTS, INITIAL_CORRECTIVE_ACTIONS, SITES, TRAINING_MODULES } from '../data/mockData';
 import { isFirebaseConfigured } from '../lib/firebase';
 import {
   loginOrRegister,
@@ -17,6 +17,7 @@ import { changeUserEmailDirect } from '../services/adminChangeEmailDirect';
 import { subscribeSubmissions, addSubmissionDoc, updateSubmissionDoc, CLEAR_FIELD } from '../services/submissionsService';
 import { subscribeWarnings, addWarningDoc } from '../services/warningsService';
 import { subscribeFieldReports, addFieldReportDoc, updateFieldReportDoc } from '../services/fieldReportsService';
+import { subscribeCorrectiveActions, addCorrectiveActionDoc, updateCorrectiveActionDoc } from '../services/correctiveActionsService';
 import { subscribeTrainings, completeTrainingDoc } from '../services/trainingsService';
 import { isValidStaffCode } from '../utils/staffCode';
 import { SIGNOFF_CHAINS } from '../data/opsLogsCatalog';
@@ -108,6 +109,12 @@ export function useAppStore() {
     if (isFirebaseConfigured) return []; // populated by subscribeFieldReports below
     const saved = localStorage.getItem('psu_field_reports_v1');
     return saved ? JSON.parse(saved) : INITIAL_FIELD_REPORTS;
+  });
+
+  const [correctiveActions, setCorrectiveActions] = useState<CorrectiveAction[]>(() => {
+    if (isFirebaseConfigured) return []; // populated by subscribeCorrectiveActions below
+    const saved = localStorage.getItem('psu_corrective_actions_v1');
+    return saved ? JSON.parse(saved) : INITIAL_CORRECTIVE_ACTIONS;
   });
 
   const [trainings, setTrainings] = useState<TrainingModule[]>(() => {
@@ -204,6 +211,17 @@ export function useAppStore() {
   useEffect(() => {
     if (!isFirebaseConfigured) return;
     if (!currentUser || pinSessionActive) {
+      setCorrectiveActions([]);
+      return;
+    }
+    const unsubCorrectiveActions = subscribeCorrectiveActions(setCorrectiveActions);
+    return () => unsubCorrectiveActions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFirebaseConfigured, currentUser?.id, pinSessionActive]);
+
+  useEffect(() => {
+    if (!isFirebaseConfigured) return;
+    if (!currentUser || pinSessionActive) {
       setTrainings([]);
       return;
     }
@@ -263,6 +281,11 @@ export function useAppStore() {
     if (isFirebaseConfigured) return;
     safeSetItem('psu_field_reports_v1', JSON.stringify(fieldReports));
   }, [fieldReports]);
+
+  useEffect(() => {
+    if (isFirebaseConfigured) return;
+    safeSetItem('psu_corrective_actions_v1', JSON.stringify(correctiveActions));
+  }, [correctiveActions]);
 
   useEffect(() => {
     if (isFirebaseConfigured) return;
@@ -698,6 +721,59 @@ export function useAppStore() {
     ));
   };
 
+  const addCorrectiveAction = (action: Omit<CorrectiveAction, 'id' | 'status' | 'createdAt'>) => {
+    const full = { ...action, status: 'OPEN' as const, createdAt: new Date().toISOString() };
+    if (isFirebaseConfigured) {
+      addCorrectiveActionDoc(full).catch((err) => console.error('addCorrectiveAction failed:', err));
+      return;
+    }
+    setCorrectiveActions(prev => [{ ...full, id: `ca-${Date.now()}` }, ...prev]);
+  };
+
+  // Step 1: the assignee marks it done — never the creator, and only
+  // while still OPEN (see firestore.rules).
+  const markCorrectiveActionDone = (id: string, note: string) => {
+    const patch = { status: 'DONE', completedAt: new Date().toISOString(), completionNote: note.trim() };
+    if (isFirebaseConfigured) {
+      updateCorrectiveActionDoc(id, patch).catch((err) => console.error('markCorrectiveActionDone failed:', err));
+      return;
+    }
+    setCorrectiveActions(prev => prev.map(a => a.id === id
+      ? { ...a, ...patch as Partial<CorrectiveAction>, status: 'DONE' as CorrectiveActionStatus }
+      : a
+    ));
+  };
+
+  // Step 2a: the creator (verifier) is satisfied — closes it for good.
+  const verifyCorrectiveAction = (id: string) => {
+    const patch = { status: 'VERIFIED', verifiedAt: new Date().toISOString() };
+    if (isFirebaseConfigured) {
+      updateCorrectiveActionDoc(id, patch).catch((err) => console.error('verifyCorrectiveAction failed:', err));
+      return;
+    }
+    setCorrectiveActions(prev => prev.map(a => a.id === id
+      ? { ...a, ...patch as Partial<CorrectiveAction>, status: 'VERIFIED' as CorrectiveActionStatus }
+      : a
+    ));
+  };
+
+  // Step 2b: the creator isn't satisfied — sends it back to OPEN with a
+  // reason, same reopen-for-another-try shape as a rejected Submission.
+  // The assignee's own completedAt/completionNote from the rejected
+  // attempt are left in place (not cleared) so the reason for the
+  // rejection reads right alongside what was actually claimed as done.
+  const reopenCorrectiveAction = (id: string, note: string) => {
+    const patch = { status: 'OPEN', reopenedAt: new Date().toISOString(), reopenedNote: note.trim() };
+    if (isFirebaseConfigured) {
+      updateCorrectiveActionDoc(id, patch).catch((err) => console.error('reopenCorrectiveAction failed:', err));
+      return;
+    }
+    setCorrectiveActions(prev => prev.map(a => a.id === id
+      ? { ...a, ...patch as Partial<CorrectiveAction>, status: 'OPEN' as CorrectiveActionStatus }
+      : a
+    ));
+  };
+
   const completeTraining = (userId: string, moduleId: string) => {
     if (isFirebaseConfigured) {
       completeTrainingDoc(moduleId, userId).catch((err) => console.error('completeTraining failed:', err));
@@ -718,6 +794,7 @@ export function useAppStore() {
     submissions,
     warnings,
     fieldReports,
+    correctiveActions,
     trainings,
     sites: SITES,
     login,
@@ -741,6 +818,10 @@ export function useAppStore() {
     addFieldReport,
     acknowledgeFieldReport,
     resolveFieldReport,
+    addCorrectiveAction,
+    markCorrectiveActionDone,
+    verifyCorrectiveAction,
+    reopenCorrectiveAction,
     completeTraining
   };
 }

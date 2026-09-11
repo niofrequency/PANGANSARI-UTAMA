@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { AnalyticsDashboard } from '../Dashboard/AnalyticsDashboard';
-import { LayoutDashboard, ClipboardCheck, ClipboardList } from 'lucide-react';
+import { LayoutDashboard, ClipboardCheck, ClipboardList, ListTodo } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { InspectionsTab } from '../Inspections/InspectionsTab';
 import { OpsLogsTab } from '../OpsLogs/OpsLogsTab';
+import { CorrectiveActionsTab } from '../CorrectiveActions/CorrectiveActionsTab';
 import { userCanSeeSite } from '../../lib/siteScope';
 
 // The daily Housekeeping/Food Safety Escalations queue used to live here
@@ -27,7 +28,7 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
   // departments' Ops Logs queue, below.
   const isGeneralManager = currentUser?.role === 'GENERAL_MANAGER';
   const isFoodSafety = currentUser?.role === 'FOOD_SAFETY_MANAGER' || isGeneralManager;
-  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'OPS_LOGS' | 'INSPECTIONS'>('DASHBOARD');
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'OPS_LOGS' | 'ACTIONS' | 'INSPECTIONS'>('DASHBOARD');
 
   // The Dashboard tab used to get the raw, unfiltered store data — every
   // site's submissions, blended together, regardless of who was looking at
@@ -47,6 +48,7 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
   const tabs = [
     { id: 'DASHBOARD' as const, icon: LayoutDashboard, label: t('manager.tabAnalytics') },
     { id: 'OPS_LOGS' as const, icon: ClipboardList, label: t('ops.tabTitle') },
+    { id: 'ACTIONS' as const, icon: ListTodo, label: t('correctiveAction.tabTitle') },
     ...(isFoodSafety ? [{ id: 'INSPECTIONS' as const, icon: ClipboardCheck, label: t('inspection.tabTitle') }] : []),
   ];
 
@@ -127,6 +129,17 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
                 <OpsLogsTab store={store} department="FOOD_SAFETY" tier="manager" />
               </div>
             )}
+          </motion.div>
+        )}
+
+        {activeTab === 'ACTIONS' && (
+          <motion.div
+            key="actions"
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+          >
+            <CorrectiveActionsTab store={store} department={isFoodSafety ? 'FOOD_SAFETY' : 'HOUSEKEEPING'} isGeneralManager={isGeneralManager} />
           </motion.div>
         )}
       </AnimatePresence>

@@ -10,6 +10,7 @@ import { DeepLinkJob, parseDeepLinkFromUrl } from '../../lib/deepLink';
 import { ScanJobButton } from '../QrScanner';
 import { ReportIssueButton } from '../FieldReports/ReportIssueButton';
 import { MyFieldReports } from '../FieldReports/MyFieldReports';
+import { MyActionItems } from '../CorrectiveActions/MyActionItems';
 import { PortalHeaderRow } from '../OpsLogs/opsHelpers';
 
 interface JanitorPortalProps {
@@ -125,6 +126,7 @@ export function JanitorPortal({ store, fromQr, onDeepLinkHandled, onScanJob }: J
               )}
             </div>
             <MyFieldReports store={store} />
+            <MyActionItems store={store} />
           </motion.div>
         )}
 

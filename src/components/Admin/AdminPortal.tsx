@@ -3,7 +3,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { AnalyticsDashboard } from '../Dashboard/AnalyticsDashboard';
 import {
   Users, UserPlus, Shield, Trash2, XCircle, Search, Activity as ActivityIcon,
-  User as UserIcon, AlertTriangle, Copy, Check, Eye, EyeOff, RefreshCw, KeyRound, Hash, Printer, Mail,
+  User as UserIcon, AlertTriangle, Copy, Check, Eye, EyeOff, RefreshCw, KeyRound, Hash, Printer, Mail, ListTodo,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
@@ -93,7 +93,7 @@ function SiteAccessPicker({
 
 export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }) {
   const { t } = useTranslation();
-  const { users, sites, submissions, warnings, addUser, updateUserRole, updateUserSite, updateUserAssignedSites, resetUserCredentials, changeUserEmail, setStaffIdentity, deleteUser } = store;
+  const { users, sites, submissions, warnings, correctiveActions, addUser, updateUserRole, updateUserSite, updateUserAssignedSites, resetUserCredentials, changeUserEmail, setStaffIdentity, deleteUser } = store;
   const [activeTab, setActiveTab] = useState<'USERS' | 'ACTIVITY' | 'ANALYTICS' | 'PRINT'>('USERS');
   const [search, setSearch] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -145,7 +145,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
   const [staffIdSuccess, setStaffIdSuccess] = useState(false);
 
   // Activity tab state
-  const [activitySegment, setActivitySegment] = useState<'SUBMISSIONS' | 'WARNINGS'>('SUBMISSIONS');
+  const [activitySegment, setActivitySegment] = useState<'SUBMISSIONS' | 'WARNINGS' | 'ACTIONS'>('SUBMISSIONS');
   const [activitySearch, setActivitySearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | Submission['status']>('ALL');
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
@@ -182,6 +182,10 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
     return true;
   });
 
+  const scopedCorrectiveActions = correctiveActions
+    .filter(a => scopeSite === 'ALL' || a.siteId === scopeSite)
+    .filter(a => scopeDept === 'ALL' || a.department === scopeDept);
+
   const scopedSites = scopeSite === 'ALL' ? sites : sites.filter(s => s.id === scopeSite);
 
   const scopedUsers = users
@@ -205,6 +209,13 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
   const filteredWarnings = scopedWarnings
     .filter(w => w.technicianName.toLowerCase().includes(activitySearch.toLowerCase()))
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+  const filteredCorrectiveActions = scopedCorrectiveActions
+    .filter(a =>
+      a.assignedToName.toLowerCase().includes(activitySearch.toLowerCase())
+      || a.createdByName.toLowerCase().includes(activitySearch.toLowerCase())
+    )
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -598,6 +609,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
               {[
                 { id: 'SUBMISSIONS', label: t('admin.segmentSubmissions') },
                 { id: 'WARNINGS', label: t('admin.segmentWarnings') },
+                { id: 'ACTIONS', label: t('admin.segmentActions') },
               ].map(seg => (
                 <button
                   key={seg.id}
@@ -697,6 +709,41 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                 {filteredWarnings.length === 0 && (
                   <div className="col-span-full text-center py-16 opacity-30">
                     <AlertTriangle size={48} className="mx-auto mb-2" />
+                    <p className="text-xs font-black uppercase tracking-widest">{t('admin.noActivity')}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activitySegment === 'ACTIONS' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredCorrectiveActions.map(a => (
+                  <div key={a.id} className="card flex items-start gap-4">
+                    <div className="w-12 h-12 bg-psu-blue/10 rounded-2xl flex items-center justify-center text-psu-blue shrink-0">
+                      <ListTodo size={20} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-sm font-bold text-psu-gray truncate">{a.assignedToName}</h4>
+                      <p className="text-[11px] text-psu-gray/60 font-medium mt-1">{a.comment}</p>
+                      <div className="flex items-center gap-2 mt-2 flex-wrap">
+                        <span className={cn(
+                          "text-[9px] font-black uppercase tracking-tighter px-2 py-0.5 rounded",
+                          a.status === 'OPEN' ? 'bg-psu-rejected/10 text-psu-rejected'
+                            : a.status === 'DONE' ? 'bg-psu-warning/10 text-psu-warning'
+                            : 'bg-psu-green/10 text-psu-green'
+                        )}>
+                          {a.status === 'OPEN' ? t('correctiveAction.statusOpen') : a.status === 'DONE' ? t('correctiveAction.statusDone') : t('correctiveAction.statusVerified')}
+                        </span>
+                        <span className="text-[9px] text-psu-gray/30 font-bold uppercase tracking-widest">
+                          {a.siteName} • {t('correctiveAction.assignedByLabel', { name: a.createdByName })}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {filteredCorrectiveActions.length === 0 && (
+                  <div className="col-span-full text-center py-16 opacity-30">
+                    <ListTodo size={48} className="mx-auto mb-2" />
                     <p className="text-xs font-black uppercase tracking-widest">{t('admin.noActivity')}</p>
                   </div>
                 )}
