@@ -17,6 +17,7 @@ import { changeUserEmailDirect } from '../services/adminChangeEmailDirect';
 import { subscribeSubmissions, addSubmissionDoc, updateSubmissionDoc, CLEAR_FIELD } from '../services/submissionsService';
 import { subscribeWarnings, addWarningDoc } from '../services/warningsService';
 import { subscribeFieldReports, addFieldReportDoc, updateFieldReportDoc } from '../services/fieldReportsService';
+import { subscribeTrainings, completeTrainingDoc } from '../services/trainingsService';
 import { isValidStaffCode } from '../utils/staffCode';
 import { SIGNOFF_CHAINS } from '../data/opsLogsCatalog';
 
@@ -110,6 +111,7 @@ export function useAppStore() {
   });
 
   const [trainings, setTrainings] = useState<TrainingModule[]>(() => {
+    if (isFirebaseConfigured) return []; // populated by subscribeTrainings below
     const saved = localStorage.getItem('psu_trainings_v4');
     return saved ? JSON.parse(saved) : TRAINING_MODULES;
   });
@@ -199,6 +201,17 @@ export function useAppStore() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isFirebaseConfigured, currentUser?.id, pinSessionActive]);
 
+  useEffect(() => {
+    if (!isFirebaseConfigured) return;
+    if (!currentUser || pinSessionActive) {
+      setTrainings([]);
+      return;
+    }
+    const unsubTrainings = subscribeTrainings(setTrainings);
+    return () => unsubTrainings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFirebaseConfigured, currentUser?.id, pinSessionActive]);
+
   // Set (and cleared) whenever a localStorage write below fails — almost
   // always QuotaExceededError once the browser's per-origin storage limit
   // is hit, which is a real risk here: submissions carry full photos as
@@ -252,6 +265,7 @@ export function useAppStore() {
   }, [fieldReports]);
 
   useEffect(() => {
+    if (isFirebaseConfigured) return;
     safeSetItem('psu_trainings_v4', JSON.stringify(trainings));
   }, [trainings]);
 
@@ -685,9 +699,13 @@ export function useAppStore() {
   };
 
   const completeTraining = (userId: string, moduleId: string) => {
-    setTrainings(prev => prev.map(t => 
-      t.id === moduleId && !t.completedBy.includes(userId) 
-        ? { ...t, completedBy: [...t.completedBy, userId] } 
+    if (isFirebaseConfigured) {
+      completeTrainingDoc(moduleId, userId).catch((err) => console.error('completeTraining failed:', err));
+      return;
+    }
+    setTrainings(prev => prev.map(t =>
+      t.id === moduleId && !t.completedBy.includes(userId)
+        ? { ...t, completedBy: [...t.completedBy, userId] }
         : t
     ));
   };
