@@ -5,6 +5,7 @@ import { OpsHeaderChip, OpsFormProps, ResubmitNotice } from './opsHelpers';
 import { LAUNDRY_GARMENT_COLUMNS, LaundryRoomRow, emptyLaundryRow } from '../../data/laundryShopData';
 import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 import { useWorkingSite } from '../../hooks/useWorkingSite';
+import { ConfirmDeleteModal } from '../ConfirmDeleteModal';
 
 // Daily Check List — Laundryshop. NOT UN.00.65 section 6 — this is the
 // laundry shop's own receiving log. One submit = one date, with one row
@@ -19,6 +20,11 @@ export function LaundryShopForm({ store, onCancel, onSubmitted, editingSubmissio
   );
   const [expandedId, setExpandedId] = useState<string | null>(rows[0]?.id ?? null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // A tap on the trash icon used to remove a room's counts immediately,
+  // with no way back — that's real data entry lost to one accidental
+  // tap. Now it just opens the same type-DELETE-to-confirm fail-safe
+  // AdminPortal.tsx uses for deleting a user profile.
+  const [rowToDelete, setRowToDelete] = useState<string | null>(null);
   const today = editingSubmission?.meta?.laundryDate || new Date().toISOString().slice(0, 10);
 
   const addRow = () => {
@@ -108,7 +114,9 @@ export function LaundryShopForm({ store, onCancel, onSubmitted, editingSubmissio
                     {totalGarments(row)} {t('ops.laundryShop.itemsUnit')}
                   </p>
                 </div>
-                <button onClick={(e) => { e.stopPropagation(); removeRow(row.id); }} className="text-psu-rejected/50 shrink-0"><Trash2 size={16} /></button>
+                {rows.length > 1 && (
+                  <button onClick={(e) => { e.stopPropagation(); setRowToDelete(row.id); }} className="text-psu-rejected/50 shrink-0"><Trash2 size={16} /></button>
+                )}
                 {expanded ? <ChevronUp size={18} className="text-psu-gray/30 shrink-0" /> : <ChevronDown size={18} className="text-psu-gray/30 shrink-0" />}
               </div>
 
@@ -153,6 +161,12 @@ export function LaundryShopForm({ store, onCancel, onSubmitted, editingSubmissio
           className={cn("flex-[2] py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg transition-all active:scale-95", canSubmit ? "bg-psu-green text-white shadow-psu-green/20" : "bg-psu-gray/20 text-psu-gray/40")}
         >{isSubmitting ? t('common.loading') : t('common.submit')}</button>
       </div>
+
+      <ConfirmDeleteModal
+        open={!!rowToDelete}
+        onCancel={() => setRowToDelete(null)}
+        onConfirm={() => { removeRow(rowToDelete!); setRowToDelete(null); }}
+      />
     </div>
   );
 }

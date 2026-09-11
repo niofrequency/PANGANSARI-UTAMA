@@ -6,6 +6,7 @@ import { OpsHeaderChip, OutOfRangeFlag } from './opsHelpers';
 import { THAWING_METHODS, ThawMethodId, THAW_PRODUCT_CATEGORIES, ThawProductCategoryId, THAW_USED_FOR, THAW_PRODUCT_TEMP_LIMIT_C } from '../../data/thawingData';
 import { Plus, Trash2 } from 'lucide-react';
 import { useWorkingSite } from '../../hooks/useWorkingSite';
+import { ConfirmDeleteModal } from '../ConfirmDeleteModal';
 
 interface ThawRow {
   id: string;
@@ -34,6 +35,9 @@ export function ThawingForm({ store, onCancel, onSubmitted }: {
   const [method, setMethod] = useState<ThawMethodId>('1');
   const [rows, setRows] = useState<ThawRow[]>([emptyThawRow('r1')]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Same type-DELETE-to-confirm fail-safe as AdminPortal.tsx's delete-user
+  // flow — a whole batch's readings used to vanish on one accidental tap.
+  const [rowToDelete, setRowToDelete] = useState<string | null>(null);
 
   const addRow = () => setRows(prev => [...prev, emptyThawRow(`r${prev.length + 1}-${Date.now()}`)]);
   const removeRow = (id: string) => setRows(prev => prev.length > 1 ? prev.filter(r => r.id !== id) : prev);
@@ -102,7 +106,7 @@ export function ThawingForm({ store, onCancel, onSubmitted }: {
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-black text-psu-gray/40 uppercase tracking-widest">{t('ops.thawing.batchLabel')} {idx + 1}</span>
               {rows.length > 1 && (
-                <button onClick={() => removeRow(row.id)} className="text-psu-rejected/60"><Trash2 size={16} /></button>
+                <button onClick={() => setRowToDelete(row.id)} className="text-psu-rejected/60"><Trash2 size={16} /></button>
               )}
             </div>
             <select value={row.category} onChange={(e) => updateRow(row.id, { category: e.target.value as ThawProductCategoryId })} className="w-full p-3 bg-psu-bg border border-psu-gray/10 rounded-xl text-sm font-bold">
@@ -137,6 +141,12 @@ export function ThawingForm({ store, onCancel, onSubmitted }: {
           className={cn("flex-[2] py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg transition-all active:scale-95", canSubmit ? "bg-psu-blue text-white shadow-psu-blue/20" : "bg-psu-gray/20 text-psu-gray/40")}
         >{isSubmitting ? t('common.loading') : t('common.submit')}</button>
       </div>
+
+      <ConfirmDeleteModal
+        open={!!rowToDelete}
+        onCancel={() => setRowToDelete(null)}
+        onConfirm={() => { removeRow(rowToDelete!); setRowToDelete(null); }}
+      />
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { OpsHeaderChip } from './opsHelpers';
 import { STAFF_READY_GROUPS, STAFF_READY_POSITIONS, StaffReadyRow, emptyStaffReadyRow } from '../../data/staffReadyData';
 import { ChevronDown, ChevronUp, Plus, Trash2, UserPlus } from 'lucide-react';
 import { useWorkingSite } from '../../hooks/useWorkingSite';
+import { ConfirmDeleteModal } from '../ConfirmDeleteModal';
 
 // Checklist Persiapan Diri Karyawan — a shift roster, not the Daily Food
 // Handler self-check (Inspections tab). Pulls names from active users at
@@ -32,6 +33,10 @@ export function StaffReadyForm({ store, onCancel, onSubmitted }: {
   const [rows, setRows] = useState<StaffReadyRow[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Same type-DELETE-to-confirm fail-safe as AdminPortal.tsx's delete-user
+  // flow — a whole roster entry's completed checklist used to vanish on
+  // one accidental tap.
+  const [rowToDelete, setRowToDelete] = useState<string | null>(null);
 
   const addFromRoster = (userId: string) => {
     const u = siteStaff.find(s => s.id === userId);
@@ -127,7 +132,7 @@ export function StaffReadyForm({ store, onCancel, onSubmitted }: {
                     {row.position ? STAFF_READY_POSITIONS.find(p => p.id === row.position)?.labelId : t('ops.staffReady.noPosition')} · {markedCount}/{totalItems}
                   </p>
                 </div>
-                <button onClick={(e) => { e.stopPropagation(); removeRow(row.id); }} className="text-psu-rejected/50 shrink-0"><Trash2 size={16} /></button>
+                <button onClick={(e) => { e.stopPropagation(); setRowToDelete(row.id); }} className="text-psu-rejected/50 shrink-0"><Trash2 size={16} /></button>
                 {expanded ? <ChevronUp size={18} className="text-psu-gray/30 shrink-0" /> : <ChevronDown size={18} className="text-psu-gray/30 shrink-0" />}
               </div>
 
@@ -195,6 +200,12 @@ export function StaffReadyForm({ store, onCancel, onSubmitted }: {
           className={cn("flex-[2] py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg transition-all active:scale-95", canSubmit ? "bg-psu-blue text-white shadow-psu-blue/20" : "bg-psu-gray/20 text-psu-gray/40")}
         >{isSubmitting ? t('common.loading') : t('common.submit')}</button>
       </div>
+
+      <ConfirmDeleteModal
+        open={!!rowToDelete}
+        onCancel={() => setRowToDelete(null)}
+        onConfirm={() => { removeRow(rowToDelete!); setRowToDelete(null); }}
+      />
     </div>
   );
 }
