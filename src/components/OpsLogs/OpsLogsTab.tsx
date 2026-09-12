@@ -3,6 +3,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { Modal } from '../Modal';
 import { Lightbox } from '../Lightbox';
 import { ListCard } from '../ListCard';
+import { SubmissionHistoryList } from '../SubmissionHistoryList';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { cn } from '../../utils/cn';
 import { motion, AnimatePresence } from 'motion/react';
@@ -477,28 +478,32 @@ export function OpsLogsTab({
       </button>
       <AnimatePresence>
         {historyOpen && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="space-y-3 overflow-hidden">
-            {history.map(s => {
-              const titleKey = titleKeyFor(s);
-              return (
-                <div key={s.id} onClick={() => setSelected(s)} className="card flex items-center justify-between cursor-pointer group hover:border-psu-blue/20 transition-all">
-                  <div className="flex items-center gap-4 min-w-0">
-                    <div className={cn("w-11 h-11 rounded-2xl flex items-center justify-center shrink-0",
-                      s.status === 'APPROVED' ? "bg-psu-green/10 text-psu-green" : s.status === 'REJECTED' ? "bg-psu-rejected/10 text-psu-rejected" : "bg-psu-blue/10 text-psu-blue")}>
-                      {s.status === 'APPROVED' ? <CheckCircle2 size={20} /> : s.status === 'REJECTED' ? <XCircle size={20} /> : <Clock size={20} />}
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+            <SubmissionHistoryList
+              submissions={history}
+              emptyIcon={<ClipboardList size={48} className="mx-auto" />}
+              emptyLabel={t('common.noData')}
+              renderRow={(s) => {
+                const titleKey = titleKeyFor(s);
+                return (
+                  <div onClick={() => setSelected(s)} className="flex items-center justify-between gap-3 cursor-pointer">
+                    <div className="flex items-center gap-4 min-w-0">
+                      <div className={cn("w-11 h-11 rounded-2xl flex items-center justify-center shrink-0",
+                        s.status === 'APPROVED' ? "bg-psu-green/10 text-psu-green" : s.status === 'REJECTED' ? "bg-psu-rejected/10 text-psu-rejected" : "bg-psu-blue/10 text-psu-blue")}>
+                        {s.status === 'APPROVED' ? <CheckCircle2 size={20} /> : s.status === 'REJECTED' ? <XCircle size={20} /> : <Clock size={20} />}
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="text-sm font-bold text-psu-gray truncate">{titleKey ? t(titleKey) : s.type}</h4>
+                        <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5 truncate">
+                          {s.userName} · {new Date(s.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </p>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <h4 className="text-sm font-bold text-psu-gray truncate">{titleKey ? t(titleKey) : s.type}</h4>
-                      <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5 truncate">
-                        {s.userName} · {new Date(s.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-                      </p>
-                    </div>
+                    <ChevronRight size={16} className="text-psu-gray/20 shrink-0" />
                   </div>
-                  <ChevronRight size={16} className="text-psu-gray/20 shrink-0" />
-                </div>
-              );
-            })}
-            {history.length === 0 && <p className="text-center text-xs text-psu-gray/30 font-bold py-6">{t('common.noData')}</p>}
+                );
+              }}
+            />
           </motion.div>
         )}
       </AnimatePresence>

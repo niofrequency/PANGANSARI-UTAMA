@@ -1,22 +1,9 @@
 import { useMemo, useState, ReactNode } from 'react';
-import { Search, Calendar } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext';
-import { cn } from '../utils/cn';
 import { Submission } from '../types';
-
-type DatePreset = 'all' | 'today' | '7d' | '30d' | 'custom';
-
-const PRESETS: { id: DatePreset; labelKey: string }[] = [
-  { id: 'all', labelKey: 'history.filterAll' },
-  { id: 'today', labelKey: 'history.filterToday' },
-  { id: '7d', labelKey: 'history.filter7d' },
-  { id: '30d', labelKey: 'history.filter30d' },
-  { id: 'custom', labelKey: 'history.filterCustom' },
-];
-
-function isSameLocalDay(a: Date, b: Date): boolean {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-}
+import { useDateFilter } from '../hooks/useDateFilter';
+import { DateFilterBar } from './DateFilterBar';
 
 // Everything a submission carries that a person filing/reviewing dozens of
 // these might actually search for — room/barak (Room Cleaning), staff
@@ -59,26 +46,15 @@ export function SubmissionHistoryList<T extends Submission>({
 }) {
   const { t } = useTranslation();
   const [search, setSearch] = useState('');
-  const [preset, setPreset] = useState<DatePreset>('all');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  const { preset, setPreset, from, setFrom, to, setTo, matches } = useDateFilter();
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const now = new Date();
     return submissions.filter((s) => {
       if (q && !searchHaystack(s).includes(q)) return false;
-      if (preset === 'all') return true;
-      const ts = new Date(s.timestamp);
-      if (preset === 'today') return isSameLocalDay(ts, now);
-      if (preset === '7d') return now.getTime() - ts.getTime() <= 7 * 24 * 60 * 60 * 1000;
-      if (preset === '30d') return now.getTime() - ts.getTime() <= 30 * 24 * 60 * 60 * 1000;
-      // custom: an empty from/to side leaves that side unbounded.
-      if (from && ts < new Date(from)) return false;
-      if (to && ts.getTime() > new Date(to).getTime() + 24 * 60 * 60 * 1000 - 1) return false;
-      return true;
+      return matches(s.timestamp);
     });
-  }, [submissions, search, preset, from, to]);
+  }, [submissions, search, matches]);
 
   return (
     <div className="space-y-3">
@@ -93,41 +69,7 @@ export function SubmissionHistoryList<T extends Submission>({
         />
       </div>
 
-      <div className="flex items-center gap-2 flex-wrap">
-        {PRESETS.map((p) => (
-          <button
-            key={p.id}
-            type="button"
-            onClick={() => setPreset(p.id)}
-            className={cn(
-              "px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all",
-              preset === p.id ? "bg-psu-gray text-white" : "bg-white text-psu-gray/40 border border-psu-gray/10"
-            )}
-          >
-            {t(p.labelKey)}
-          </button>
-        ))}
-      </div>
-
-      {preset === 'custom' && (
-        <div className="flex items-center gap-2">
-          <Calendar size={14} className="text-psu-gray/30 shrink-0" />
-          <label className="text-[10px] font-black text-psu-gray/40 uppercase tracking-widest shrink-0">{t('history.fromLabel')}</label>
-          <input
-            type="date"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-            className="flex-1 px-3 py-2 bg-white border border-psu-gray/10 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-psu-blue/20"
-          />
-          <label className="text-[10px] font-black text-psu-gray/40 uppercase tracking-widest shrink-0">{t('history.toLabel')}</label>
-          <input
-            type="date"
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-            className="flex-1 px-3 py-2 bg-white border border-psu-gray/10 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-psu-blue/20"
-          />
-        </div>
-      )}
+      <DateFilterBar preset={preset} setPreset={setPreset} from={from} setFrom={setFrom} to={to} setTo={setTo} />
 
       {filtered.length > 0 ? (
         <div className="card p-0 divide-y divide-psu-gray/5 overflow-hidden">

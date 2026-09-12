@@ -14,6 +14,8 @@ import { isFirebaseConfigured } from '../../lib/firebase';
 import { Modal } from '../Modal';
 import { Lightbox } from '../Lightbox';
 import { ListCard } from '../ListCard';
+import { DateFilterBar } from '../DateFilterBar';
+import { useDateFilter } from '../../hooks/useDateFilter';
 import { isValidStaffCode } from '../../utils/staffCode';
 import { cloudinaryUrl } from '../../utils/cloudinaryUrl';
 import { PrintQrPanel } from './PrintQrPanel';
@@ -153,6 +155,9 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
   const [activitySearch, setActivitySearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | Submission['status']>('ALL');
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
+  // Submissions-only — Warnings/Actions have their own timestamps but
+  // aren't "past checklists" in the sense this filter is for.
+  const activityDateFilter = useDateFilter();
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   // Site + department scope — shared by the Activity and Analytics tabs.
@@ -209,6 +214,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
   const filteredSubmissions = scopedSubmissions
     .filter(s => statusFilter === 'ALL' || s.status === statusFilter)
     .filter(s => s.userName.toLowerCase().includes(activitySearch.toLowerCase()))
+    .filter(s => activityDateFilter.matches(s.timestamp))
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
   const filteredWarnings = scopedWarnings
@@ -661,6 +667,15 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                     </button>
                   ))}
                 </div>
+
+                <DateFilterBar
+                  preset={activityDateFilter.preset}
+                  setPreset={activityDateFilter.setPreset}
+                  from={activityDateFilter.from}
+                  setFrom={activityDateFilter.setFrom}
+                  to={activityDateFilter.to}
+                  setTo={activityDateFilter.setTo}
+                />
 
                 <ListCard
                   items={filteredSubmissions}
