@@ -22,6 +22,7 @@ import { ReportIssueButton } from '../FieldReports/ReportIssueButton';
 import { MyFieldReports } from '../FieldReports/MyFieldReports';
 import { MyActionItems } from '../CorrectiveActions/MyActionItems';
 import { ResubmitNotice, ChecklistRow, PortalHeaderRow } from '../OpsLogs/opsHelpers';
+import { SubmissionHistoryList } from '../SubmissionHistoryList';
 
 const GROUP_ICON: Record<RoomCleaningGroupKey, typeof Sparkles> = {
   '1': Sparkles,
@@ -444,38 +445,39 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
             className="space-y-4"
           >
             <h2 className="text-xl font-bold tracking-tight text-psu-gray">{t('housekeeper.historyTitle')}</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {myHistory.map(s => (
-                <div key={s.id} className="card space-y-3 group hover:border-psu-green/20 transition-all">
+            <SubmissionHistoryList
+              submissions={myHistory}
+              emptyIcon={<ClipboardList size={48} className="mx-auto" />}
+              emptyLabel={t('common.noData')}
+              renderRow={(s) => (
+                <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-4 min-w-0">
                       <div className={cn(
-                        "w-12 h-12 rounded-2xl flex items-center justify-center transition-all",
+                        "w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 transition-all",
                         s.status === 'APPROVED' ? "bg-psu-green/10 text-psu-green" :
                         s.status === 'REJECTED' ? "bg-psu-rejected/10 text-psu-rejected" :
                         "bg-psu-blue/10 text-psu-blue"
                       )}>
-                        {s.status === 'APPROVED' ? <CheckCircle2 size={24} /> :
-                         s.status === 'REJECTED' ? <XCircle size={24} /> :
-                         <Clock size={24} />}
+                        {s.status === 'APPROVED' ? <CheckCircle2 size={20} /> :
+                         s.status === 'REJECTED' ? <XCircle size={20} /> :
+                         <Clock size={20} />}
                       </div>
-                      <div>
-                        <h4 className="text-sm font-bold text-psu-gray">{new Date(s.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</h4>
-                        <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5">
+                      <div className="min-w-0">
+                        <h4 className="text-sm font-bold text-psu-gray truncate">{new Date(s.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</h4>
+                        <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5 truncate">
                           {s.meta?.barak && s.meta?.roomId ? `${s.meta.barak} · ${s.meta.roomId} · ` : ''}{s.type} • ID {s.id.slice(-6)}
                         </p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <span className={cn(
-                        "text-[9px] font-black uppercase tracking-tighter px-2 py-1 rounded-md",
-                        s.status === 'APPROVED' ? "bg-psu-green/10 text-psu-green" :
-                        s.status === 'REJECTED' ? "bg-psu-rejected/10 text-psu-rejected" :
-                        "bg-psu-blue/10 text-psu-blue"
-                      )}>
-                        {s.status === 'APPROVED' ? t('common.approved') : s.status === 'REJECTED' ? t('common.rejected') : t('common.pending')}
-                      </span>
-                    </div>
+                    <span className={cn(
+                      "text-[9px] font-black uppercase tracking-tighter px-2 py-1 rounded-md shrink-0 ml-2",
+                      s.status === 'APPROVED' ? "bg-psu-green/10 text-psu-green" :
+                      s.status === 'REJECTED' ? "bg-psu-rejected/10 text-psu-rejected" :
+                      "bg-psu-blue/10 text-psu-blue"
+                    )}>
+                      {s.status === 'APPROVED' ? t('common.approved') : s.status === 'REJECTED' ? t('common.rejected') : t('common.pending')}
+                    </span>
                   </div>
                   {s.status === 'REJECTED' && (
                     <div className="pt-3 border-t border-psu-gray/5 space-y-2">
@@ -489,14 +491,8 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
                     </div>
                   )}
                 </div>
-              ))}
-              {myHistory.length === 0 && (
-                <div className="text-center py-10 opacity-40">
-                  <ClipboardList size={48} className="mx-auto mb-2" />
-                  <p className="text-sm font-bold uppercase tracking-widest">{t('common.noData')}</p>
-                </div>
               )}
-            </div>
+            />
             <MyFieldReports store={store} />
             <MyActionItems store={store} />
           </motion.div>

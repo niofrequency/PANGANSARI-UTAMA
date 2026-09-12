@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
 import { ClipboardList, Plus, ChevronRight, ClipboardCheck, Footprints, Users, Pencil } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
@@ -13,6 +12,7 @@ import { DailyFoodHandlerForm } from './DailyFoodHandlerForm';
 import { DailyFoodHandlerReportView } from './DailyFoodHandlerReportView';
 import { userCanSeeSite } from '../../lib/siteScope';
 import { HOUSEKEEPING_GEMBA_ROLES } from '../../data/opsLogsCatalog';
+import { SubmissionHistoryList } from '../SubmissionHistoryList';
 
 type AuditType = 'FOOD_SAFETY_INSPECTION' | 'GEMBA_WALK' | 'DAILY_FOOD_HANDLER';
 
@@ -184,76 +184,65 @@ export function InspectionsTab({ store, department }: { store: ReturnType<typeof
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <AnimatePresence>
-          {myAudits.map(s => {
-            const category = s.meta?.category || 'D';
-            const icon = s.type === 'GEMBA_WALK' ? Footprints : s.type === 'DAILY_FOOD_HANDLER' ? Users : null;
-            const typeLabel = s.type === 'GEMBA_WALK' ? t('inspection.pickerGemba') : s.type === 'DAILY_FOOD_HANDLER' ? t('inspection.pickerDfh') : t('inspection.pickerFsi');
-            const defaultTitle = s.type === 'GEMBA_WALK' ? t('gemba.formTitle') : s.type === 'DAILY_FOOD_HANDLER' ? t('dfh.formTitle') : t('inspection.formTitle');
-            const scoreText = s.score !== undefined ? `${Math.round(s.score)}%` : '—';
-            return (
-              <motion.div
-                key={s.id}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="card space-y-3 group hover:border-psu-blue/20 transition-all"
-              >
-                <div onClick={() => setSelected(s)} className="flex items-center justify-between cursor-pointer">
-                  <div className="flex items-center gap-4 min-w-0">
-                    <div className={cn(
-                      "w-12 h-12 rounded-2xl flex items-center justify-center text-sm font-black shrink-0",
-                      icon ? scoreColor(s.score) : CATEGORY_COLOR[category]
-                    )}>
-                      {icon ? (icon === Footprints ? <Footprints size={20} /> : <Users size={20} />) : category}
-                    </div>
-                    <div className="min-w-0">
-                      <h4 className="text-sm font-bold text-psu-gray truncate">{s.meta?.areaAudited || defaultTitle}</h4>
-                      <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5">
-                        {new Date(s.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} · {scoreText} · {typeLabel}
-                        {/* Site shown once this view can span more than one
-                            site — GENERAL_MANAGER by default, or anyone the
-                            Admin gave a Site Access override to. */}
-                        {(currentUser?.role === 'GENERAL_MANAGER' || currentUser?.assignedSites) && s.siteName ? ` · ${s.siteName}` : ''}
-                      </p>
-                      {/* Only Gemba Walk goes through review — see this
-                          file's header comment — so this is the one type
-                          where a status badge is worth showing here. */}
-                      {s.type === 'GEMBA_WALK' && s.status !== 'APPROVED' && (
-                        <span className={cn(
-                          "inline-block mt-1.5 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full",
-                          s.status === 'REJECTED' ? "text-psu-rejected bg-psu-rejected/10" : "text-psu-warning bg-psu-warning/10"
-                        )}>
-                          {s.status === 'REJECTED' ? t('common.rejected') : t('common.pending')}
-                        </span>
-                      )}
-                    </div>
+      <SubmissionHistoryList
+        submissions={myAudits}
+        emptyIcon={<ClipboardList size={56} className="mx-auto" />}
+        emptyLabel={t('inspection.noInspectionsYet')}
+        renderRow={(s) => {
+          const category = s.meta?.category || 'D';
+          const icon = s.type === 'GEMBA_WALK' ? Footprints : s.type === 'DAILY_FOOD_HANDLER' ? Users : null;
+          const typeLabel = s.type === 'GEMBA_WALK' ? t('inspection.pickerGemba') : s.type === 'DAILY_FOOD_HANDLER' ? t('inspection.pickerDfh') : t('inspection.pickerFsi');
+          const defaultTitle = s.type === 'GEMBA_WALK' ? t('gemba.formTitle') : s.type === 'DAILY_FOOD_HANDLER' ? t('dfh.formTitle') : t('inspection.formTitle');
+          const scoreText = s.score !== undefined ? `${Math.round(s.score)}%` : '—';
+          return (
+            <div className="space-y-3">
+              <div onClick={() => setSelected(s)} className="flex items-center justify-between cursor-pointer group">
+                <div className="flex items-center gap-4 min-w-0">
+                  <div className={cn(
+                    "w-11 h-11 rounded-2xl flex items-center justify-center text-sm font-black shrink-0",
+                    icon ? scoreColor(s.score) : CATEGORY_COLOR[category]
+                  )}>
+                    {icon ? (icon === Footprints ? <Footprints size={20} /> : <Users size={20} />) : category}
                   </div>
-                  <ChevronRight size={18} className="text-psu-gray/20 group-hover:text-psu-blue transition-colors shrink-0" />
+                  <div className="min-w-0">
+                    <h4 className="text-sm font-bold text-psu-gray truncate">{s.meta?.areaAudited || defaultTitle}</h4>
+                    <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5">
+                      {new Date(s.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} · {scoreText} · {typeLabel}
+                      {/* Site shown once this view can span more than one
+                          site — GENERAL_MANAGER by default, or anyone the
+                          Admin gave a Site Access override to. */}
+                      {(currentUser?.role === 'GENERAL_MANAGER' || currentUser?.assignedSites) && s.siteName ? ` · ${s.siteName}` : ''}
+                    </p>
+                    {/* Only Gemba Walk goes through review — see this
+                        file's header comment — so this is the one type
+                        where a status badge is worth showing here. */}
+                    {s.type === 'GEMBA_WALK' && s.status !== 'APPROVED' && (
+                      <span className={cn(
+                        "inline-block mt-1.5 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full",
+                        s.status === 'REJECTED' ? "text-psu-rejected bg-psu-rejected/10" : "text-psu-warning bg-psu-warning/10"
+                      )}>
+                        {s.status === 'REJECTED' ? t('common.rejected') : t('common.pending')}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                {s.type === 'GEMBA_WALK' && s.status === 'REJECTED' && s.userId === currentUser?.id && (
-                  <div className="pt-3 border-t border-psu-gray/5 space-y-2">
-                    {s.rejectionReason && <p className="text-xs text-psu-gray/60 font-medium">{s.rejectionReason}</p>}
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setEditingId(s.id); setView('NEW_GEMBA'); }}
-                      className="w-full flex items-center justify-center gap-2 py-3 bg-psu-blue text-white rounded-xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all"
-                    >
-                      <Pencil size={14} /> {t('ops.signoff.editAndResubmit')}
-                    </button>
-                  </div>
-                )}
-              </motion.div>
-            );
-          })}
-        </AnimatePresence>
-
-        {myAudits.length === 0 && (
-          <div className="col-span-full text-center py-16 opacity-20">
-            <ClipboardList size={56} className="mx-auto mb-3" />
-            <p className="text-[10px] font-black uppercase tracking-[0.3em]">{t('inspection.noInspectionsYet')}</p>
-          </div>
-        )}
-      </div>
+                <ChevronRight size={18} className="text-psu-gray/20 group-hover:text-psu-blue transition-colors shrink-0" />
+              </div>
+              {s.type === 'GEMBA_WALK' && s.status === 'REJECTED' && s.userId === currentUser?.id && (
+                <div className="pt-3 border-t border-psu-gray/5 space-y-2">
+                  {s.rejectionReason && <p className="text-xs text-psu-gray/60 font-medium">{s.rejectionReason}</p>}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setEditingId(s.id); setView('NEW_GEMBA'); }}
+                    className="w-full flex items-center justify-center gap-2 py-3 bg-psu-blue text-white rounded-xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all"
+                  >
+                    <Pencil size={14} /> {t('ops.signoff.editAndResubmit')}
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        }}
+      />
     </div>
   );
 }
