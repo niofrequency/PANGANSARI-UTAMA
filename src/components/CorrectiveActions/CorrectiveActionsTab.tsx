@@ -9,7 +9,7 @@
 
 import { useState } from 'react';
 import { AnimatePresence } from 'motion/react';
-import { Plus, ClipboardList, XCircle, CheckCircle2, AlertTriangle, Undo2, User as UserIcon, Clock } from 'lucide-react';
+import { Plus, ClipboardList, ChevronLeft, XCircle, CheckCircle2, AlertTriangle, Undo2, User as UserIcon, Clock } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { userCanSeeSite } from '../../lib/siteScope';
@@ -141,8 +141,125 @@ export function CorrectiveActionsTab({ store, department, isGeneralManager }: Co
     closeDetail();
   };
 
+  // Desktop-only (lg and up) full-width page instead of a popup — the
+  // list is hidden entirely while this is open (see the render below),
+  // same "list page ↔ detail page" navigation as OpsLogsTab.tsx. Below
+  // lg this never renders; the mobile popup further down is what shows
+  // instead.
+  const renderDesktopPage = (selected: CorrectiveAction) => (
+    <div className="space-y-6">
+      <button onClick={closeDetail} className="flex items-center gap-2 text-xs font-black text-psu-gray/40 uppercase tracking-widest hover:text-psu-gray transition-colors">
+        <ChevronLeft size={16} /> {t('inspection.backToList')}
+      </button>
+
+      <div className="grid grid-cols-3 gap-6 items-start">
+        <div className="col-span-2 space-y-6">
+          <div className="card space-y-4">
+            <div className="flex justify-between items-start">
+              <h2 className="text-2xl font-black text-psu-gray">{t('correctiveAction.tabTitle')}</h2>
+              <span className={cn('inline-block text-[9px] font-black uppercase tracking-tighter px-2 py-1 rounded-md', STATUS_STYLE[selected.status])}>
+                {statusLabel(selected.status)}
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-[9px] font-black text-psu-gray/30 uppercase tracking-widest">{t('correctiveAction.commentLabel')}</p>
+              <p className="text-sm font-medium text-psu-gray leading-relaxed">{selected.comment}</p>
+            </div>
+            <div className="space-y-2">
+              <p className="text-[9px] font-black text-psu-gray/30 uppercase tracking-widest">{t('correctiveAction.actionLabel')}</p>
+              <p className="text-sm font-medium text-psu-gray leading-relaxed">{selected.action}</p>
+            </div>
+
+            {selected.status !== 'OPEN' && selected.completionNote && (
+              <div className="bg-psu-warning/10 border border-psu-warning/20 rounded-2xl p-4 space-y-1">
+                <p className="text-[10px] font-black text-psu-warning uppercase tracking-widest">{t('correctiveAction.completionNoteTitle')}</p>
+                <p className="text-xs text-psu-gray/70 font-medium">{selected.completionNote}</p>
+              </div>
+            )}
+
+            {selected.status === 'DONE' && (
+              <div>
+                <label className="block text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em] mb-3">{t('correctiveAction.reopenNoteLabel')}</label>
+                <textarea
+                  value={reopenNote}
+                  onChange={(e) => { setReopenNote(e.target.value); setReopenError(''); }}
+                  placeholder={t('correctiveAction.reopenNotePlaceholder')}
+                  className={cn(
+                    'w-full p-5 bg-psu-bg border rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-psu-green/20 h-24',
+                    reopenError ? 'border-psu-rejected' : 'border-psu-gray/10'
+                  )}
+                />
+                {reopenError && <p className="text-[10px] text-psu-rejected font-bold mt-1.5">{reopenError}</p>}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="col-span-1 sticky top-6 space-y-4">
+          <div className="card space-y-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-psu-bg rounded-2xl flex items-center justify-center shrink-0">
+                <UserIcon className="text-psu-blue" size={24} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[9px] font-black text-psu-gray/40 uppercase tracking-widest">{t('correctiveAction.assignedToDisplay', { name: selected.assignedToName })}</p>
+                <p className="text-sm font-bold text-psu-gray flex items-center gap-1.5 mt-0.5">
+                  <Clock size={12} className={isOverdue(selected) ? 'text-psu-rejected' : 'text-psu-gray/30'} />
+                  {isOverdue(selected) ? t('correctiveAction.overdueLabel') : t('correctiveAction.dueLabel', { date: new Date(selected.dueDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) })}
+                </p>
+              </div>
+            </div>
+
+            {selected.status === 'VERIFIED' && (
+              <div className="flex items-center gap-2 text-psu-green">
+                <CheckCircle2 size={16} />
+                <p className="text-xs font-bold">{t('correctiveAction.statusVerified')}</p>
+              </div>
+            )}
+
+            {selected.status === 'OPEN' && (
+              <div className="flex items-center gap-2 text-psu-rejected/70">
+                <AlertTriangle size={14} />
+                <p className="text-[10px] font-bold uppercase tracking-widest">{t('correctiveAction.statusOpen')}</p>
+              </div>
+            )}
+          </div>
+
+          {selected.status === 'DONE' && (
+            <div className="card space-y-3">
+              <button
+                onClick={handleVerify}
+                className="w-full py-4 bg-psu-green text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-psu-green/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+              >
+                <CheckCircle2 size={16} />
+                {t('correctiveAction.verifyButton')}
+              </button>
+              <button
+                onClick={handleReopen}
+                className="w-full py-4 bg-white border-2 border-psu-rejected text-psu-rejected rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all shadow-sm flex items-center justify-center gap-2"
+              >
+                <Undo2 size={16} />
+                {t('correctiveAction.reopenButton')}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
+      {/* Desktop full page (lg and up) — replaces the list entirely while
+          open; see the list's own lg:hidden below. */}
+      {selected && (
+        <div className="hidden lg:block">
+          {renderDesktopPage(selected)}
+        </div>
+      )}
+
+      <div className={cn("space-y-6", selected && "lg:hidden")}>
       <MyActionItems store={store} />
 
       <div className="flex items-center justify-between px-2">
@@ -183,11 +300,13 @@ export function CorrectiveActionsTab({ store, department, isGeneralManager }: Co
           );
         }}
       />
+      </div>
 
-      {/* Detail / verify / reopen modal */}
+      {/* Detail / verify / reopen modal — mobile/tablet only (below lg);
+          the desktop full page above takes over from lg up. */}
       <AnimatePresence>
         {selected && (
-          <Modal size="md" boxClassName="rounded-[32px] overflow-hidden flex flex-col max-h-[85vh]">
+          <Modal size="md" backdropClassName="lg:hidden" boxClassName="rounded-[32px] overflow-hidden flex flex-col max-h-[85vh]">
               <div className="p-8 overflow-y-auto space-y-6">
                 <div className="flex justify-between items-start">
                   <div>
