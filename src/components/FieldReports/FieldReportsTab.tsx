@@ -8,6 +8,7 @@ import { cn } from '../../utils/cn';
 import { cloudinaryUrl } from '../../utils/cloudinaryUrl';
 import { FieldReport } from '../../types';
 import { Modal } from '../Modal';
+import { Lightbox } from '../Lightbox';
 import { ListCard } from '../ListCard';
 
 interface FieldReportsTabProps {
@@ -30,6 +31,7 @@ export function FieldReportsTab({ store, department }: FieldReportsTabProps) {
   const [selected, setSelected] = useState<FieldReport | null>(null);
   const [resolutionNote, setResolutionNote] = useState('');
   const [noteError, setNoteError] = useState('');
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   const scoped = fieldReports.filter(r => userCanSeeSite(currentUser, r.siteId) && r.department === department);
   const open = scoped.filter(r => r.status !== 'RESOLVED');
@@ -105,9 +107,13 @@ export function FieldReportsTab({ store, department }: FieldReportsTabProps) {
             <p className="text-sm font-medium text-psu-gray leading-relaxed">{selected.message}</p>
 
             {selected.photoUrl && (
-              <div className="rounded-2xl overflow-hidden border border-psu-gray/5">
+              <button
+                type="button"
+                onClick={() => setLightboxUrl(cloudinaryUrl(selected.photoUrl, 1600) ?? null)}
+                className="block w-full rounded-2xl overflow-hidden border border-psu-gray/5"
+              >
                 <img src={cloudinaryUrl(selected.photoUrl, 1000)} className="w-full h-72 object-cover" alt="" />
-              </div>
+              </button>
             )}
 
             {selected.status === 'RESOLVED' ? (
@@ -242,9 +248,13 @@ export function FieldReportsTab({ store, department }: FieldReportsTabProps) {
                 <p className="text-sm font-medium text-psu-gray leading-relaxed">{selected.message}</p>
 
                 {selected.photoUrl && (
-                  <div className="rounded-2xl overflow-hidden border border-psu-gray/5">
+                  <button
+                    type="button"
+                    onClick={() => setLightboxUrl(cloudinaryUrl(selected.photoUrl, 1600) ?? null)}
+                    className="block w-full rounded-2xl overflow-hidden border border-psu-gray/5"
+                  >
                     <img src={cloudinaryUrl(selected.photoUrl, 800)} className="w-full h-48 object-cover" alt="" />
-                  </div>
+                  </button>
                 )}
 
                 {selected.status === 'RESOLVED' ? (
@@ -299,6 +309,8 @@ export function FieldReportsTab({ store, department }: FieldReportsTabProps) {
           </Modal>
         )}
       </AnimatePresence>
+
+      <Lightbox src={lightboxUrl} onClose={() => setLightboxUrl(null)} />
     </div>
   );
 }

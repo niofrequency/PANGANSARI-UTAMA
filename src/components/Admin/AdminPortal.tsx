@@ -12,6 +12,7 @@ import { useTranslation } from '../../i18n/LanguageContext';
 import { SUPER_ADMIN_EMAIL } from '../../services/authService';
 import { isFirebaseConfigured } from '../../lib/firebase';
 import { Modal } from '../Modal';
+import { Lightbox } from '../Lightbox';
 import { ListCard } from '../ListCard';
 import { isValidStaffCode } from '../../utils/staffCode';
 import { cloudinaryUrl } from '../../utils/cloudinaryUrl';
@@ -152,6 +153,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
   const [activitySearch, setActivitySearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | Submission['status']>('ALL');
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   // Site + department scope — shared by the Activity and Analytics tabs.
   // The Admin already sees every site and both departments by default
@@ -802,9 +804,13 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                   {/* HOUSEKEEPING (UN.00.65): one proof photo for the whole
                       submission, not per item. */}
                   {selectedSubmission.meta?.photoUrl && (
-                    <div className="rounded-2xl overflow-hidden border border-psu-gray/5">
+                    <button
+                      type="button"
+                      onClick={() => setLightboxUrl(cloudinaryUrl(selectedSubmission.meta!.photoUrl, 1600) ?? null)}
+                      className="block w-full rounded-2xl overflow-hidden border border-psu-gray/5"
+                    >
                       <img src={cloudinaryUrl(selectedSubmission.meta.photoUrl, 800)} className="w-full h-48 object-cover" alt="Proof" />
-                    </div>
+                    </button>
                   )}
 
                   <div className="space-y-4">
@@ -821,9 +827,13 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                           </span>
                         </div>
                         {item.photoUrl && (
-                          <div className="mt-4 rounded-xl overflow-hidden border border-psu-gray/5">
+                          <button
+                            type="button"
+                            onClick={() => setLightboxUrl(cloudinaryUrl(item.photoUrl, 1600) ?? null)}
+                            className="block w-full mt-4 rounded-xl overflow-hidden border border-psu-gray/5"
+                          >
                             <img src={cloudinaryUrl(item.photoUrl, 600)} className="w-full h-40 object-cover" alt="Proof" />
-                          </div>
+                          </button>
                         )}
                       </div>
                     ))}
@@ -1389,6 +1399,8 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
           </Modal>
         )}
       </AnimatePresence>
+
+      <Lightbox src={lightboxUrl} onClose={() => setLightboxUrl(null)} />
     </div>
   );
 }

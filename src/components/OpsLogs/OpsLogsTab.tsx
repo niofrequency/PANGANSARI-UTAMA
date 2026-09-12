@@ -1,6 +1,7 @@
 import { useState, ComponentType } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { Modal } from '../Modal';
+import { Lightbox } from '../Lightbox';
 import { ListCard } from '../ListCard';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { cn } from '../../utils/cn';
@@ -100,6 +101,7 @@ export function OpsLogsTab({
   const [editing, setEditing] = useState<Submission | null>(null);
   const [selected, setSelected] = useState<Submission | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   const defs = OPS_LOG_DEFS.filter(d => d.department === department);
   const fillableDefs = tier === 'supervisor'
@@ -216,9 +218,13 @@ export function OpsLogsTab({
         {/* HOUSEKEEPING (UN.00.65): one proof photo for the whole
             submission, not per item. */}
         {selected.meta?.photoUrl && (
-          <div className="mb-5 rounded-2xl overflow-hidden border border-psu-gray/5">
+          <button
+            type="button"
+            onClick={() => setLightboxUrl(cloudinaryUrl(selected.meta!.photoUrl, 1600) ?? null)}
+            className="block w-full mb-5 rounded-2xl overflow-hidden border border-psu-gray/5"
+          >
             <img src={cloudinaryUrl(selected.meta.photoUrl, 800)} className="w-full h-48 object-cover" alt="Proof" />
-          </div>
+          </button>
         )}
 
         <div className="space-y-3">
@@ -231,7 +237,11 @@ export function OpsLogsTab({
                 </p>
               )}
               {item.remarks && <p className="text-[10px] text-psu-gray/40 mt-1 italic">{item.remarks}</p>}
-              {item.photoUrl && <img src={cloudinaryUrl(item.photoUrl, 500)} className="w-full h-32 object-cover rounded-xl mt-2" alt="" />}
+              {item.photoUrl && (
+                <button type="button" onClick={() => setLightboxUrl(cloudinaryUrl(item.photoUrl, 1600) ?? null)} className="block mt-2">
+                  <img src={cloudinaryUrl(item.photoUrl, 500)} className="w-full h-32 object-cover rounded-xl" alt="" />
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -318,9 +328,13 @@ export function OpsLogsTab({
               {/* HOUSEKEEPING (UN.00.65): one proof photo for the whole
                   submission, not per item. */}
               {selected.meta?.photoUrl && (
-                <div className="rounded-2xl overflow-hidden border border-psu-gray/5">
+                <button
+                  type="button"
+                  onClick={() => setLightboxUrl(cloudinaryUrl(selected.meta!.photoUrl, 1600) ?? null)}
+                  className="block w-full rounded-2xl overflow-hidden border border-psu-gray/5"
+                >
                   <img src={cloudinaryUrl(selected.meta.photoUrl, 1000)} className="w-full h-64 object-cover" alt="Proof" />
-                </div>
+                </button>
               )}
             </div>
 
@@ -337,7 +351,11 @@ export function OpsLogsTab({
                     </p>
                   )}
                   {item.remarks && <p className="text-[10px] text-psu-gray/40 mt-1 italic">{item.remarks}</p>}
-                  {item.photoUrl && <img src={cloudinaryUrl(item.photoUrl, 500)} className="w-full h-32 object-cover rounded-xl mt-2" alt="" />}
+                  {item.photoUrl && (
+                    <button type="button" onClick={() => setLightboxUrl(cloudinaryUrl(item.photoUrl, 1600) ?? null)} className="block mt-2">
+                      <img src={cloudinaryUrl(item.photoUrl, 500)} className="w-full h-32 object-cover rounded-xl" alt="" />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
@@ -356,7 +374,12 @@ export function OpsLogsTab({
                     >
                       <Stamp size={16} /> {t('ops.stampButton')} — {t(`ops.signoff.${nextSignoffStep(selected)}`)}
                     </button>
-                    <RejectButton onReject={(reason) => handleReject(selected, reason)} />
+                    {/* RejectButton's own button is flex-1 — it only
+                        stretches full-width inside a flex wrapper, same
+                        as the mobile popup below gives it. */}
+                    <div className="flex">
+                      <RejectButton onReject={(reason) => handleReject(selected, reason)} />
+                    </div>
                   </>
                 )}
                 {canEdit && (
@@ -494,6 +517,8 @@ export function OpsLogsTab({
           </Modal>
         )}
       </AnimatePresence>
+
+      <Lightbox src={lightboxUrl} onClose={() => setLightboxUrl(null)} />
     </div>
   );
 }
