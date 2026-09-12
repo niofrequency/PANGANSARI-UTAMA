@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { AnimatePresence } from 'motion/react';
 import { AlertTriangle, XCircle, CheckCircle2, User, Clock, Wrench } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { useTranslation } from '../../i18n/LanguageContext';
@@ -8,6 +8,7 @@ import { cn } from '../../utils/cn';
 import { cloudinaryUrl } from '../../utils/cloudinaryUrl';
 import { FieldReport } from '../../types';
 import { Modal } from '../Modal';
+import { ListCard } from '../ListCard';
 
 interface FieldReportsTabProps {
   store: ReturnType<typeof useAppStore>;
@@ -60,16 +61,11 @@ export function FieldReportsTab({ store, department }: FieldReportsTabProps) {
     setNoteError('');
   };
 
-  const renderCard = (r: FieldReport) => (
-    <motion.div
-      key={r.id}
-      layoutId={r.id}
-      onClick={() => setSelected(r)}
-      className="card flex items-center justify-between active:scale-98 transition-all cursor-pointer group hover:border-psu-warning/20"
-    >
+  const renderRow = (r: FieldReport) => (
+    <div onClick={() => setSelected(r)} className="flex items-center justify-between gap-3 cursor-pointer">
       <div className="flex items-center gap-4 min-w-0">
-        <div className="w-14 h-14 bg-psu-bg rounded-2xl flex items-center justify-center text-psu-gray/20 shrink-0">
-          <Wrench size={24} />
+        <div className="w-11 h-11 bg-psu-bg rounded-2xl flex items-center justify-center text-psu-gray/20 shrink-0">
+          <Wrench size={20} />
         </div>
         <div className="min-w-0">
           <h4 className="text-sm font-bold text-psu-gray truncate">{r.userName}</h4>
@@ -82,7 +78,7 @@ export function FieldReportsTab({ store, department }: FieldReportsTabProps) {
       <span className={cn("text-[9px] font-black uppercase tracking-tighter px-2 py-1 rounded-md shrink-0 ml-2", STATUS_STYLE[r.status])}>
         {statusLabel(r.status)}
       </span>
-    </motion.div>
+    </div>
   );
 
   return (
@@ -96,22 +92,17 @@ export function FieldReportsTab({ store, department }: FieldReportsTabProps) {
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {open.map(renderCard)}
-        {open.length === 0 && (
-          <div className="text-center py-16 opacity-20 col-span-full">
-            <CheckCircle2 size={56} className="mx-auto mb-3" />
-            <p className="text-[10px] font-black uppercase tracking-[0.3em]">{t('fieldReport.allClear')}</p>
-          </div>
-        )}
-      </div>
+      <ListCard
+        items={open}
+        emptyIcon={<CheckCircle2 size={56} className="mx-auto" />}
+        emptyLabel={t('fieldReport.allClear')}
+        renderRow={renderRow}
+      />
 
       {history.length > 0 && (
         <>
           <h3 className="text-sm font-black text-psu-gray/30 uppercase tracking-[0.2em] border-b border-psu-gray/5 pb-2 px-2">{t('fieldReport.historyTitle')}</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {history.map(renderCard)}
-          </div>
+          <ListCard items={history} renderRow={renderRow} />
         </>
       )}
 

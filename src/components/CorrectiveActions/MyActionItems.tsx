@@ -15,6 +15,7 @@ import { useTranslation } from '../../i18n/LanguageContext';
 import { cn } from '../../utils/cn';
 import { CorrectiveAction } from '../../types';
 import { Modal } from '../Modal';
+import { ListCard } from '../ListCard';
 
 const STATUS_STYLE: Record<CorrectiveAction['status'], string> = {
   OPEN: 'bg-psu-rejected/10 text-psu-rejected',
@@ -68,11 +69,15 @@ export function MyActionItems({ store }: { store: ReturnType<typeof useAppStore>
   return (
     <div className="space-y-3 pt-2">
       <h3 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em] border-b border-psu-gray/5 pb-2 px-2">{t('correctiveAction.myItemsTitle')}</h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {mine.map(a => {
+      <ListCard
+        items={mine}
+        emptyIcon={<ClipboardList size={48} className="mx-auto" />}
+        emptyLabel={t('common.noData')}
+        rowClassName={(a) => isOverdue(a) ? "bg-psu-rejected/5" : undefined}
+        renderRow={(a) => {
           const overdue = isOverdue(a);
           return (
-            <div key={a.id} className={cn('card space-y-3', overdue && 'border-psu-rejected/30')}>
+            <div className="space-y-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className={cn(
@@ -127,8 +132,8 @@ export function MyActionItems({ store }: { store: ReturnType<typeof useAppStore>
               )}
             </div>
           );
-        })}
-      </div>
+        }}
+      />
 
       {doing && (
         <Modal size="sm" boxClassName="rounded-[32px] p-8 space-y-5">

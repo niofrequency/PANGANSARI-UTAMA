@@ -8,7 +8,7 @@
 // every frontline portal uses for that.
 
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { AnimatePresence } from 'motion/react';
 import { Plus, ClipboardList, XCircle, CheckCircle2, AlertTriangle, Undo2, User as UserIcon, Clock } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { useTranslation } from '../../i18n/LanguageContext';
@@ -17,6 +17,7 @@ import { cn } from '../../utils/cn';
 import { CorrectiveAction, UserRole } from '../../types';
 import { MyActionItems } from './MyActionItems';
 import { Modal } from '../Modal';
+import { ListCard } from '../ListCard';
 
 interface CorrectiveActionsTabProps {
   store: ReturnType<typeof useAppStore>;
@@ -155,26 +156,21 @@ export function CorrectiveActionsTab({ store, department, isGeneralManager }: Co
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {createdByMe.map(a => {
+      <ListCard
+        items={createdByMe}
+        emptyIcon={<ClipboardList size={56} className="mx-auto" />}
+        emptyLabel={t('correctiveAction.noneCreated')}
+        renderRow={(a) => {
           const overdue = isOverdue(a);
           return (
-            <motion.div
-              key={a.id}
-              layoutId={a.id}
-              onClick={() => setSelected(a)}
-              className={cn(
-                'card flex items-center justify-between active:scale-98 transition-all cursor-pointer group hover:border-psu-blue/20',
-                overdue && 'border-psu-rejected/30'
-              )}
-            >
+            <div onClick={() => setSelected(a)} className="flex items-center justify-between gap-3 cursor-pointer">
               <div className="flex items-center gap-4 min-w-0">
-                <div className="w-14 h-14 bg-psu-bg rounded-2xl flex items-center justify-center text-psu-gray/20 shrink-0">
-                  <ClipboardList size={24} />
+                <div className="w-11 h-11 bg-psu-bg rounded-2xl flex items-center justify-center text-psu-gray/20 shrink-0">
+                  <ClipboardList size={20} />
                 </div>
                 <div className="min-w-0">
                   <h4 className="text-sm font-bold text-psu-gray truncate">{a.assignedToName}</h4>
-                  <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5">
+                  <p className={cn("text-[10px] font-black uppercase tracking-widest mt-0.5", overdue ? "text-psu-rejected" : "text-psu-gray/40")}>
                     {overdue ? t('correctiveAction.overdueLabel') : t('correctiveAction.dueLabel', { date: new Date(a.dueDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) })}
                   </p>
                   <p className="text-xs text-psu-gray/60 font-medium mt-1 truncate">{a.comment}</p>
@@ -183,16 +179,10 @@ export function CorrectiveActionsTab({ store, department, isGeneralManager }: Co
               <span className={cn('text-[9px] font-black uppercase tracking-tighter px-2 py-1 rounded-md shrink-0 ml-2', STATUS_STYLE[a.status])}>
                 {statusLabel(a.status)}
               </span>
-            </motion.div>
+            </div>
           );
-        })}
-        {createdByMe.length === 0 && (
-          <div className="text-center py-16 opacity-20 col-span-full">
-            <ClipboardList size={56} className="mx-auto mb-3" />
-            <p className="text-[10px] font-black uppercase tracking-[0.3em]">{t('correctiveAction.noneCreated')}</p>
-          </div>
-        )}
-      </div>
+        }}
+      />
 
       {/* Detail / verify / reopen modal */}
       <AnimatePresence>
