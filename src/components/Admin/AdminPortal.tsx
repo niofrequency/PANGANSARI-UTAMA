@@ -12,6 +12,7 @@ import { useTranslation } from '../../i18n/LanguageContext';
 import { SUPER_ADMIN_EMAIL } from '../../services/authService';
 import { isFirebaseConfigured } from '../../lib/firebase';
 import { isValidStaffCode } from '../../utils/staffCode';
+import { cloudinaryUrl } from '../../utils/cloudinaryUrl';
 import { PrintQrPanel } from './PrintQrPanel';
 
 // Avoids visually-ambiguous characters (0/O, 1/l/I) since this password
@@ -816,7 +817,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                       submission, not per item. */}
                   {selectedSubmission.meta?.photoUrl && (
                     <div className="rounded-2xl overflow-hidden border border-psu-gray/5">
-                      <img src={selectedSubmission.meta.photoUrl} className="w-full h-48 object-cover" alt="Proof" />
+                      <img src={cloudinaryUrl(selectedSubmission.meta.photoUrl, 800)} className="w-full h-48 object-cover" alt="Proof" />
                     </div>
                   )}
 
@@ -835,7 +836,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                         </div>
                         {item.photoUrl && (
                           <div className="mt-4 rounded-xl overflow-hidden border border-psu-gray/5">
-                            <img src={item.photoUrl} className="w-full h-40 object-cover" alt="Proof" />
+                            <img src={cloudinaryUrl(item.photoUrl, 600)} className="w-full h-40 object-cover" alt="Proof" />
                           </div>
                         )}
                       </div>

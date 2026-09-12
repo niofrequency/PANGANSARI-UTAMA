@@ -4,11 +4,15 @@ rules_version = '2';
 // (requires the Firebase CLI and `firebase init` once, pointed at this
 // project — same setup as firestore.rules)
 //
-// Only one thing lives in this bucket: photo evidence attached to
-// submissions (Housekeeping checklist items, the Technician's daily log)
-// — see src/services/storageService.ts and PhotoCapture.tsx. Everything
-// else (accounts, submissions themselves) is Firestore or localStorage;
-// see firestore.rules and useAppStore.ts.
+// New submission photos no longer upload here as of this version — they
+// go to Cloudinary instead (see src/services/cloudinaryPhotoService.ts
+// and functions/src/index.ts's mintCloudinaryUploadSignature, and that
+// file's header comment for why: this bucket's free tier is a flat 5GB,
+// and Cloudinary's is far more generous on both storage and the
+// repeated-viewing bandwidth these photos actually cost). This file and
+// everything already sitting in this bucket keep working exactly as
+// before — nothing here needed to change, and nothing already stored
+// needs migrating; this is purely a going-forward switch for new photos.
 //
 // Layout: submissions/{uid}/{fileName} — one folder per uploader. A
 // signed-in user can only ever write into their own folder, because
@@ -25,11 +29,13 @@ rules_version = '2';
 // ID can never satisfy isSignedIn() here, no matter what this file says
 // — this isn't a gap to close by loosening the rule (that would mean
 // letting ANYONE, authenticated or not, write into any uploader's
-// folder). PhotoCapture.tsx already knows this and skips the Storage
-// upload attempt entirely for that case, keeping the photo as a local
-// data URL embedded in the submission instead — exactly like demo mode
-// already does. Nothing to change here unless Scan-to-Job later gets a
-// real Auth session behind it (e.g. a custom token minted server-side).
+// folder). PhotoCapture.tsx already knows this and skips the upload
+// attempt entirely for that case (Cloudinary now, this bucket before),
+// keeping the photo as a local data URL embedded in the submission
+// instead — exactly like demo mode already does. Nothing to change here
+// unless Scan-to-Job later gets a real Auth session behind it (e.g. a
+// custom token minted server-side — see mintStaffCodeToken, which now
+// does exactly that on a best-effort basis).
 
 service firebase.storage {
   match /b/{bucket}/o {
