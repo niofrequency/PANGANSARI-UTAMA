@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AnimatePresence } from 'motion/react';
-import { AlertTriangle, XCircle, CheckCircle2, User, Clock, Wrench } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, XCircle, CheckCircle2, User, Clock, Wrench } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { userCanSeeSite } from '../../lib/siteScope';
@@ -81,8 +81,112 @@ export function FieldReportsTab({ store, department }: FieldReportsTabProps) {
     </div>
   );
 
+  // Desktop-only (lg and up) full-width page instead of a popup — the
+  // list is hidden entirely while this is open (see the render below),
+  // same "list page ↔ detail page" navigation as OpsLogsTab.tsx. Below
+  // lg this never renders; the mobile popup further down is what shows
+  // instead.
+  const renderDesktopPage = (selected: FieldReport) => (
+    <div className="space-y-6">
+      <button onClick={closeModal} className="flex items-center gap-2 text-xs font-black text-psu-gray/40 uppercase tracking-widest hover:text-psu-gray transition-colors">
+        <ChevronLeft size={16} /> {t('inspection.backToList')}
+      </button>
+
+      <div className="grid grid-cols-3 gap-6 items-start">
+        <div className="col-span-2 space-y-6">
+          <div className="card space-y-4">
+            <div className="flex justify-between items-start">
+              <h2 className="text-2xl font-black text-psu-gray">{t('fieldReport.title')}</h2>
+              <span className={cn("inline-block text-[9px] font-black uppercase tracking-tighter px-2 py-1 rounded-md", STATUS_STYLE[selected.status])}>
+                {statusLabel(selected.status)}
+              </span>
+            </div>
+
+            <p className="text-sm font-medium text-psu-gray leading-relaxed">{selected.message}</p>
+
+            {selected.photoUrl && (
+              <div className="rounded-2xl overflow-hidden border border-psu-gray/5">
+                <img src={cloudinaryUrl(selected.photoUrl, 1000)} className="w-full h-72 object-cover" alt="" />
+              </div>
+            )}
+
+            {selected.status === 'RESOLVED' ? (
+              <div className="bg-psu-green/10 border border-psu-green/20 rounded-2xl p-4 space-y-1">
+                <p className="text-[10px] font-black text-psu-green uppercase tracking-widest">{t('fieldReport.resolvedBy', { name: selected.resolvedBy || '' })}</p>
+                <p className="text-xs text-psu-gray/70 font-medium">{selected.resolutionNote}</p>
+              </div>
+            ) : (
+              <>
+                {selected.status === 'ACKNOWLEDGED' && selected.acknowledgedBy && (
+                  <p className="text-[10px] font-black text-psu-warning uppercase tracking-widest flex items-center gap-1.5">
+                    <Clock size={12} /> {t('fieldReport.acknowledgedBy', { name: selected.acknowledgedBy })}
+                  </p>
+                )}
+                <div>
+                  <label className="block text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em] mb-3">{t('fieldReport.resolveNoteLabel')}</label>
+                  <textarea
+                    value={resolutionNote}
+                    onChange={(e) => { setResolutionNote(e.target.value); setNoteError(''); }}
+                    placeholder={t('fieldReport.resolveNotePlaceholder')}
+                    className={cn(
+                      "w-full p-5 bg-psu-bg border rounded-2xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-psu-green/20 h-28",
+                      noteError ? "border-psu-rejected" : "border-psu-gray/10"
+                    )}
+                  />
+                  {noteError && <p className="text-[10px] text-psu-rejected font-bold mt-1.5">{noteError}</p>}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="col-span-1 sticky top-6 space-y-4">
+          <div className="card flex items-center gap-4">
+            <div className="w-12 h-12 bg-psu-bg rounded-2xl flex items-center justify-center shrink-0">
+              <User className="text-psu-warning" size={24} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[9px] font-black text-psu-gray/40 uppercase tracking-widest">{selected.siteName}</p>
+              <p className="text-sm font-bold text-psu-gray truncate">{selected.userName}</p>
+            </div>
+          </div>
+
+          {selected.status !== 'RESOLVED' && (
+            <div className="card space-y-3">
+              {selected.status === 'OPEN' && (
+                <button
+                  onClick={() => handleAcknowledge(selected.id)}
+                  className="w-full py-4 bg-white border-2 border-psu-warning text-psu-warning rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all shadow-sm flex items-center justify-center gap-2"
+                >
+                  <AlertTriangle size={16} />
+                  {t('fieldReport.acknowledgeButton')}
+                </button>
+              )}
+              <button
+                onClick={handleResolve}
+                className="w-full py-4 bg-psu-green text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-psu-green/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+              >
+                <CheckCircle2 size={16} />
+                {t('fieldReport.resolveButton')}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
+      {/* Desktop full page (lg and up) — replaces the list entirely while
+          open; see the list's own lg:hidden below. */}
+      {selected && (
+        <div className="hidden lg:block">
+          {renderDesktopPage(selected)}
+        </div>
+      )}
+
+      <div className={cn("space-y-6", selected && "lg:hidden")}>
       <div className="flex items-center justify-between px-2">
         <h2 className="text-xl font-bold tracking-tight text-psu-gray">{t('fieldReport.openTitle')}</h2>
         {open.length > 0 && (
@@ -105,10 +209,13 @@ export function FieldReportsTab({ store, department }: FieldReportsTabProps) {
           <ListCard items={history} renderRow={renderRow} />
         </>
       )}
+      </div>
 
+      {/* Mobile/tablet only (below lg) — the desktop full page above
+          takes over from lg up. */}
       <AnimatePresence>
         {selected && (
-          <Modal size="md" boxClassName="rounded-[32px] overflow-hidden flex flex-col max-h-[85vh]">
+          <Modal size="md" backdropClassName="lg:hidden" boxClassName="rounded-[32px] overflow-hidden flex flex-col max-h-[85vh]">
               <div className="p-8 overflow-y-auto space-y-6">
                 <div className="flex justify-between items-start">
                   <div>
