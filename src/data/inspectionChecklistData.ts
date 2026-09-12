@@ -1648,3 +1648,40 @@ ISO/TS 22002-2:2013 No. 4.10`,
     ],
   },
 ];
+
+// --- Print-replica constants (InspectionPrintSheet.tsx) ----------------
+// Transcribed verbatim from the page furniture around the checklist table
+// itself ("Audit Check List"!C1, A6:J9, A11:J11) — kept here with the rest
+// of this file's verbatim transcriptions so both stay in sync with the one
+// source workbook. The "No. Document / Issued Date / No/Revision Date /
+// Location" doc-control box (J1:L4) is left out: every value cell next to
+// those labels is blank in the source template itself, same as the Daily
+// Food Handler checklist's own doc-control box.
+export const FSI_FORM_TITLE = 'FOOD SAFETY INSPECTION CHECKLIST';
+
+// A6:J8 — the meta-strip field labels, verbatim (bilingual, as the source
+// has them).
+export const FSI_META_LABELS = {
+  locationArea: 'Lokasi & Area / Location & Area',
+  date: 'Tanggal / Date',
+  time: 'Waktu / Time',
+  inspector: 'Petugas Inspeksi / Inspector',
+  areaOwner: 'Penanggung Jawab area /\nArea Owner',
+};
+
+// A11:J11 — the main table's own column headers, verbatim.
+export const FSI_TABLE_HEADERS = {
+  no: 'NO',
+  explanation: 'PENJELASAN / EXPLANATION',
+  reference: 'REFERENSI / REFERENCE',
+  conformity: 'CONFORMITY',
+  remarks: 'KETERANGAN / REMARKS',
+};
+
+// B9 — transcribed verbatim, including the source's own stray leading
+// whitespace before the English sentence (collapsed here) and its
+// mixed use of single/double quotes.
+export const FSI_INSTRUCTION_NOTE = {
+  id: 'Notes: Conformance diinput dengan mengisi huruf "x" atau "v" pada kolom yang sesuai dengan keterangan (A,B,C,NA)',
+  en: 'Conformance is input by filling in the letter ‘x’ or ‘v’ in the appropriate column with a description (A,B,C,NA)',
+};

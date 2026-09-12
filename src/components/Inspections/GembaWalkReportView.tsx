@@ -1,7 +1,8 @@
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { Submission } from '../../types';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, Printer } from 'lucide-react';
+import { GembaWalkPrintSheet } from './print/GembaWalkPrintSheet';
 
 const EVAL_COLOR: Record<string, string> = {
   Conform: 'bg-psu-green/10 text-psu-green',
@@ -18,11 +19,29 @@ export function GembaWalkReportView({ submission, onBack }: { submission: Submis
 
   return (
     <div className="space-y-6">
-      <button onClick={onBack} className="flex items-center gap-2 text-xs font-black text-psu-gray/40 uppercase tracking-widest">
-        <ChevronLeft size={16} /> {t('inspection.backToList')}
-      </button>
+      {/* Only Supervisor/Manager/GM/Admin ever reach this view — see
+          InspectionsTab.tsx's header comment — so the Print button needs
+          no extra role check of its own. It renders GembaWalkPrintSheet
+          (a plain black-on-white replica of the source workbook, not this
+          screen's own card UI) into a `hidden print:block` node below;
+          `print:hidden` here hides everything else when that fires. */}
+      <div className="flex items-center justify-between print:hidden">
+        <button onClick={onBack} className="flex items-center gap-2 text-xs font-black text-psu-gray/40 uppercase tracking-widest">
+          <ChevronLeft size={16} /> {t('inspection.backToList')}
+        </button>
+        <button
+          onClick={() => window.print()}
+          className="flex items-center gap-2 bg-psu-gray/5 text-psu-gray px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all"
+        >
+          <Printer size={14} /> {t('common.printButton')}
+        </button>
+      </div>
 
-      <div className="card space-y-4">
+      <div className="hidden print:block">
+        <GembaWalkPrintSheet submission={submission} />
+      </div>
+
+      <div className="card space-y-4 print:hidden">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-lg font-black text-psu-gray">{meta.areaAudited || t('gemba.formTitle')}</h2>
@@ -49,7 +68,7 @@ export function GembaWalkReportView({ submission, onBack }: { submission: Submis
       </div>
 
       {(meta.threeInARowNotes?.positives || meta.threeInARowNotes?.improvements) && (
-        <div className="card space-y-3">
+        <div className="card space-y-3 print:hidden">
           <h3 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em]">{t('gemba.threeInARowTitle')}</h3>
           {meta.threeInARowNotes?.positives && (
             <div>
@@ -66,7 +85,7 @@ export function GembaWalkReportView({ submission, onBack }: { submission: Submis
         </div>
       )}
 
-      <div className="card space-y-1 p-0 divide-y divide-psu-gray/5">
+      <div className="card space-y-1 p-0 divide-y divide-psu-gray/5 print:hidden">
         {submission.items.map(item => (
           <div key={item.id} className="p-5 space-y-2">
             <div className="flex items-start justify-between gap-3">

@@ -3,7 +3,8 @@ import { useTranslation } from '../../i18n/LanguageContext';
 import { Submission } from '../../types';
 import { DAILY_FOOD_HANDLER_GROUPS } from '../../data/dailyFoodHandlerData';
 import { isGoodMark } from '../../data/dailyFoodHandlerScoring';
-import { ChevronLeft, CheckCircle2, XCircle as XCircleIcon } from 'lucide-react';
+import { ChevronLeft, CheckCircle2, XCircle as XCircleIcon, Printer } from 'lucide-react';
+import { DailyFoodHandlerPrintSheet } from './print/DailyFoodHandlerPrintSheet';
 
 export function DailyFoodHandlerReportView({ submission, onBack }: { submission: Submission; onBack: () => void }) {
   const { t } = useTranslation();
@@ -13,11 +14,30 @@ export function DailyFoodHandlerReportView({ submission, onBack }: { submission:
 
   return (
     <div className="space-y-6">
-      <button onClick={onBack} className="flex items-center gap-2 text-xs font-black text-psu-gray/40 uppercase tracking-widest">
-        <ChevronLeft size={16} /> {t('inspection.backToList')}
-      </button>
+      {/* Only Supervisor/Manager/GM/Admin ever reach this view — see
+          InspectionsTab.tsx's header comment — so the Print button needs
+          no extra role check of its own. It renders
+          DailyFoodHandlerPrintSheet (a plain black-on-white replica of the
+          source workbook, not this screen's own per-worker card UI) into a
+          `hidden print:block` node below; `print:hidden` here hides
+          everything else when that fires. */}
+      <div className="flex items-center justify-between print:hidden">
+        <button onClick={onBack} className="flex items-center gap-2 text-xs font-black text-psu-gray/40 uppercase tracking-widest">
+          <ChevronLeft size={16} /> {t('inspection.backToList')}
+        </button>
+        <button
+          onClick={() => window.print()}
+          className="flex items-center gap-2 bg-psu-gray/5 text-psu-gray px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all"
+        >
+          <Printer size={14} /> {t('common.printButton')}
+        </button>
+      </div>
 
-      <div className="card space-y-4">
+      <div className="hidden print:block">
+        <DailyFoodHandlerPrintSheet submission={submission} />
+      </div>
+
+      <div className="card space-y-4 print:hidden">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-lg font-black text-psu-gray">{meta.areaAudited || t('dfh.formTitle')}</h2>
@@ -42,7 +62,7 @@ export function DailyFoodHandlerReportView({ submission, onBack }: { submission:
         )}
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-4 print:hidden">
         {roster.map(entry => (
           <div key={entry.no} className="card space-y-4">
             <div className="flex items-center justify-between gap-3">
