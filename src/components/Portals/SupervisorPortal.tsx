@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { AlertTriangle, ClipboardCheck, ListChecks, ListTodo, MessageSquareWarning } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { InspectionsTab } from '../Inspections/InspectionsTab';
 import { OpsLogsTab } from '../OpsLogs/OpsLogsTab';
 import { FieldReportsTab } from '../FieldReports/FieldReportsTab';
 import { CorrectiveActionsTab } from '../CorrectiveActions/CorrectiveActionsTab';
+import { Modal } from '../Modal';
 
 interface SupervisorPortalProps {
   store: ReturnType<typeof useAppStore>;
@@ -123,12 +124,7 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled }: Supervi
       {/* Warning Dialog */}
       <AnimatePresence>
         {showWarningDialog && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl"
-            >
+          <Modal size="sm" backdropClassName="bg-black/60 backdrop-blur-sm p-4" boxClassName="rounded-3xl p-6">
               <h3 className="text-lg font-black text-psu-gray mb-4 flex items-center gap-2">
                 <AlertTriangle className="text-psu-warning" size={20} />
                 {t('supervisorHK.warningDialogTitle')}
@@ -193,8 +189,7 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled }: Supervi
                   </button>
                 </div>
               </div>
-            </motion.div>
-          </div>
+          </Modal>
         )}
       </AnimatePresence>
     </div>

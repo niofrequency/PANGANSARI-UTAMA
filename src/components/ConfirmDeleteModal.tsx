@@ -14,9 +14,10 @@
 // its own row-id state to act on once confirmed.
 
 import React, { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { AnimatePresence } from 'motion/react';
 import { Trash2 } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext';
+import { Modal } from './Modal';
 
 const CONFIRM_WORD = 'DELETE';
 
@@ -42,13 +43,7 @@ export function ConfirmDeleteModal({ open, title, body, onCancel, onConfirm }: C
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-psu-gray/60 backdrop-blur-md">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="bg-white w-full max-w-sm rounded-[32px] p-8 shadow-2xl"
-          >
+        <Modal size="sm" boxClassName="rounded-[32px] p-8">
             <div className="flex flex-col items-center mb-6 text-center">
               <div className="w-16 h-16 bg-psu-rejected/10 rounded-2xl flex items-center justify-center text-psu-rejected mb-4">
                 <Trash2 size={28} />
@@ -88,8 +83,7 @@ export function ConfirmDeleteModal({ open, title, body, onCancel, onConfirm }: C
                 {t('confirmDelete.removeButton')}
               </button>
             </div>
-          </motion.div>
-        </div>
+        </Modal>
       )}
     </AnimatePresence>
   );

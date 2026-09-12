@@ -14,14 +14,22 @@ export function DailyFoodHandlerReportView({ submission, onBack }: { submission:
 
   return (
     <div className="space-y-6">
-      {/* Only Supervisor/Manager/GM/Admin ever reach this view — see
-          InspectionsTab.tsx's header comment — so the Print button needs
-          no extra role check of its own. It renders
-          DailyFoodHandlerPrintSheet (a plain black-on-white replica of the
-          source workbook, not this screen's own per-worker card UI) into a
-          `hidden print:block` node below; `print:hidden` here hides
-          everything else when that fires. */}
-      <div className="flex items-center justify-between print:hidden">
+      {/* DailyFoodHandlerPrintSheet (a plain black-on-white replica of the
+          source workbook, not this screen's own per-worker card UI) renders
+          here as a sibling of the width-capped on-screen content below, not
+          nested inside it — so the desktop max-width below never reaches
+          into the print output. Only Supervisor/Manager/GM/Admin ever reach
+          this view — see InspectionsTab.tsx's header comment — so the
+          Print button needs no extra role check of its own. */}
+      <div className="hidden print:block">
+        <DailyFoodHandlerPrintSheet submission={submission} />
+      </div>
+
+      {/* On-screen content only (print:hidden) — capped and centered from
+          the md breakpoint up so it doesn't stretch edge-to-edge on a wide
+          desktop monitor; unchanged below md (mobile is already right). */}
+      <div className="space-y-6 md:max-w-3xl md:mx-auto print:hidden">
+      <div className="flex items-center justify-between">
         <button onClick={onBack} className="flex items-center gap-2 text-xs font-black text-psu-gray/40 uppercase tracking-widest">
           <ChevronLeft size={16} /> {t('inspection.backToList')}
         </button>
@@ -33,11 +41,7 @@ export function DailyFoodHandlerReportView({ submission, onBack }: { submission:
         </button>
       </div>
 
-      <div className="hidden print:block">
-        <DailyFoodHandlerPrintSheet submission={submission} />
-      </div>
-
-      <div className="card space-y-4 print:hidden">
+      <div className="card space-y-4">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-lg font-black text-psu-gray">{meta.areaAudited || t('dfh.formTitle')}</h2>
@@ -62,7 +66,7 @@ export function DailyFoodHandlerReportView({ submission, onBack }: { submission:
         )}
       </div>
 
-      <div className="space-y-4 print:hidden">
+      <div className="space-y-4">
         {roster.map(entry => (
           <div key={entry.no} className="card space-y-4">
             <div className="flex items-center justify-between gap-3">
@@ -102,6 +106,7 @@ export function DailyFoodHandlerReportView({ submission, onBack }: { submission:
             <p className="text-[10px] font-black uppercase tracking-[0.3em]">{t('dfh.emptyRoster')}</p>
           </div>
         )}
+      </div>
       </div>
     </div>
   );

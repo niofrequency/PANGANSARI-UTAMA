@@ -16,6 +16,7 @@ import { userCanSeeSite } from '../../lib/siteScope';
 import { cn } from '../../utils/cn';
 import { CorrectiveAction, UserRole } from '../../types';
 import { MyActionItems } from './MyActionItems';
+import { Modal } from '../Modal';
 
 interface CorrectiveActionsTabProps {
   store: ReturnType<typeof useAppStore>;
@@ -196,13 +197,7 @@ export function CorrectiveActionsTab({ store, department, isGeneralManager }: Co
       {/* Detail / verify / reopen modal */}
       <AnimatePresence>
         {selected && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-psu-gray/60 backdrop-blur-md">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl flex flex-col max-h-[85vh]"
-            >
+          <Modal size="md" boxClassName="rounded-[32px] overflow-hidden flex flex-col max-h-[85vh]">
               <div className="p-8 overflow-y-auto space-y-6">
                 <div className="flex justify-between items-start">
                   <div>
@@ -294,21 +289,14 @@ export function CorrectiveActionsTab({ store, department, isGeneralManager }: Co
                   <p className="text-[10px] font-bold uppercase tracking-widest">{t('correctiveAction.statusOpen')}</p>
                 </div>
               )}
-            </motion.div>
-          </div>
+          </Modal>
         )}
       </AnimatePresence>
 
       {/* Create modal */}
       <AnimatePresence>
         {showNew && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-psu-gray/60 backdrop-blur-md">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl flex flex-col max-h-[85vh]"
-            >
+          <Modal size="md" boxClassName="rounded-[32px] overflow-hidden flex flex-col max-h-[85vh]">
               <div className="p-8 overflow-y-auto space-y-5">
                 <div className="flex justify-between items-start">
                   <h3 className="text-xl font-bold tracking-tight text-psu-gray">{t('correctiveAction.modalTitle')}</h3>
@@ -376,8 +364,7 @@ export function CorrectiveActionsTab({ store, department, isGeneralManager }: Co
                   {t('correctiveAction.createButton')}
                 </button>
               </div>
-            </motion.div>
-          </div>
+          </Modal>
         )}
       </AnimatePresence>
     </div>
