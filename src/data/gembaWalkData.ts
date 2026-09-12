@@ -547,3 +547,51 @@ export const THREE_IN_A_ROW_STEPS: ThreeInARowStep[] = [
   { num: 6, en: 'Commitment', id: 'Komitmen' },
   { num: 7, en: 'Thanks', id: 'Terima kasih' },
 ];
+
+// --- Print-replica constants (GembaWalkPrintSheet.tsx) -----------------
+// Everything below is transcribed verbatim from the page furniture around
+// the checklist itself — the doc-control box, the form title, the main
+// table's own column headers, and its evaluation legend — kept here
+// alongside the rest of this file's verbatim transcriptions rather than
+// hardcoded in the print component, so both stay in sync with the one
+// source workbook.
+
+// GEMBA_WALK!H1:H3 — static per the current template revision, not
+// something any one submission carries.
+export const GEMBA_DOC_HEADER = {
+  code: 'QHSE.PUFR/01/003',
+  revision: 'Rev n°01 date: 28/04/2026',
+  page: 'Page: 1/1',
+};
+
+// GEMBA_WALK!D1 — one cell, single language (no Indonesian counterpart).
+export const GEMBA_FORM_TITLE = 'GEMBA WALK';
+export const GEMBA_FORM_SUBTITLE = 'Food Safety and HS NON-NEGOTIABLES WITH 3 IN A ROW INTERACTION';
+
+// GEMBA_WALK!C5:F7 — the meta-strip field labels, verbatim (English only
+// in the source, unlike the bilingual category/item text above).
+export const GEMBA_META_LABELS = {
+  project: 'Project:',
+  unit: 'Unit:',
+  areaAudited: 'Area audited:',
+  compliance: 'COMPLIANCE %:',
+  auditors: 'Auditors:',
+  date: 'Date:',
+};
+
+// GEMBA_WALK!E8:H8 — the main table's own column headers, verbatim and
+// deliberately not uniformly bilingual (E-G are Indonesian only, H is
+// English only) — that mix is what the source actually has.
+export const GEMBA_TABLE_HEADERS = {
+  evaluation: 'EVALUASI',
+  observation: 'PENGAMATAN / PENYIMPANGAN YANG DIAMATI',
+  correctiveAction: 'TINDAKAN KURATIF/KOREKTIF SEGERA DITERAPKAN',
+  comment: 'COMMENT',
+};
+
+// GEMBA_WALK!C71 — transcribed verbatim, including its own inconsistent
+// capitalization/spelling ("Not conform" vs "Not Conform", "N/A" vs "NA").
+export const GEMBA_EVALUATION_LEGEND = {
+  en: 'Evaluation: "Conform" when fully compliant; "Not conform" when partially implemented or not in place; "Non Observed" when not observed during the gemba walk; "N/A" when not applicable',
+  id: 'Evaluasi: "Conform" jika sepenuhnya patuh; "Not Conform" jika sebagian diimplementasikan atau tidak ada; "Non Observed" jika tidak teramati selama kunjungan gemba; "NA" jika tidak diterapkan.',
+};

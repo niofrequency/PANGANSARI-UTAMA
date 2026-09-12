@@ -67,3 +67,22 @@ export const DAILY_FOOD_HANDLER_GROUPS: DailyFoodHandlerGroup[] = [
 
 export const DAILY_FOOD_HANDLER_ALL_CRITERIA: DailyFoodHandlerCriterion[] =
   DAILY_FOOD_HANDLER_GROUPS.flatMap(g => g.criteria);
+
+// --- Print-replica constants (DailyFoodHandlerPrintSheet.tsx) ----------
+// Transcribed verbatim from the page furniture around the roster table
+// itself (Sheet1!D1, A6:A9, B33:Q37) — kept here with the rest of this
+// file's verbatim transcriptions so both stay in sync with the one source
+// workbook. The "No. Document / Issued Date / No. Revision Date /
+// Location" doc-control box (Sheet1!S1:V4) is left out: every value cell
+// next to those labels is blank in the source template itself (filled in
+// by hand, if ever), so there is nothing to transcribe there yet.
+export const DFH_FORM_TITLE = 'Daily assessment checklist';
+
+export const DFH_SIGNOFF_LABELS = {
+  checkedBy: { title: 'Checked by,', role: '( SPV)' },
+  acknowledgedBy: { title: 'Acknowledge by,', role: '(Area Owner )' },
+  verifiedBy: { title: 'Verified by,', role: '( HSSE Representative )' },
+};
+
+// Sheet1!A32 — transcribed verbatim.
+export const DFH_MARK_LEGEND = 'Hygiene Personal : (v) Good/ appropriate as standard , (x) not appropriate with standard';

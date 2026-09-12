@@ -22,6 +22,7 @@ export const translations = {
       noData: 'Nothing here yet',
       close: 'Close',
       backToLogin: 'Back to Login',
+      printButton: 'Print',
     },
     roles: {
       HOUSEKEEPER: 'Housekeeper',
@@ -724,6 +725,7 @@ export const translations = {
       noData: 'Belum ada data',
       close: 'Tutup',
       backToLogin: 'Kembali ke Login',
+      printButton: 'Cetak',
     },
     roles: {
       HOUSEKEEPER: 'Housekeeper',
