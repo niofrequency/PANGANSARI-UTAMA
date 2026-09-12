@@ -14,6 +14,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { cn } from '../../utils/cn';
 import { CorrectiveAction } from '../../types';
+import { Modal } from '../Modal';
 
 const STATUS_STYLE: Record<CorrectiveAction['status'], string> = {
   OPEN: 'bg-psu-rejected/10 text-psu-rejected',
@@ -130,8 +131,7 @@ export function MyActionItems({ store }: { store: ReturnType<typeof useAppStore>
       </div>
 
       {doing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-psu-gray/60 backdrop-blur-md">
-          <div className="bg-white w-full max-w-sm rounded-[32px] p-8 space-y-5 shadow-2xl">
+        <Modal size="sm" boxClassName="rounded-[32px] p-8 space-y-5">
             <h3 className="text-lg font-bold text-psu-gray">{t('correctiveAction.markDoneButton')}</h3>
             <p className="text-xs text-psu-gray/60 font-medium">{doing.action}</p>
             <div>
@@ -155,8 +155,7 @@ export function MyActionItems({ store }: { store: ReturnType<typeof useAppStore>
                 {t('correctiveAction.submitDoneButton')}
               </button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

@@ -11,6 +11,7 @@ import { UserRole, Submission, User, Site } from '../../types';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { SUPER_ADMIN_EMAIL } from '../../services/authService';
 import { isFirebaseConfigured } from '../../lib/firebase';
+import { Modal } from '../Modal';
 import { isValidStaffCode } from '../../utils/staffCode';
 import { cloudinaryUrl } from '../../utils/cloudinaryUrl';
 import { PrintQrPanel } from './PrintQrPanel';
@@ -780,13 +781,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
           approving/rejecting stays with Supervisors/Managers) */}
       <AnimatePresence>
         {selectedSubmission && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-psu-gray/60 backdrop-blur-md">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl flex flex-col max-h-[85vh]"
-            >
+          <Modal size="md" boxClassName="rounded-[32px] overflow-hidden flex flex-col max-h-[85vh]">
               <div className="p-8 overflow-y-auto">
                 <div className="flex justify-between items-start mb-8">
                   <div>
@@ -851,21 +846,14 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                   )}
                 </div>
               </div>
-            </motion.div>
-          </div>
+          </Modal>
         )}
       </AnimatePresence>
 
       {/* Add User Modal */}
       <AnimatePresence>
         {showAddModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-psu-gray/60 backdrop-blur-md">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white w-full max-w-sm rounded-[32px] p-10 shadow-2xl max-h-[90vh] overflow-y-auto"
-            >
+          <Modal size="lg" boxClassName="rounded-[32px] p-10 max-h-[90vh] overflow-y-auto">
               {justCreated ? (
                 <>
                   <div className="flex flex-col items-center mb-8 text-center">
@@ -1059,21 +1047,14 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                   </form>
                 </>
               )}
-            </motion.div>
-          </div>
+          </Modal>
         )}
       </AnimatePresence>
 
       {/* Delete Confirmation Modal */}
       <AnimatePresence>
         {deleteTarget && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-psu-gray/60 backdrop-blur-md">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white w-full max-w-sm rounded-[32px] p-8 shadow-2xl"
-            >
+          <Modal size="sm" boxClassName="rounded-[32px] p-8">
               <div className="flex flex-col items-center mb-6 text-center">
                 <div className="w-16 h-16 bg-psu-rejected/10 rounded-2xl flex items-center justify-center text-psu-rejected mb-4">
                   <Trash2 size={28} />
@@ -1122,20 +1103,13 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                   {t('admin.deleteButton')}
                 </button>
               </div>
-            </motion.div>
-          </div>
+          </Modal>
         )}
       </AnimatePresence>
 
       <AnimatePresence>
         {resetTarget && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-psu-gray/60 backdrop-blur-md">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white w-full max-w-sm rounded-[32px] p-8 shadow-2xl max-h-[90vh] overflow-y-auto"
-            >
+          <Modal size="md" boxClassName="rounded-[32px] p-8 max-h-[90vh] overflow-y-auto">
               {resetSuccess ? (
                 <>
                   <div className="flex flex-col items-center mb-6 text-center">
@@ -1243,20 +1217,13 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                   </form>
                 </>
               )}
-            </motion.div>
-          </div>
+          </Modal>
         )}
       </AnimatePresence>
 
       <AnimatePresence>
         {emailChangeTarget && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-psu-gray/60 backdrop-blur-md">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white w-full max-w-sm rounded-[32px] p-8 shadow-2xl max-h-[90vh] overflow-y-auto"
-            >
+          <Modal size="md" boxClassName="rounded-[32px] p-8 max-h-[90vh] overflow-y-auto">
               {emailChangeSuccess ? (
                 <>
                   <div className="flex flex-col items-center mb-6 text-center">
@@ -1348,20 +1315,13 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                   </form>
                 </>
               )}
-            </motion.div>
-          </div>
+          </Modal>
         )}
       </AnimatePresence>
 
       <AnimatePresence>
         {staffIdTarget && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-psu-gray/60 backdrop-blur-md">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white w-full max-w-sm rounded-[32px] p-8 shadow-2xl max-h-[90vh] overflow-y-auto"
-            >
+          <Modal size="md" boxClassName="rounded-[32px] p-8 max-h-[90vh] overflow-y-auto">
               {staffIdSuccess ? (
                 <>
                   <div className="flex flex-col items-center mb-6 text-center">
@@ -1435,8 +1395,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                   </form>
                 </>
               )}
-            </motion.div>
-          </div>
+          </Modal>
         )}
       </AnimatePresence>
     </div>

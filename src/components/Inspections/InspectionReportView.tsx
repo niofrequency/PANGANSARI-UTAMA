@@ -25,13 +25,22 @@ export function InspectionReportView({ submission, onBack }: { submission: Submi
 
   return (
     <div className="space-y-6">
-      {/* Only Supervisor/Manager/GM/Admin ever reach this view — see
-          InspectionsTab.tsx's header comment — so the Print button needs
-          no extra role check of its own. It renders InspectionPrintSheet
-          (a plain black-on-white replica of the source workbook, not this
-          screen's own card UI) into a `hidden print:block` node below;
-          `print:hidden` here hides everything else when that fires. */}
-      <div className="flex items-center justify-between print:hidden">
+      {/* InspectionPrintSheet (a plain black-on-white replica of the source
+          workbook, not this screen's own card UI) renders here as a
+          sibling of the width-capped on-screen content below, not nested
+          inside it — so the desktop max-width below never reaches into the
+          print output. Only Supervisor/Manager/GM/Admin ever reach this
+          view — see InspectionsTab.tsx's header comment — so the Print
+          button needs no extra role check of its own. */}
+      <div className="hidden print:block">
+        <InspectionPrintSheet submission={submission} />
+      </div>
+
+      {/* On-screen content only (print:hidden) — capped and centered from
+          the md breakpoint up so it doesn't stretch edge-to-edge on a wide
+          desktop monitor; unchanged below md (mobile is already right). */}
+      <div className="space-y-6 md:max-w-3xl md:mx-auto print:hidden">
+      <div className="flex items-center justify-between">
         <button onClick={onBack} className="flex items-center gap-2 text-xs font-black text-psu-gray/40 uppercase tracking-widest">
           <ChevronLeft size={16} /> {t('inspection.backToList')}
         </button>
@@ -43,11 +52,7 @@ export function InspectionReportView({ submission, onBack }: { submission: Submi
         </button>
       </div>
 
-      <div className="hidden print:block">
-        <InspectionPrintSheet submission={submission} />
-      </div>
-
-      <div className="card space-y-4 print:hidden">
+      <div className="card space-y-4">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-lg font-black text-psu-gray">{meta.areaAudited || '—'}</h2>
@@ -69,7 +74,7 @@ export function InspectionReportView({ submission, onBack }: { submission: Submi
       </div>
 
       {meta.sectionScores && meta.sectionScores.length > 0 && (
-        <div className="card space-y-3 print:hidden">
+        <div className="card space-y-3">
           <h3 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em]">{t('inspection.sectionBreakdown')}</h3>
           <div className="space-y-2">
             {meta.sectionScores.map(s => (
@@ -90,7 +95,7 @@ export function InspectionReportView({ submission, onBack }: { submission: Submi
         </div>
       )}
 
-      <div className="card space-y-1 p-0 divide-y divide-psu-gray/5 print:hidden">
+      <div className="card space-y-1 p-0 divide-y divide-psu-gray/5">
         {submission.items.map(item => (
           <div key={item.id} className="p-5 space-y-2">
             <div className="flex items-start justify-between gap-3">
@@ -102,6 +107,7 @@ export function InspectionReportView({ submission, onBack }: { submission: Submi
             {item.remarks && <p className="text-[11px] text-psu-gray/50 font-medium italic">{item.remarks}</p>}
           </div>
         ))}
+      </div>
       </div>
     </div>
   );

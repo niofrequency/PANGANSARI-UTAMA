@@ -1,5 +1,6 @@
 import { useState, ComponentType } from 'react';
 import { useAppStore } from '../../store/useAppStore';
+import { Modal } from '../Modal';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { cn } from '../../utils/cn';
 import { motion, AnimatePresence } from 'motion/react';
@@ -274,9 +275,11 @@ export function OpsLogsTab({
 
       <AnimatePresence>
         {selected && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-psu-gray/60 backdrop-blur-md print:static print:inset-auto print:block print:p-0 print:bg-transparent print:backdrop-blur-none">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl flex flex-col max-h-[85vh] print:block print:max-w-none print:max-h-none print:overflow-visible print:shadow-none print:rounded-none">
+          <Modal
+            size="md"
+            backdropClassName="print:static print:inset-auto print:block print:p-0 print:bg-transparent print:backdrop-blur-none"
+            boxClassName="rounded-[32px] overflow-hidden flex flex-col max-h-[85vh] print:block print:max-w-none print:max-h-none print:overflow-visible print:shadow-none print:rounded-none"
+          >
               {/* Only Supervisor/Manager/GM/Admin ever reach this modal —
                   see this file's header comment — so the Print button
                   needs no extra role check of its own. OPS_PRINT_COMPONENTS
@@ -365,8 +368,7 @@ export function OpsLogsTab({
                   </button>
                 </div>
               )}
-            </motion.div>
-          </div>
+          </Modal>
         )}
       </AnimatePresence>
     </div>
