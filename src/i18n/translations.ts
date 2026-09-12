@@ -620,6 +620,7 @@ export const translations = {
       slotLabel: 'Slot',
       mealPeriodsLabel: 'Meal periods cooked today',
       signoff: {
+        draftedBy: 'Drafted',
         checkedBy: 'Checked',
         approvedBy: 'Approved',
         verifiedBy: 'Verified',
@@ -1318,6 +1319,7 @@ export const translations = {
       slotLabel: 'Slot',
       mealPeriodsLabel: 'Waktu makan yang dimasak hari ini',
       signoff: {
+        draftedBy: 'Diisi',
         checkedBy: 'Diperiksa',
         approvedBy: 'Disetujui',
         verifiedBy: 'Diverifikasi',

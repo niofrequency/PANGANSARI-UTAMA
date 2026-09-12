@@ -3,7 +3,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { cn } from '../../utils/cn';
 import { motion, AnimatePresence } from 'motion/react';
-import { ClipboardList, ChevronRight, CheckCircle2, XCircle, Clock, Stamp, Pencil, AlertTriangle } from 'lucide-react';
+import { ClipboardList, ChevronRight, CheckCircle2, XCircle, Clock, Stamp, Pencil, AlertTriangle, Printer } from 'lucide-react';
 import { Submission, OpsLogType } from '../../types';
 import { OPS_LOG_DEFS, OpsDepartment, departmentOf, titleKeyForChainType } from '../../data/opsLogsCatalog';
 import { SignoffProgress, nextSignoffStep, RejectButton, OpsFormProps } from './opsHelpers';
@@ -17,6 +17,35 @@ import { ThawingForm } from './ThawingForm';
 import { StaffReadyForm } from './StaffReadyForm';
 import { LaundryShopForm } from './LaundryShopForm';
 import { RestroomForm } from './RestroomForm';
+import { MessHallHygienePrintSheet } from './print/MessHallHygienePrintSheet';
+import { CookingServicePrintSheet } from './print/CookingServicePrintSheet';
+import { HotPackedMealPrintSheet } from './print/HotPackedMealPrintSheet';
+import { ThawingPrintSheet } from './print/ThawingPrintSheet';
+import { StaffReadyPrintSheet } from './print/StaffReadyPrintSheet';
+import { LaundryShopPrintSheet } from './print/LaundryShopPrintSheet';
+import { RestroomPrintSheet } from './print/RestroomPrintSheet';
+import { RoomCleaningPrintSheet } from './print/RoomCleaningPrintSheet';
+import { FoodSafetyDailyLogPrintSheet } from './print/FoodSafetyDailyLogPrintSheet';
+
+// One print sheet per type this tab's shared detail modal can show —
+// every Ops Log type, plus the 2 review-only types (HOUSEKEEPING/
+// FOOD_SAFETY) that share this same modal. Only Supervisor/Manager/GM/
+// Admin ever reach this modal (see this file's own header comment), so
+// the Print button below needs no extra role check of its own — same
+// reasoning as InspectionsTab.tsx's report views. Gemba Walk (the third
+// review-only type) already has its own Print button on
+// GembaWalkReportView.tsx and isn't duplicated here.
+const OPS_PRINT_COMPONENTS: Partial<Record<Submission['type'], ComponentType<{ submission: Submission }>>> = {
+  MESS_HALL_HYGIENE: MessHallHygienePrintSheet,
+  COOKING_SERVICE: CookingServicePrintSheet,
+  HOT_PACKED_MEAL: HotPackedMealPrintSheet,
+  THAWING: ThawingPrintSheet,
+  STAFF_READY: StaffReadyPrintSheet,
+  LAUNDRY_SHOP: LaundryShopPrintSheet,
+  RESTROOM: RestroomPrintSheet,
+  HOUSEKEEPING: RoomCleaningPrintSheet,
+  FOOD_SAFETY: FoodSafetyDailyLogPrintSheet,
+};
 
 // A Food Safety Technician's daily log folds in a personal wellness/
 // hygiene/PPE self-check. If any of those items came back false, that's
@@ -245,16 +274,33 @@ export function OpsLogsTab({
 
       <AnimatePresence>
         {selected && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-psu-gray/60 backdrop-blur-md">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-psu-gray/60 backdrop-blur-md print:static print:inset-auto print:block print:p-0 print:bg-transparent print:backdrop-blur-none">
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl flex flex-col max-h-[85vh]">
-              <div className="p-8 overflow-y-auto">
+              className="bg-white w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl flex flex-col max-h-[85vh] print:block print:max-w-none print:max-h-none print:overflow-visible print:shadow-none print:rounded-none">
+              {/* Only Supervisor/Manager/GM/Admin ever reach this modal —
+                  see this file's header comment — so the Print button
+                  needs no extra role check of its own. OPS_PRINT_COMPONENTS
+                  covers every type this modal can show except Gemba Walk,
+                  which already has its own Print button on
+                  GembaWalkReportView.tsx. */}
+              {OPS_PRINT_COMPONENTS[selected.type] && (() => {
+                const PrintSheet = OPS_PRINT_COMPONENTS[selected.type]!;
+                return <div className="hidden print:block"><PrintSheet submission={selected} /></div>;
+              })()}
+              <div className="p-8 overflow-y-auto print:hidden">
                 <div className="flex justify-between items-start mb-6">
                   <div>
                     <h3 className="text-lg font-bold tracking-tight text-psu-gray">{titleKeyFor(selected) ? t(titleKeyFor(selected)!) : selected.type}</h3>
                     <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-1">{selected.userName} · {selected.siteName}</p>
                   </div>
-                  <button onClick={() => setSelected(null)} className="p-2 text-psu-gray/30 hover:text-psu-rejected transition-colors"><XCircle size={22} /></button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {OPS_PRINT_COMPONENTS[selected.type] && (
+                      <button onClick={() => window.print()} className="p-2 text-psu-gray/30 hover:text-psu-blue transition-colors" title={t('common.printButton')}>
+                        <Printer size={20} />
+                      </button>
+                    )}
+                    <button onClick={() => setSelected(null)} className="p-2 text-psu-gray/30 hover:text-psu-rejected transition-colors"><XCircle size={22} /></button>
+                  </div>
                 </div>
 
                 <div className="mb-5"><SignoffProgress submission={selected} /></div>
@@ -298,7 +344,7 @@ export function OpsLogsTab({
               </div>
 
               {selected.status === 'PENDING' && nextSignoffStep(selected) && (tier === 'supervisor' ? nextSignoffStep(selected) === 'checkedBy' : true) && (
-                <div className="p-6 bg-psu-bg/30 border-t border-psu-gray/5 space-y-3">
+                <div className="p-6 bg-psu-bg/30 border-t border-psu-gray/5 space-y-3 print:hidden">
                   <button onClick={() => handleStamp(selected)}
                     className="w-full flex items-center justify-center gap-2 py-4 bg-psu-green text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-psu-green/20 active:scale-95 transition-all"
                   >
@@ -311,7 +357,7 @@ export function OpsLogsTab({
               )}
 
               {selected.status === 'REJECTED' && selected.userId === currentUser?.id && EDITABLE_OPS_LOG_TYPES.includes(selected.type as OpsLogType) && (
-                <div className="p-6 bg-psu-bg/30 border-t border-psu-gray/5">
+                <div className="p-6 bg-psu-bg/30 border-t border-psu-gray/5 print:hidden">
                   <button onClick={() => handleEdit(selected)}
                     className="w-full flex items-center justify-center gap-2 py-4 bg-psu-blue text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-psu-blue/20 active:scale-95 transition-all"
                   >
