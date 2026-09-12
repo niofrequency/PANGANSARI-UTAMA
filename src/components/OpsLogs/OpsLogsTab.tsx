@@ -8,6 +8,7 @@ import { Submission, OpsLogType } from '../../types';
 import { OPS_LOG_DEFS, OpsDepartment, departmentOf, titleKeyForChainType } from '../../data/opsLogsCatalog';
 import { SignoffProgress, nextSignoffStep, RejectButton, OpsFormProps } from './opsHelpers';
 import { userCanSeeSite } from '../../lib/siteScope';
+import { cloudinaryUrl } from '../../utils/cloudinaryUrl';
 import { DAILY_FOOD_HANDLER_ALL_CRITERIA } from '../../data/dailyFoodHandlerData';
 import { MessHallHygieneForm } from './MessHallHygieneForm';
 import { CookingServiceForm } from './CookingServiceForm';
@@ -276,7 +277,7 @@ export function OpsLogsTab({
                     submission, not per item. */}
                 {selected.meta?.photoUrl && (
                   <div className="mb-5 rounded-2xl overflow-hidden border border-psu-gray/5">
-                    <img src={selected.meta.photoUrl} className="w-full h-48 object-cover" alt="Proof" />
+                    <img src={cloudinaryUrl(selected.meta.photoUrl, 800)} className="w-full h-48 object-cover" alt="Proof" />
                   </div>
                 )}
 
@@ -290,7 +291,7 @@ export function OpsLogsTab({
                         </p>
                       )}
                       {item.remarks && <p className="text-[10px] text-psu-gray/40 mt-1 italic">{item.remarks}</p>}
-                      {item.photoUrl && <img src={item.photoUrl} className="w-full h-32 object-cover rounded-xl mt-2" alt="" />}
+                      {item.photoUrl && <img src={cloudinaryUrl(item.photoUrl, 500)} className="w-full h-32 object-cover rounded-xl mt-2" alt="" />}
                     </div>
                   ))}
                 </div>

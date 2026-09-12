@@ -62,11 +62,12 @@ export const db: Firestore | null = app ? initializeFirestore(app, { ignoreUndef
 // (us-central1). Without this, the client can hit the wrong endpoint and
 // you get opaque CORS / not-found errors.
 export const functions: Functions | null = app ? getFunctions(app, 'us-central1') : null;
-// Photo evidence (Housekeeping checklist items, the Technician's daily
-// log) uploads here instead of being embedded as base64 in submissions
-// when Firebase is configured — see services/storageService.ts and
-// storage.rules. In demo mode, photos stay as local data URLs; there's no
-// bucket to upload to.
+// New submission photos no longer upload here — see
+// services/cloudinaryPhotoService.ts and functions/src/index.ts's
+// mintCloudinaryUploadSignature for where they go now, and that file's
+// header comment for why. This export (and storage.rules) stays only so
+// photos already sitting in this bucket from before that switch keep
+// resolving — nothing new gets written through it.
 export const storage: FirebaseStorage | null = app ? getStorage(app) : null;
 
 // Explicit rather than relying on the SDK default: keeps people logged in

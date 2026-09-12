@@ -1,10 +1,12 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { defineSecret } from 'firebase-functions/params';
 // Auth triggers (functions.auth.user().onCreate) are 1st-gen only — there's
 // no 2nd-gen equivalent yet, so this one import stays on the v1 namespace
 // while everything else in this file uses v2. Both coexist fine in the
 // same Cloud Functions deployment.
 import * as functionsV1 from 'firebase-functions/v1';
 import * as admin from 'firebase-admin';
+import * as crypto from 'crypto';
 
 admin.initializeApp();
 
@@ -418,5 +420,64 @@ export const adminResetCredentials = onCall(
     }
 
     return { success: true };
+  }
+);
+
+// Only the API secret is sensitive (see storage/Cloudinary setup notes) —
+// Cloudinary's own docs say the cloud name and API key are fine in
+// client-facing code, so there's no reason to route those through Secret
+// Manager too, or to give the client its own copy in a Vercel env var.
+// Keeping them here means this function is the one place that knows
+// where uploads go; it hands the client everything it needs — cloud
+// name, API key, folder, signature — in one response.
+const cloudinaryApiSecret = defineSecret('CLOUDINARY_API_SECRET');
+const CLOUDINARY_CLOUD_NAME = 'vluj4mch';
+const CLOUDINARY_API_KEY = '454911198414833';
+
+// Lets any signed-in user upload a submission photo straight to
+// Cloudinary without this app ever handing out Cloudinary's API secret.
+// Firebase Storage (storage.rules) used to hold these; moved off it
+// because its free tier is a flat 5GB, while a photo here gets *viewed*
+// (by a reviewing supervisor, a manager, Admin's Activity tab) far more
+// times than it's ever uploaded — Cloudinary's free tier covers
+// bandwidth generously too, and src/utils/cloudinaryUrl.ts serves an
+// auto-optimized version on every view instead of the original. Old
+// photos already in Firebase Storage keep working — storage.rules is
+// untouched — nothing new gets written through it after this.
+//
+// This is Cloudinary's documented "signed upload" scheme: the browser
+// sends the file straight to Cloudinary's own endpoint (never through
+// this function, so photo bytes never touch our server — only this
+// small signing step does), authorized by a signature that only someone
+// who can call this function (a real signed-in user) can ever produce.
+// The folder is fixed to the caller's own uid server-side (not taken
+// from the client) and is itself part of what gets signed, so a caller
+// can't request a signature for one folder and then upload somewhere
+// else — Cloudinary checks the signature against the exact params sent.
+export const mintCloudinaryUploadSignature = onCall(
+  { region: 'us-central1', invoker: 'public', cors: true, secrets: [cloudinaryApiSecret] },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'You must be signed in.');
+    }
+
+    const timestamp = Math.round(Date.now() / 1000);
+    const folder = `psu-submissions/${request.auth.uid}`;
+    // Every param actually sent with the upload has to appear here too,
+    // sorted by key — Cloudinary recomputes this same string on its end
+    // and rejects the upload if the signature doesn't match.
+    const paramsToSign = `folder=${folder}&timestamp=${timestamp}`;
+    const signature = crypto
+      .createHash('sha1')
+      .update(paramsToSign + cloudinaryApiSecret.value())
+      .digest('hex');
+
+    return {
+      signature,
+      timestamp,
+      apiKey: CLOUDINARY_API_KEY,
+      cloudName: CLOUDINARY_CLOUD_NAME,
+      folder,
+    };
   }
 );

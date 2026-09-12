@@ -5,6 +5,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { userCanSeeSite } from '../../lib/siteScope';
 import { cn } from '../../utils/cn';
+import { cloudinaryUrl } from '../../utils/cloudinaryUrl';
 import { FieldReport } from '../../types';
 
 interface FieldReportsTabProps {
@@ -149,7 +150,7 @@ export function FieldReportsTab({ store, department }: FieldReportsTabProps) {
 
                 {selected.photoUrl && (
                   <div className="rounded-2xl overflow-hidden border border-psu-gray/5">
-                    <img src={selected.photoUrl} className="w-full h-48 object-cover" alt="" />
+                    <img src={cloudinaryUrl(selected.photoUrl, 800)} className="w-full h-48 object-cover" alt="" />
                   </div>
                 )}
 
