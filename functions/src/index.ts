@@ -434,6 +434,22 @@ const cloudinaryApiSecret = defineSecret('CLOUDINARY_API_SECRET');
 const CLOUDINARY_CLOUD_NAME = 'vluj4mch';
 const CLOUDINARY_API_KEY = '454911198414833';
 
+// A hard ceiling on what actually gets STORED, independent of whatever
+// the client sends. PhotoCapture.tsx already downscales to 1280px/0.85
+// quality before it ever uploads (typically 150-400KB), so this rarely
+// does anything today — but it means stored size is never at the mercy
+// of the uploader alone: a future call site that skips that downscale,
+// an unusually large source photo, or a different image format
+// encoding bigger than expected all land here the same way. This is an
+// "incoming transformation" (Cloudinary's term) — applied once at
+// upload time, so Cloudinary transforms and discards the original,
+// storing only the capped version; it's separate from
+// cloudinaryUrl.ts's f_auto/q_auto, which only affects what's served on
+// a given VIEW, not what's kept in storage. 1600px is deliberately
+// looser than the client's own 1280px cap — a ceiling to catch outliers,
+// not a second resize fighting the first.
+const CLOUDINARY_UPLOAD_TRANSFORMATION = 'w_1600,h_1600,c_limit,q_auto:good';
+
 // Lets any signed-in user upload a submission photo straight to
 // Cloudinary without this app ever handing out Cloudinary's API secret.
 // Firebase Storage (storage.rules) used to hold these; moved off it
@@ -464,9 +480,11 @@ export const mintCloudinaryUploadSignature = onCall(
     const timestamp = Math.round(Date.now() / 1000);
     const folder = `psu-submissions/${request.auth.uid}`;
     // Every param actually sent with the upload has to appear here too,
-    // sorted by key — Cloudinary recomputes this same string on its end
-    // and rejects the upload if the signature doesn't match.
-    const paramsToSign = `folder=${folder}&timestamp=${timestamp}`;
+    // sorted alphabetically by key — Cloudinary recomputes this same
+    // string on its end and rejects the upload if the signature doesn't
+    // match, so the client can't send a different transformation (or
+    // drop it) than what was actually signed.
+    const paramsToSign = `folder=${folder}&timestamp=${timestamp}&transformation=${CLOUDINARY_UPLOAD_TRANSFORMATION}`;
     const signature = crypto
       .createHash('sha1')
       .update(paramsToSign + cloudinaryApiSecret.value())
@@ -478,6 +496,7 @@ export const mintCloudinaryUploadSignature = onCall(
       apiKey: CLOUDINARY_API_KEY,
       cloudName: CLOUDINARY_CLOUD_NAME,
       folder,
+      transformation: CLOUDINARY_UPLOAD_TRANSFORMATION,
     };
   }
 );

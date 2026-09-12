@@ -30,6 +30,11 @@ interface CloudinaryUploadSignature {
   apiKey: string;
   cloudName: string;
   folder: string;
+  // A ceiling on what actually gets stored (see this function's own
+  // comment in functions/src/index.ts) — sent as-is, exactly as signed;
+  // changing it here without the function also changing it would just
+  // make the signature invalid and the upload rejected.
+  transformation: string;
 }
 
 export async function uploadSubmissionPhoto(dataUrl: string): Promise<string> {
@@ -44,6 +49,7 @@ export async function uploadSubmissionPhoto(dataUrl: string): Promise<string> {
   form.append('timestamp', String(sig.timestamp));
   form.append('signature', sig.signature);
   form.append('folder', sig.folder);
+  form.append('transformation', sig.transformation);
 
   const res = await fetch(`https://api.cloudinary.com/v1_1/${sig.cloudName}/image/upload`, {
     method: 'POST',
