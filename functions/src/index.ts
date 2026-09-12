@@ -329,6 +329,22 @@ interface AdminResetCredentialsData {
 // is the one Admin Portal feature in this app that genuinely can't avoid
 // needing a Cloud Function the way createStaffAccountDirect avoided it for
 // account creation.
+// Redeploy trigger (no behavior change): this function's code hasn't
+// changed since it was first created, so every functions deploy since
+// then has reported it "Skipped (No changes detected)" and never
+// touched it again — including never re-applying its IAM invoker
+// binding. It was first deployed before the deploy service account had
+// the "Cloud Functions Admin" role (added later while fixing
+// mintStaffCodeToken's IAM binding), so its own public-invoker
+// permission on Cloud Run likely never actually got set, even though
+// the config below has always said invoker: 'public'. That's the exact
+// shape of the CORS-preflight-blocked error the Admin Portal's reset
+// login flow hits: an unauthenticated OPTIONS request gets rejected by
+// Cloud Run's IAM layer before this function (or its cors:true handling)
+// ever runs, and a browser reports a response with no CORS headers as a
+// CORS failure rather than surfacing the real 403. This comment forces
+// Firebase's "unchanged" diff to see a change and actually redeploy it,
+// which reapplies the invoker binding now that the permission exists.
 export const adminResetCredentials = onCall(
   { region: 'us-central1', invoker: 'public', cors: true },
   async (request) => {
