@@ -12,6 +12,7 @@ import { useTranslation } from '../../i18n/LanguageContext';
 import { SUPER_ADMIN_EMAIL } from '../../services/authService';
 import { isFirebaseConfigured } from '../../lib/firebase';
 import { Modal } from '../Modal';
+import { ListCard } from '../ListCard';
 import { isValidStaffCode } from '../../utils/staffCode';
 import { cloudinaryUrl } from '../../utils/cloudinaryUrl';
 import { PrintQrPanel } from './PrintQrPanel';
@@ -495,9 +496,12 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredUsers.map(user => (
-                <div key={user.id} className="card flex flex-col gap-4">
+            <ListCard
+              items={filteredUsers}
+              emptyIcon={<Users size={48} className="mx-auto" />}
+              emptyLabel={t('common.noData')}
+              renderRow={(user) => (
+                <div className="flex flex-col gap-4">
                   <div className="flex items-center gap-4 min-w-0">
                     <div className="w-12 h-12 bg-psu-bg rounded-2xl flex items-center justify-center text-psu-gray/20 shrink-0">
                       <Users size={22} />
@@ -595,8 +599,8 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                     />
                   )}
                 </div>
-              ))}
-            </div>
+              )}
+            />
           </motion.div>
         )}
 
@@ -656,16 +660,15 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                   ))}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredSubmissions.map(s => (
-                    <div
-                      key={s.id}
-                      onClick={() => setSelectedSubmission(s)}
-                      className="card flex items-center justify-between cursor-pointer group hover:border-psu-blue/20 transition-all"
-                    >
+                <ListCard
+                  items={filteredSubmissions}
+                  emptyIcon={<ActivityIcon size={48} className="mx-auto" />}
+                  emptyLabel={t('admin.noActivity')}
+                  renderRow={(s) => (
+                    <div onClick={() => setSelectedSubmission(s)} className="flex items-center justify-between gap-3 cursor-pointer">
                       <div className="flex items-center gap-4 min-w-0">
-                        <div className="w-12 h-12 bg-psu-bg rounded-2xl flex items-center justify-center text-psu-gray/20 shrink-0">
-                          <UserIcon size={22} />
+                        <div className="w-11 h-11 bg-psu-bg rounded-2xl flex items-center justify-center text-psu-gray/20 shrink-0">
+                          <UserIcon size={20} />
                         </div>
                         <div className="min-w-0">
                           <h4 className="text-sm font-bold text-psu-gray truncate">{s.userName}</h4>
@@ -676,23 +679,20 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                       </div>
                       <span className={statusBadgeClass(s.status)}>{statusLabel(s.status)}</span>
                     </div>
-                  ))}
-                  {filteredSubmissions.length === 0 && (
-                    <div className="col-span-full text-center py-16 opacity-30">
-                      <ActivityIcon size={48} className="mx-auto mb-2" />
-                      <p className="text-xs font-black uppercase tracking-widest">{t('admin.noActivity')}</p>
-                    </div>
                   )}
-                </div>
+                />
               </>
             )}
 
             {activitySegment === 'WARNINGS' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredWarnings.map(w => (
-                  <div key={w.id} className="card flex items-start gap-4">
-                    <div className="w-12 h-12 bg-psu-warning/10 rounded-2xl flex items-center justify-center text-psu-warning shrink-0">
-                      <AlertTriangle size={20} />
+              <ListCard
+                items={filteredWarnings}
+                emptyIcon={<AlertTriangle size={48} className="mx-auto" />}
+                emptyLabel={t('admin.noActivity')}
+                renderRow={(w) => (
+                  <div className="flex items-start gap-4">
+                    <div className="w-11 h-11 bg-psu-warning/10 rounded-2xl flex items-center justify-center text-psu-warning shrink-0">
+                      <AlertTriangle size={18} />
                     </div>
                     <div className="min-w-0 flex-1">
                       <h4 className="text-sm font-bold text-psu-gray truncate">{w.technicianName}</h4>
@@ -707,22 +707,19 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                       </div>
                     </div>
                   </div>
-                ))}
-                {filteredWarnings.length === 0 && (
-                  <div className="col-span-full text-center py-16 opacity-30">
-                    <AlertTriangle size={48} className="mx-auto mb-2" />
-                    <p className="text-xs font-black uppercase tracking-widest">{t('admin.noActivity')}</p>
-                  </div>
                 )}
-              </div>
+              />
             )}
 
             {activitySegment === 'ACTIONS' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredCorrectiveActions.map(a => (
-                  <div key={a.id} className="card flex items-start gap-4">
-                    <div className="w-12 h-12 bg-psu-blue/10 rounded-2xl flex items-center justify-center text-psu-blue shrink-0">
-                      <ListTodo size={20} />
+              <ListCard
+                items={filteredCorrectiveActions}
+                emptyIcon={<ListTodo size={48} className="mx-auto" />}
+                emptyLabel={t('admin.noActivity')}
+                renderRow={(a) => (
+                  <div className="flex items-start gap-4">
+                    <div className="w-11 h-11 bg-psu-blue/10 rounded-2xl flex items-center justify-center text-psu-blue shrink-0">
+                      <ListTodo size={18} />
                     </div>
                     <div className="min-w-0 flex-1">
                       <h4 className="text-sm font-bold text-psu-gray truncate">{a.assignedToName}</h4>
@@ -742,14 +739,8 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                       </div>
                     </div>
                   </div>
-                ))}
-                {filteredCorrectiveActions.length === 0 && (
-                  <div className="col-span-full text-center py-16 opacity-30">
-                    <ListTodo size={48} className="mx-auto mb-2" />
-                    <p className="text-xs font-black uppercase tracking-widest">{t('admin.noActivity')}</p>
-                  </div>
                 )}
-              </div>
+              />
             )}
           </motion.div>
         )}

@@ -3,6 +3,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { cn } from '../../utils/cn';
 import { FieldReport } from '../../types';
+import { ListCard } from '../ListCard';
 
 const STATUS_STYLE: Record<FieldReport['status'], string> = {
   OPEN: 'bg-psu-rejected/10 text-psu-rejected',
@@ -27,9 +28,10 @@ export function MyFieldReports({ store }: { store: ReturnType<typeof useAppStore
   return (
     <div className="space-y-3 pt-2">
       <h3 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em] border-b border-psu-gray/5 pb-2 px-2">{t('fieldReport.myReportsTitle')}</h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {mine.map(r => (
-          <div key={r.id} className="card space-y-2">
+      <ListCard
+        items={mine}
+        renderRow={(r) => (
+          <div className="space-y-2">
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-10 h-10 bg-psu-bg rounded-xl flex items-center justify-center text-psu-gray/20 shrink-0">
@@ -45,8 +47,8 @@ export function MyFieldReports({ store }: { store: ReturnType<typeof useAppStore
               <p className="text-[11px] text-psu-gray/50 font-medium pl-[52px]">{r.resolutionNote}</p>
             )}
           </div>
-        ))}
-      </div>
+        )}
+      />
     </div>
   );
 }

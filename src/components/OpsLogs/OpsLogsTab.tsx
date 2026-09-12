@@ -1,6 +1,7 @@
 import { useState, ComponentType } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { Modal } from '../Modal';
+import { ListCard } from '../ListCard';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { cn } from '../../utils/cn';
 import { motion, AnimatePresence } from 'motion/react';
@@ -198,44 +199,33 @@ export function OpsLogsTab({
             {queue.length} {t('supervisorHK.pendingCount')}
           </span>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {queue.map(s => {
+        <ListCard
+          items={queue}
+          emptyIcon={<CheckCircle2 size={48} className="mx-auto" />}
+          emptyLabel={t('supervisorHK.allClear')}
+          rowClassName={(s) => isNotReadyToWork(s) ? "bg-psu-rejected/5" : undefined}
+          renderRow={(s) => {
             const titleKey = titleKeyFor(s);
             const flagged = isNotReadyToWork(s);
             return (
-              <div
-                key={s.id}
-                onClick={() => setSelected(s)}
-                className={cn(
-                  "card cursor-pointer transition-all",
-                  flagged ? "border-2 border-psu-rejected/40 bg-psu-rejected/5 hover:border-psu-rejected/60" : "hover:border-psu-blue/20"
-                )}
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <div className="min-w-0">
-                    <h4 className="text-sm font-bold text-psu-gray truncate">{titleKey ? t(titleKey) : s.type}</h4>
-                    <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5 truncate">
-                      {s.userName} · {s.siteName} · {new Date(s.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                    </p>
-                    {flagged && (
-                      <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-psu-rejected bg-psu-rejected/10 px-2 py-0.5 rounded-full mt-1.5">
-                        <AlertTriangle size={10} /> {t('supervisorHK.notReadyFlag')}
-                      </span>
-                    )}
-                  </div>
-                  <ChevronRight size={16} className="text-psu-gray/20 shrink-0" />
+              <div onClick={() => setSelected(s)} className="cursor-pointer flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <h4 className="text-sm font-bold text-psu-gray truncate">{titleKey ? t(titleKey) : s.type}</h4>
+                  <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5 truncate">
+                    {s.userName} · {s.siteName} · {new Date(s.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                  </p>
+                  {flagged && (
+                    <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-psu-rejected bg-psu-rejected/10 px-2 py-0.5 rounded-full mt-1.5">
+                      <AlertTriangle size={10} /> {t('supervisorHK.notReadyFlag')}
+                    </span>
+                  )}
+                  <div className="mt-2"><SignoffProgress submission={s} /></div>
                 </div>
-                <SignoffProgress submission={s} />
+                <ChevronRight size={16} className="text-psu-gray/20 shrink-0" />
               </div>
             );
-          })}
-          {queue.length === 0 && (
-            <div className="col-span-full text-center py-14 opacity-20">
-              <CheckCircle2 size={48} className="mx-auto mb-2" />
-              <p className="text-[10px] font-black uppercase tracking-[0.3em]">{t('supervisorHK.allClear')}</p>
-            </div>
-          )}
-        </div>
+          }}
+        />
       </div>
 
       <button
