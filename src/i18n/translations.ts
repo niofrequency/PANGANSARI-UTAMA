@@ -686,6 +686,7 @@ export const translations = {
         title: 'Mess Hall Hygiene (UWL10001)',
         desc: 'Cleanliness and condition check for a mess hall storage area.',
         areaLabel: 'Area',
+        monthGridTitle: 'Area {area} — this month',
       },
       restroom: {
         title: 'Toilet Cleaning (UN.00.45)',
@@ -709,6 +710,7 @@ export const translations = {
         installLabel: 'Installation',
         installTimeLabel: 'Installation time',
         installTempLabel: 'Installation temp',
+        pickPeriodHint: 'Pick a service period above to start.',
       },
       hotPacked: {
         title: 'Hot Packed Meal (UF.09000)',
@@ -727,11 +729,11 @@ export const translations = {
         title: 'Thawing Process (UN.00.43)',
         desc: 'Method and batch log for thawed products.',
         methodLabel: 'Thawing method',
-        batchLabel: 'Batch',
+        batchLabel: 'Lot',
         categoryPlaceholder: 'Product category',
         qtyPlaceholder: 'Quantity',
         usedForLabel: 'Used for',
-        addBatch: 'Add batch',
+        addBatch: 'Add lot',
       },
       staffReady: {
         title: 'Staff Ready Checklist',
@@ -750,6 +752,7 @@ export const translations = {
         fhCardInvalid: 'FH card not valid',
         bodyTempLabel: 'Body temp (°C)',
         addBlank: 'Add staff',
+        allOk: 'All OK',
       },
       laundryShop: {
         title: 'Laundry Shop Daily Log',
@@ -1443,6 +1446,7 @@ export const translations = {
         title: 'Kebersihan Mess Hall (UWL10001)',
         desc: 'Pemeriksaan kebersihan dan kondisi area penyimpanan mess hall.',
         areaLabel: 'Area',
+        monthGridTitle: 'Area {area} — bulan ini',
       },
       restroom: {
         title: 'Pembersihan Toilet (UN.00.45)',
@@ -1466,6 +1470,7 @@ export const translations = {
         installLabel: 'Instalasi',
         installTimeLabel: 'Waktu instalasi',
         installTempLabel: 'Suhu instalasi',
+        pickPeriodHint: 'Pilih waktu makan di atas untuk memulai.',
       },
       hotPacked: {
         title: 'Hot Packed Meal (UF.09000)',
@@ -1484,11 +1489,11 @@ export const translations = {
         title: 'Proses Thawing (UN.00.43)',
         desc: 'Metode dan catatan batch untuk produk yang di-thawing.',
         methodLabel: 'Metode thawing',
-        batchLabel: 'Batch',
+        batchLabel: 'Lot',
         categoryPlaceholder: 'Kategori produk',
         qtyPlaceholder: 'Jumlah',
         usedForLabel: 'Digunakan untuk',
-        addBatch: 'Tambah batch',
+        addBatch: 'Tambah lot',
       },
       staffReady: {
         title: 'Checklist Persiapan Diri Karyawan',
@@ -1507,6 +1512,7 @@ export const translations = {
         fhCardInvalid: 'FH card tidak berlaku',
         bodyTempLabel: 'Suhu tubuh (°C)',
         addBlank: 'Tambah staf',
+        allOk: 'Semua OK',
       },
       laundryShop: {
         title: 'Daily Check List — Laundryshop',

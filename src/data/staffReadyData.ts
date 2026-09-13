@@ -17,6 +17,12 @@ export interface StaffReadyGroup {
   titleEn: string;
   // 'yn' = Y/T (Ya/Tidak) items; 'bcj' = B/C/J (Baik/Cukup/Jelek) items
   markType: 'yn' | 'bcj';
+  // Which mark counts as "passing" for this group — used by "All OK"
+  // (StaffReadyForm.tsx) to bulk-fill every item. Not always the first
+  // option: kelengkapan/hygiene use the "has it"/"good" mark (Y, B), but
+  // penyakit (illness) flips — T (Tidak, "no symptom") is the good
+  // answer, Y (Ya, "yes I have this symptom") is not.
+  passingMark: string;
   items: { id: string; labelId: string; labelEn: string }[];
 }
 
@@ -26,6 +32,7 @@ export const STAFF_READY_GROUPS: StaffReadyGroup[] = [
     titleId: 'Kelengkapan',
     titleEn: 'Equipment / Attire',
     markType: 'yn',
+    passingMark: 'Y',
     items: [
       { id: 'uniform', labelId: 'Uniform', labelEn: 'Uniform' },
       { id: 'sepatu', labelId: 'Sepatu', labelEn: 'Shoes' },
@@ -40,6 +47,7 @@ export const STAFF_READY_GROUPS: StaffReadyGroup[] = [
     titleId: 'Hygiene & Sanitasi',
     titleEn: 'Hygiene & Sanitation',
     markType: 'bcj',
+    passingMark: 'B',
     items: [
       { id: 'bau_badan', labelId: 'Bau badan', labelEn: 'Body odor' },
       { id: 'rambut', labelId: 'Rambut', labelEn: 'Hair' },
@@ -54,6 +62,7 @@ export const STAFF_READY_GROUPS: StaffReadyGroup[] = [
     titleId: 'Penyakit',
     titleEn: 'Illness',
     markType: 'yn',
+    passingMark: 'T',
     items: [
       { id: 'batuk', labelId: 'Batuk', labelEn: 'Cough' },
       { id: 'pilek', labelId: 'Pilek', labelEn: 'Runny nose' },

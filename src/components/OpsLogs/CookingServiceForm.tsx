@@ -19,8 +19,12 @@ type MealRows = Record<string, RowEntry>;
 const emptyRow: RowEntry = { cookTime: '', cookTemp: '', installTime: '', installTemp: '', installCode: '', recipe: '' };
 
 // UF.09001 Cooking & Service Checklist — one submit = one date + location
-// + the meal periods actually cooked that day. Only rows the crew used
-// need filling; empty rows are fine.
+// + the meal periods actually cooked that day. Phone picks a service
+// period FIRST (a single row of period chips doubles as both "add this
+// period" and "switch to it" — see selectPeriod below): only that
+// period's lines show, matching the paper's "fill Lunch's column" flow
+// instead of every period competing for attention at once. Desktop shows
+// every added period side by side, like the paper's own columns.
 export function CookingServiceForm({ store, onCancel, onSubmitted }: {
   store: ReturnType<typeof useAppStore>;
   onCancel: () => void;
@@ -35,12 +39,23 @@ export function CookingServiceForm({ store, onCancel, onSubmitted }: {
   const [rowsByMeal, setRowsByMeal] = useState<Record<MealPeriodId, MealRows>>({} as Record<MealPeriodId, MealRows>);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const toggleMeal = (id: MealPeriodId) => {
-    setSelectedMeals(prev => {
-      const next = prev.includes(id) ? prev.filter(m => m !== id) : [...prev, id];
-      if (!prev.includes(id)) setActiveMeal(id);
-      return next;
-    });
+  // One row of period chips does triple duty: tapping an unselected
+  // period adds and activates it (this is the "pick a period first"
+  // step); tapping the one already active removes it again (the undo for
+  // an accidental tap); tapping a different, already-added period just
+  // switches which one is showing. Never a bare multi-select grid sitting
+  // next to a second tab bar for the same thing.
+  const selectPeriod = (id: MealPeriodId) => {
+    if (!selectedMeals.includes(id)) {
+      setSelectedMeals(prev => [...prev, id]);
+      setActiveMeal(id);
+    } else if (activeMeal === id) {
+      const remaining = selectedMeals.filter(m => m !== id);
+      setSelectedMeals(remaining);
+      setActiveMeal(remaining[0] ?? null);
+    } else {
+      setActiveMeal(id);
+    }
   };
 
   const setField = (meal: MealPeriodId, rowId: string, field: keyof RowEntry, value: string) => {
@@ -110,6 +125,45 @@ export function CookingServiceForm({ store, onCancel, onSubmitted }: {
     onSubmitted();
   };
 
+  const renderMealBlock = (meal: MealPeriodId) => (
+    <div className="card space-y-4">
+      <h4 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em] border-b border-psu-gray/5 pb-2">
+        {MEAL_PERIODS.find(m => m.id === meal)?.labelId}
+      </h4>
+      {COOKING_SERVICE_ROWS.map(row => {
+        const r = rowsByMeal[meal]?.[row.id] || emptyRow;
+        const n = Number(r.cookTemp);
+        const belowMin = r.cookTemp.trim() !== '' && Number.isFinite(n) && n < COOK_MIN_TEMP_C;
+        return (
+          <div key={row.id} className="p-3 -mx-1 rounded-2xl border border-psu-gray/5">
+            <p className="text-xs font-bold text-psu-gray mb-2">{row.labelId} <span className="text-psu-gray/40 italic font-normal">({row.labelEn})</span></p>
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              <input type="time" value={r.cookTime} onChange={(e) => setField(meal, row.id, 'cookTime', e.target.value)}
+                className="bg-psu-bg border border-psu-gray/10 rounded-xl p-2.5 text-base" placeholder={t('ops.cookingService.cookTimeLabel')} />
+              <input type="text" inputMode="decimal" value={r.cookTemp} onChange={(e) => setField(meal, row.id, 'cookTemp', e.target.value.replace(/[^0-9.]/g, ''))}
+                className={cn("bg-psu-bg border-2 rounded-xl p-2.5 text-base font-bold", belowMin ? "border-psu-rejected" : "border-psu-gray/10")}
+                placeholder={`${t('ops.cookingService.cookTempLabel')} (>=${COOK_MIN_TEMP_C}°C)`} />
+            </div>
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              <input type="time" value={r.installTime} onChange={(e) => setField(meal, row.id, 'installTime', e.target.value)}
+                className="bg-psu-bg border border-psu-gray/10 rounded-xl p-2.5 text-base" placeholder={t('ops.cookingService.installTimeLabel')} />
+              <input type="text" inputMode="decimal" value={r.installTemp} onChange={(e) => setField(meal, row.id, 'installTemp', e.target.value.replace(/[^0-9.]/g, ''))}
+                className="bg-psu-bg border border-psu-gray/10 rounded-xl p-2.5 text-base" placeholder={t('ops.cookingService.installTempLabel')} />
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {INSTALLATION_CODES.map(c => (
+                <button key={c.id} type="button" onClick={() => setField(meal, row.id, 'installCode', c.id)}
+                  className={cn("px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase", r.installCode === c.id ? "bg-psu-gray text-white" : "bg-psu-bg text-psu-gray/40 border border-psu-gray/10")}
+                >{c.id} {c.labelId}</button>
+              ))}
+              {belowMin && <OutOfRangeFlag label={t('ops.outOfRange')} />}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       <OpsHeaderChip siteName={currentSiteName} formId="UF.09001" userName={currentUser?.name || ''} staffCode={currentUser?.staffCode} departmentLabel={t('roles.FOOD_SAFETY_SUPERVISOR')} siteOptions={availableSites} onSiteChange={setWorkingSiteId} />
@@ -118,58 +172,37 @@ export function CookingServiceForm({ store, onCancel, onSubmitted }: {
         <label className="block text-[10px] font-black text-psu-gray/40 uppercase tracking-widest">{t('ops.mealPeriodsLabel')}</label>
         <div className="grid grid-cols-2 gap-2">
           {MEAL_PERIODS.map(m => (
-            <button key={m.id} type="button" onClick={() => toggleMeal(m.id)}
-              className={cn("py-3 rounded-xl text-xs font-black transition-all", selectedMeals.includes(m.id) ? "bg-psu-blue text-white shadow-md shadow-psu-blue/20" : "bg-psu-bg text-psu-gray/50")}
+            <button key={m.id} type="button" onClick={() => selectPeriod(m.id)}
+              className={cn(
+                "py-3 rounded-xl text-xs font-black transition-all",
+                activeMeal === m.id ? "bg-psu-blue text-white shadow-md shadow-psu-blue/20"
+                  : selectedMeals.includes(m.id) ? "bg-psu-blue/10 text-psu-blue"
+                  : "bg-psu-bg text-psu-gray/50"
+              )}
             >{m.labelId}</button>
           ))}
         </div>
       </div>
 
-      {selectedMeals.length > 0 && (
-        <div className="flex bg-white rounded-2xl p-1.5 shadow-sm border border-psu-gray/5">
-          {selectedMeals.map(m => (
-            <button key={m} onClick={() => setActiveMeal(m)}
-              className={cn("flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all", activeMeal === m ? "bg-psu-blue text-white" : "text-psu-gray/40")}
-            >{MEAL_PERIODS.find(mm => mm.id === m)?.labelId}</button>
-          ))}
-        </div>
-      )}
+      {/* Phone: only the active period's lines — this is the whole
+          point, never every period competing for space at once. */}
+      <div className="md:hidden">
+        {activeMeal ? renderMealBlock(activeMeal) : (
+          <div className="card text-center py-8 text-xs text-psu-gray/40 font-medium">{t('ops.cookingService.pickPeriodHint')}</div>
+        )}
+      </div>
 
-      {activeMeal && (
-        <div className="card space-y-4">
-          {COOKING_SERVICE_ROWS.map(row => {
-            const r = rowsByMeal[activeMeal]?.[row.id] || emptyRow;
-            const n = Number(r.cookTemp);
-            const belowMin = r.cookTemp.trim() !== '' && Number.isFinite(n) && n < COOK_MIN_TEMP_C;
-            return (
-              <div key={row.id} className="p-3 -mx-1 rounded-2xl border border-psu-gray/5">
-                <p className="text-xs font-bold text-psu-gray mb-2">{row.labelId} <span className="text-psu-gray/40 italic font-normal">({row.labelEn})</span></p>
-                <div className="grid grid-cols-2 gap-2 mb-2">
-                  <input type="time" value={r.cookTime} onChange={(e) => setField(activeMeal, row.id, 'cookTime', e.target.value)}
-                    className="bg-psu-bg border border-psu-gray/10 rounded-xl p-2.5 text-xs" placeholder={t('ops.cookingService.cookTimeLabel')} />
-                  <input type="number" step="0.1" value={r.cookTemp} onChange={(e) => setField(activeMeal, row.id, 'cookTemp', e.target.value)}
-                    className={cn("bg-psu-bg border-2 rounded-xl p-2.5 text-xs font-bold", belowMin ? "border-psu-rejected" : "border-psu-gray/10")}
-                    placeholder={`${t('ops.cookingService.cookTempLabel')} (>=${COOK_MIN_TEMP_C}°C)`} />
-                </div>
-                <div className="grid grid-cols-2 gap-2 mb-2">
-                  <input type="time" value={r.installTime} onChange={(e) => setField(activeMeal, row.id, 'installTime', e.target.value)}
-                    className="bg-psu-bg border border-psu-gray/10 rounded-xl p-2.5 text-xs" placeholder={t('ops.cookingService.installTimeLabel')} />
-                  <input type="number" step="0.1" value={r.installTemp} onChange={(e) => setField(activeMeal, row.id, 'installTemp', e.target.value)}
-                    className="bg-psu-bg border border-psu-gray/10 rounded-xl p-2.5 text-xs" placeholder={t('ops.cookingService.installTempLabel')} />
-                </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  {INSTALLATION_CODES.map(c => (
-                    <button key={c.id} type="button" onClick={() => setField(activeMeal, row.id, 'installCode', c.id)}
-                      className={cn("px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase", r.installCode === c.id ? "bg-psu-gray text-white" : "bg-psu-bg text-psu-gray/40 border border-psu-gray/10")}
-                    >{c.id} {c.labelId}</button>
-                  ))}
-                  {belowMin && <OutOfRangeFlag label={t('ops.outOfRange')} />}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      {/* Desktop: every added period side by side, like the paper's own
+          columns — horizontal scroll once more than fits. */}
+      <div className="hidden md:flex md:gap-4 md:overflow-x-auto md:pb-2">
+        {selectedMeals.length === 0 ? (
+          <div className="card text-center py-8 text-xs text-psu-gray/40 font-medium w-full">{t('ops.cookingService.pickPeriodHint')}</div>
+        ) : selectedMeals.map(m => (
+          <div key={m} className="md:min-w-[340px] md:flex-1">
+            {renderMealBlock(m)}
+          </div>
+        ))}
+      </div>
 
       <div className="flex gap-3">
         <button onClick={onCancel} className="flex-1 py-4 text-psu-gray/40 font-black text-[10px] uppercase tracking-widest">{t('common.cancel')}</button>

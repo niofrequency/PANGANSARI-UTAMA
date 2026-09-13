@@ -100,7 +100,11 @@ export function ThawingForm({ store, onCancel, onSubmitted }: {
         </div>
       </div>
 
-      <div className="space-y-4">
+      {/* Lot cards — one per batch, add/close in place. Not the paper's
+          own giant month matrix: this is Pattern B's "lot cards, not a
+          40-column grid" even on desktop, just given room to breathe
+          side by side once there's space for it. */}
+      <div className="grid gap-4 md:grid-cols-2">
         {rows.map((row, idx) => (
           <div key={row.id} className="card space-y-3">
             <div className="flex items-center justify-between">
@@ -109,16 +113,16 @@ export function ThawingForm({ store, onCancel, onSubmitted }: {
                 <button onClick={() => setRowToDelete(row.id)} className="text-psu-rejected/60"><Trash2 size={16} /></button>
               )}
             </div>
-            <select value={row.category} onChange={(e) => updateRow(row.id, { category: e.target.value as ThawProductCategoryId })} className="w-full p-3 bg-psu-bg border border-psu-gray/10 rounded-xl text-sm font-bold">
+            <select value={row.category} onChange={(e) => updateRow(row.id, { category: e.target.value as ThawProductCategoryId })} className="w-full p-3 bg-psu-bg border border-psu-gray/10 rounded-xl text-base font-bold">
               <option value="">{t('ops.thawing.categoryPlaceholder')}</option>
               {THAW_PRODUCT_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.labelId}</option>)}
             </select>
-            <input type="text" value={row.qty} onChange={(e) => updateRow(row.id, { qty: e.target.value })} placeholder={t('ops.thawing.qtyPlaceholder')} className="w-full p-3 bg-psu-bg border border-psu-gray/10 rounded-xl text-sm" />
+            <input type="text" inputMode="decimal" value={row.qty} onChange={(e) => updateRow(row.id, { qty: e.target.value })} placeholder={t('ops.thawing.qtyPlaceholder')} className="w-full p-3 bg-psu-bg border border-psu-gray/10 rounded-xl text-base" />
             <div className="grid grid-cols-3 gap-2">
-              <input type="time" value={row.startTime} onChange={(e) => updateRow(row.id, { startTime: e.target.value })} className="bg-psu-bg border border-psu-gray/10 rounded-xl p-2.5 text-xs" />
-              <input type="time" value={row.endTime} onChange={(e) => updateRow(row.id, { endTime: e.target.value })} className="bg-psu-bg border border-psu-gray/10 rounded-xl p-2.5 text-xs" />
-              <input type="number" step="0.1" value={row.endTempC} onChange={(e) => updateRow(row.id, { endTempC: e.target.value })} placeholder={`<=${THAW_PRODUCT_TEMP_LIMIT_C}°C`}
-                className={cn("bg-psu-bg border-2 rounded-xl p-2.5 text-xs font-bold", Number.isFinite(Number(row.endTempC)) && row.endTempC.trim() !== '' && Number(row.endTempC) > THAW_PRODUCT_TEMP_LIMIT_C ? "border-psu-rejected" : "border-psu-gray/10")} />
+              <input type="time" value={row.startTime} onChange={(e) => updateRow(row.id, { startTime: e.target.value })} className="bg-psu-bg border border-psu-gray/10 rounded-xl p-2.5 text-base" />
+              <input type="time" value={row.endTime} onChange={(e) => updateRow(row.id, { endTime: e.target.value })} className="bg-psu-bg border border-psu-gray/10 rounded-xl p-2.5 text-base" />
+              <input type="text" inputMode="decimal" value={row.endTempC} onChange={(e) => updateRow(row.id, { endTempC: e.target.value.replace(/[^0-9.]/g, '') })} placeholder={`<=${THAW_PRODUCT_TEMP_LIMIT_C}°C`}
+                className={cn("bg-psu-bg border-2 rounded-xl p-2.5 text-base font-bold", Number.isFinite(Number(row.endTempC)) && row.endTempC.trim() !== '' && Number(row.endTempC) > THAW_PRODUCT_TEMP_LIMIT_C ? "border-psu-rejected" : "border-psu-gray/10")} />
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-[9px] font-black text-psu-gray/30 uppercase">{t('ops.thawing.usedForLabel')}</span>
@@ -130,7 +134,7 @@ export function ThawingForm({ store, onCancel, onSubmitted }: {
             </div>
           </div>
         ))}
-        <button onClick={addRow} className="w-full flex items-center justify-center gap-2 py-4 border-2 border-dashed border-psu-gray/20 rounded-2xl text-psu-gray/40 font-black text-[10px] uppercase tracking-widest">
+        <button onClick={addRow} className="w-full flex items-center justify-center gap-2 py-4 border-2 border-dashed border-psu-gray/20 rounded-2xl text-psu-gray/40 font-black text-[10px] uppercase tracking-widest md:self-start">
           <Plus size={16} /> {t('ops.thawing.addBatch')}
         </button>
       </div>
