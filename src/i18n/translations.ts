@@ -642,7 +642,7 @@ export const translations = {
         rejectConfirm: 'Confirm reject',
         rejectedBanner: 'Rejected — needs fixing',
         editAndResubmit: 'Edit & resubmit',
-        resubmitNote: "You're editing a rejected entry. Fixing and resubmitting sends it back for review from the start.",
+        resubmitNote: "You're editing an existing entry. Saving sends it back for review from the start, even if it was already approved.",
       },
       messHall: {
         title: 'Mess Hall Hygiene (UWL10001)',
@@ -1353,7 +1353,7 @@ export const translations = {
         rejectConfirm: 'Konfirmasi tolak',
         rejectedBanner: 'Ditolak — perlu diperbaiki',
         editAndResubmit: 'Edit & kirim ulang',
-        resubmitNote: 'Anda sedang mengedit entri yang ditolak. Memperbaiki dan mengirim ulang akan meninjaunya kembali dari awal.',
+        resubmitNote: 'Anda sedang mengedit entri yang sudah ada. Menyimpan akan mengirimkannya kembali untuk ditinjau dari awal, meskipun sudah pernah disetujui.',
       },
       messHall: {
         title: 'Kebersihan Mess Hall (UWL10001)',

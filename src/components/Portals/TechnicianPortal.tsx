@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { PhotoCapture } from '../PhotoCapture';
 import { TrainingsTab } from '../TrainingsTab';
-import { ClipboardCheck, History, GraduationCap, CheckCircle2, Clock, XCircle, AlertTriangle, MapPin, Check, X, Pencil } from 'lucide-react';
+import { ClipboardCheck, History, GraduationCap, CheckCircle2, Clock, XCircle, AlertTriangle, MapPin, Check, X, Pencil, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
@@ -16,6 +16,7 @@ import { MyFieldReports } from '../FieldReports/MyFieldReports';
 import { MyActionItems } from '../CorrectiveActions/MyActionItems';
 import { ResubmitNotice, ChecklistRow, PortalHeaderRow } from '../OpsLogs/opsHelpers';
 import { SubmissionHistoryList } from '../SubmissionHistoryList';
+import { ConfirmDeleteModal } from '../ConfirmDeleteModal';
 
 type DeepLinkStartAt = 'fridge' | 'core' | 'clean' | 'wellness';
 
@@ -84,12 +85,17 @@ export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob 
 
   const myHistory = submissions.filter(s => s.userId === currentUser?.id);
   const myWarnings = warnings.filter(w => w.technicianId === currentUser?.id);
-  // Reopening a REJECTED entry to fix and resubmit — see the History tab's
-  // "Fix & Resubmit" button and the sync effect below. Restarts the
-  // sign-off chain from the Supervisor's step (resubmitAfterRejection in
-  // useAppStore.ts), same as every other merged-in submission type.
+  // Reopening any of this Technician's own History entries to edit and
+  // resubmit — see the History tab's "Edit" button, available regardless
+  // of status, and the sync effect below. Restarts the sign-off chain
+  // from the Supervisor's step (resubmitAfterRejection in useAppStore.ts),
+  // same as every other merged-in submission type.
   const [editingId, setEditingId] = useState<string | null>(null);
   const editingSubmission = editingId ? myHistory.find(s => s.id === editingId) : undefined;
+  // "Type DELETE to confirm" fail-safe (ConfirmDeleteModal) in front of
+  // permanently removing one of their own History entries — see
+  // deleteSubmission in useAppStore.ts.
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
   const totalCriteria = DAILY_FOOD_HANDLER_ALL_CRITERIA.length;
   const markedCount = countMarked(wellnessMarks);
@@ -486,17 +492,32 @@ export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob 
                       {s.status === 'APPROVED' ? t('common.approved') : s.status === 'REJECTED' ? t('common.rejected') : t('common.pending')}
                     </span>
                   </div>
-                  {s.status === 'REJECTED' && (
-                    <div className="pt-3 border-t border-psu-gray/5 space-y-2">
-                      {s.rejectionReason && <p className="text-xs text-psu-gray/60 font-medium">{s.rejectionReason}</p>}
+                  {/* Edit and Delete are both always available on the
+                      filer's own entries, any status — not just
+                      REJECTED. Editing restarts the sign-off chain (see
+                      resubmitAfterRejection's comment in useAppStore.ts);
+                      deleting is gated behind ConfirmDeleteModal's "type
+                      DELETE" fail-safe. */}
+                  <div className="pt-3 border-t border-psu-gray/5 space-y-2">
+                    {s.status === 'REJECTED' && s.rejectionReason && (
+                      <p className="text-xs text-psu-gray/60 font-medium">{s.rejectionReason}</p>
+                    )}
+                    <div className="flex gap-2">
                       <button
                         onClick={() => setEditingId(s.id)}
-                        className="w-full flex items-center justify-center gap-2 py-3 bg-psu-blue text-white rounded-xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all"
+                        className="flex-1 flex items-center justify-center gap-2 py-3 bg-psu-blue text-white rounded-xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all"
                       >
                         <Pencil size={14} /> {t('ops.signoff.editAndResubmit')}
                       </button>
+                      <button
+                        onClick={() => setDeleteTargetId(s.id)}
+                        aria-label={t('confirmDelete.removeButton')}
+                        className="px-4 py-3 bg-psu-rejected/10 text-psu-rejected rounded-xl active:scale-95 transition-all"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </div>
-                  )}
+                  </div>
                 </div>
               )}
             />
@@ -520,6 +541,15 @@ export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob 
           </motion.div>
         )}
       </AnimatePresence>
+
+      <ConfirmDeleteModal
+        open={Boolean(deleteTargetId)}
+        onCancel={() => setDeleteTargetId(null)}
+        onConfirm={() => {
+          if (deleteTargetId) store.deleteSubmission(deleteTargetId);
+          setDeleteTargetId(null);
+        }}
+      />
     </div>
   );
 }
