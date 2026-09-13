@@ -90,11 +90,19 @@ const FORM_COMPONENTS: Record<OpsLogType, ComponentType<OpsFormProps>> = {
 // through their own dedicated portals (TechnicianPortal, HousekeeperPortal,
 // InspectionsTab) — REVIEW_ONLY_TITLE_KEY covers just their display here.
 export function OpsLogsTab({
-  store, department, tier,
+  store, department, tier, mode = 'full',
 }: {
   store: ReturnType<typeof useAppStore>;
   department: OpsDepartment;
   tier: 'supervisor' | 'manager';
+  // 'full' (default, Manager Portal): the fillable-forms grid (if any) +
+  // queue + a collapsible History all in one screen, same as this tab has
+  // always worked. Supervisor Portal instead gives History its own
+  // top-level tab (queueOnly here, plus a second OpsLogsTab instance
+  // elsewhere in historyOnly mode) rather than nesting it as a disclosure
+  // — the two instances share nothing but this component's code; each
+  // mounts its own state.
+  mode?: 'full' | 'queueOnly' | 'historyOnly';
 }) {
   const { t, language } = useTranslation();
   const { currentUser, submissions, addSignoffStamp, rejectSignoff } = store;
@@ -102,6 +110,7 @@ export function OpsLogsTab({
   const [editing, setEditing] = useState<Submission | null>(null);
   const [selected, setSelected] = useState<Submission | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [queueOpen, setQueueOpen] = useState(true);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   const defs = OPS_LOG_DEFS.filter(d => d.department === department);
@@ -396,6 +405,31 @@ export function OpsLogsTab({
     );
   };
 
+  // Shared between the two places History can render (the collapsible
+  // disclosure in 'full'/Manager Portal mode, and the plain list under its
+  // own tab in Supervisor Portal's 'historyOnly' mode) — same row, just a
+  // different container around it.
+  const historyRenderRow = (s: Submission) => {
+    const titleKey = titleKeyFor(s);
+    return (
+      <div onClick={() => setSelected(s)} className="flex items-center justify-between gap-3 cursor-pointer">
+        <div className="flex items-center gap-4 min-w-0">
+          <div className={cn("w-11 h-11 rounded-2xl flex items-center justify-center shrink-0",
+            s.status === 'APPROVED' ? "bg-psu-green/10 text-psu-green" : s.status === 'REJECTED' ? "bg-psu-rejected/10 text-psu-rejected" : "bg-psu-blue/10 text-psu-blue")}>
+            {s.status === 'APPROVED' ? <CheckCircle2 size={20} /> : s.status === 'REJECTED' ? <XCircle size={20} /> : <Clock size={20} />}
+          </div>
+          <div className="min-w-0">
+            <h4 className="text-sm font-bold text-psu-gray truncate">{titleKey ? t(titleKey) : s.type}</h4>
+            <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5 truncate">
+              {s.userName} · {new Date(s.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+            </p>
+          </div>
+        </div>
+        <ChevronRight size={16} className="text-psu-gray/20 shrink-0" />
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* Desktop full page (lg and up) — replaces the list entirely while
@@ -407,7 +441,7 @@ export function OpsLogsTab({
       )}
 
       <div className={cn("space-y-6", selected && "lg:hidden")}>
-      {fillableDefs.length > 0 && (
+      {mode !== 'historyOnly' && fillableDefs.length > 0 && (
         <div className="space-y-3">
           <h3 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em] px-2">{t('ops.fillSectionTitle')}</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -431,80 +465,91 @@ export function OpsLogsTab({
         </div>
       )}
 
-      <div className="space-y-3">
-        <div className="flex items-center justify-between px-2">
-          <h3 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em]">{t('ops.queueSectionTitle')}</h3>
-          <span className="bg-psu-blue/10 text-psu-blue px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
-            {queue.length} {t('supervisorHK.pendingCount')}
-          </span>
+      {mode !== 'historyOnly' && (
+        <div className="space-y-3">
+          <button
+            onClick={() => setQueueOpen(o => !o)}
+            className="w-full flex items-center justify-between px-2 py-3"
+          >
+            <span className="flex items-center gap-1.5 text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em]">
+              {t('ops.queueSectionTitle')}
+              <ChevronRight size={14} className={cn("transition-transform", queueOpen && "rotate-90")} />
+            </span>
+            <span className="bg-psu-blue/10 text-psu-blue px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
+              {queue.length} {t('supervisorHK.pendingCount')}
+            </span>
+          </button>
+          <AnimatePresence>
+            {queueOpen && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                <ListCard
+                  items={queue}
+                  emptyIcon={<CheckCircle2 size={48} className="mx-auto" />}
+                  emptyLabel={t('supervisorHK.allClear')}
+                  rowClassName={(s) => isNotReadyToWork(s) ? "bg-psu-rejected/5" : undefined}
+                  renderRow={(s) => {
+                    const titleKey = titleKeyFor(s);
+                    const flagged = isNotReadyToWork(s);
+                    return (
+                      <div onClick={() => setSelected(s)} className="cursor-pointer flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <h4 className="text-sm font-bold text-psu-gray truncate">{titleKey ? t(titleKey) : s.type}</h4>
+                          <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5 truncate">
+                            {s.userName} · {s.siteName} · {new Date(s.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                          </p>
+                          {flagged && (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-psu-rejected bg-psu-rejected/10 px-2 py-0.5 rounded-full mt-1.5">
+                              <AlertTriangle size={10} /> {t('supervisorHK.notReadyFlag')}
+                            </span>
+                          )}
+                          <div className="mt-2"><SignoffProgress submission={s} /></div>
+                        </div>
+                        <ChevronRight size={16} className="text-psu-gray/20 shrink-0" />
+                      </div>
+                    );
+                  }}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
-        <ListCard
-          items={queue}
-          emptyIcon={<CheckCircle2 size={48} className="mx-auto" />}
-          emptyLabel={t('supervisorHK.allClear')}
-          rowClassName={(s) => isNotReadyToWork(s) ? "bg-psu-rejected/5" : undefined}
-          renderRow={(s) => {
-            const titleKey = titleKeyFor(s);
-            const flagged = isNotReadyToWork(s);
-            return (
-              <div onClick={() => setSelected(s)} className="cursor-pointer flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <h4 className="text-sm font-bold text-psu-gray truncate">{titleKey ? t(titleKey) : s.type}</h4>
-                  <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5 truncate">
-                    {s.userName} · {s.siteName} · {new Date(s.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                  </p>
-                  {flagged && (
-                    <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-psu-rejected bg-psu-rejected/10 px-2 py-0.5 rounded-full mt-1.5">
-                      <AlertTriangle size={10} /> {t('supervisorHK.notReadyFlag')}
-                    </span>
-                  )}
-                  <div className="mt-2"><SignoffProgress submission={s} /></div>
-                </div>
-                <ChevronRight size={16} className="text-psu-gray/20 shrink-0" />
-              </div>
-            );
-          }}
-        />
-      </div>
+      )}
 
-      <button
-        onClick={() => setHistoryOpen(o => !o)}
-        className="w-full flex items-center justify-between px-2 py-3 text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em]"
-      >
-        {t('ops.historySectionTitle')} ({history.length})
-        <ChevronRight size={14} className={cn("transition-transform", historyOpen && "rotate-90")} />
-      </button>
-      <AnimatePresence>
-        {historyOpen && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+      {mode !== 'queueOnly' && (
+        mode === 'historyOnly' ? (
+          <div className="space-y-3">
+            <h2 className="text-xl font-bold tracking-tight text-psu-gray px-2">{t('ops.historySectionTitle')}</h2>
             <SubmissionHistoryList
               submissions={history}
               emptyIcon={<ClipboardList size={48} className="mx-auto" />}
               emptyLabel={t('common.noData')}
-              renderRow={(s) => {
-                const titleKey = titleKeyFor(s);
-                return (
-                  <div onClick={() => setSelected(s)} className="flex items-center justify-between gap-3 cursor-pointer">
-                    <div className="flex items-center gap-4 min-w-0">
-                      <div className={cn("w-11 h-11 rounded-2xl flex items-center justify-center shrink-0",
-                        s.status === 'APPROVED' ? "bg-psu-green/10 text-psu-green" : s.status === 'REJECTED' ? "bg-psu-rejected/10 text-psu-rejected" : "bg-psu-blue/10 text-psu-blue")}>
-                        {s.status === 'APPROVED' ? <CheckCircle2 size={20} /> : s.status === 'REJECTED' ? <XCircle size={20} /> : <Clock size={20} />}
-                      </div>
-                      <div className="min-w-0">
-                        <h4 className="text-sm font-bold text-psu-gray truncate">{titleKey ? t(titleKey) : s.type}</h4>
-                        <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5 truncate">
-                          {s.userName} · {new Date(s.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-                        </p>
-                      </div>
-                    </div>
-                    <ChevronRight size={16} className="text-psu-gray/20 shrink-0" />
-                  </div>
-                );
-              }}
+              renderRow={historyRenderRow}
             />
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        ) : (
+          <>
+            <button
+              onClick={() => setHistoryOpen(o => !o)}
+              className="w-full flex items-center justify-between px-2 py-3 text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em]"
+            >
+              {t('ops.historySectionTitle')} ({history.length})
+              <ChevronRight size={14} className={cn("transition-transform", historyOpen && "rotate-90")} />
+            </button>
+            <AnimatePresence>
+              {historyOpen && (
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                  <SubmissionHistoryList
+                    submissions={history}
+                    emptyIcon={<ClipboardList size={48} className="mx-auto" />}
+                    emptyLabel={t('common.noData')}
+                    renderRow={historyRenderRow}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </>
+        )
+      )}
       </div>
 
       {/* Mobile/tablet only (below lg) — the desktop full page above
