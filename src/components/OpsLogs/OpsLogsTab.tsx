@@ -302,72 +302,36 @@ export function OpsLogsTab({
           return <div className="hidden print:block"><PrintSheet submission={selected} /></div>;
         })()}
 
-        <div className="print:hidden grid grid-cols-3 gap-6 items-start">
-          <div className="col-span-2 space-y-6">
-            <div className="card space-y-4">
-              <div>
-                <h2 className="text-2xl font-black text-psu-gray">{titleKeyFor(selected) ? t(titleKeyFor(selected)!) : selected.type}</h2>
-                <p className="text-xs text-psu-gray/40 font-black uppercase tracking-widest mt-1">{selected.userName} · {selected.siteName}</p>
+        {/* Single column, full width — Stamp/Reject/Edit used to live in
+            their own sticky sidebar column here, which left the checklist
+            squeezed into 2/3 of the page. They now sit above the photo
+            instead, so the checklist itself can stretch across the whole
+            width below. */}
+        <div className="print:hidden space-y-6">
+          <div className="card space-y-4">
+            <div>
+              <h2 className="text-2xl font-black text-psu-gray">{titleKeyFor(selected) ? t(titleKeyFor(selected)!) : selected.type}</h2>
+              <p className="text-xs text-psu-gray/40 font-black uppercase tracking-widest mt-1">{selected.userName} · {selected.siteName}</p>
+            </div>
+
+            <SignoffProgress submission={selected} />
+
+            {isNotReadyToWork(selected) && (
+              <div className="bg-psu-rejected/10 border border-psu-rejected/20 rounded-2xl p-4 flex items-center gap-3">
+                <AlertTriangle className="text-psu-rejected shrink-0" size={20} />
+                <p className="text-xs font-bold text-psu-rejected">{t('supervisorHK.notReadyDetailBanner')}</p>
               </div>
+            )}
 
-              <SignoffProgress submission={selected} />
+            {selected.status === 'REJECTED' && selected.rejectionReason && (
+              <div className="bg-psu-rejected/10 border border-psu-rejected/20 rounded-2xl p-4 space-y-1">
+                <p className="text-[10px] font-black text-psu-rejected uppercase tracking-widest">{t('ops.signoff.rejectedBanner')}</p>
+                <p className="text-xs text-psu-gray/70 font-medium">{selected.rejectionReason}</p>
+              </div>
+            )}
 
-              {isNotReadyToWork(selected) && (
-                <div className="bg-psu-rejected/10 border border-psu-rejected/20 rounded-2xl p-4 flex items-center gap-3">
-                  <AlertTriangle className="text-psu-rejected shrink-0" size={20} />
-                  <p className="text-xs font-bold text-psu-rejected">{t('supervisorHK.notReadyDetailBanner')}</p>
-                </div>
-              )}
-
-              {selected.status === 'REJECTED' && selected.rejectionReason && (
-                <div className="bg-psu-rejected/10 border border-psu-rejected/20 rounded-2xl p-4 space-y-1">
-                  <p className="text-[10px] font-black text-psu-rejected uppercase tracking-widest">{t('ops.signoff.rejectedBanner')}</p>
-                  <p className="text-xs text-psu-gray/70 font-medium">{selected.rejectionReason}</p>
-                </div>
-              )}
-
-              {/* HOUSEKEEPING (UN.00.65): one proof photo for the whole
-                  submission, not per item. */}
-              {selected.meta?.photoUrl && (
-                <button
-                  type="button"
-                  onClick={() => setLightboxUrl(cloudinaryUrl(selected.meta!.photoUrl, 1600) ?? null)}
-                  className="block w-full rounded-2xl overflow-hidden border border-psu-gray/5"
-                >
-                  <img src={cloudinaryUrl(selected.meta.photoUrl, 1000)} className="w-full h-64 object-cover" alt="Proof" />
-                </button>
-              )}
-            </div>
-
-            {/* The full checklist, 2-up — a real submission can be a
-                couple dozen rows, and this now has the whole page to lay
-                them out in instead of a narrow single column. */}
-            <div className="grid grid-cols-2 gap-3">
-              {selected.items.map((item, idx) => (
-                <div key={idx} className="bg-white border border-psu-gray/10 p-4 rounded-2xl">
-                  <p className="text-xs font-bold text-psu-gray">{item.question}</p>
-                  {item.answer !== '' && (
-                    <p className="text-xs text-psu-gray/60 mt-1">
-                      {item.answer === true ? t('supervisorHK.pass') : item.answer === false ? t('supervisorHK.fail') : String(item.answer)}
-                    </p>
-                  )}
-                  {item.remarks && <p className="text-[10px] text-psu-gray/40 mt-1 italic">{item.remarks}</p>}
-                  {item.photoUrl && (
-                    <button type="button" onClick={() => setLightboxUrl(cloudinaryUrl(item.photoUrl, 1600) ?? null)} className="block mt-2">
-                      <img src={cloudinaryUrl(item.photoUrl, 500)} className="w-full h-32 object-cover rounded-xl" alt="" />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Actions — its own card in a sticky sidebar, rather than
-              buried at the bottom of a scrolling column, so Stamp/Reject/
-              Edit stay reachable no matter how long the checklist is. */}
-          {(canStamp || canEdit) && (
-            <div className="col-span-1 sticky top-6">
-              <div className="card space-y-3">
+            {(canStamp || canEdit) && (
+              <div className="space-y-3">
                 {canStamp && (
                   <>
                     <button onClick={() => handleStamp(selected)}
@@ -375,9 +339,8 @@ export function OpsLogsTab({
                     >
                       <Stamp size={16} /> {t('ops.stampButton')} — {t(`ops.signoff.${nextSignoffStep(selected)}`)}
                     </button>
-                    {/* RejectButton's own button is flex-1 — it only
-                        stretches full-width inside a flex wrapper, same
-                        as the mobile popup below gives it. */}
+                    {/* RejectButton's own button is flex-1 — needs a flex
+                        wrapper to stretch full-width, same as mobile. */}
                     <div className="flex">
                       <RejectButton onReject={(reason) => handleReject(selected, reason)} />
                     </div>
@@ -391,8 +354,43 @@ export function OpsLogsTab({
                   </button>
                 )}
               </div>
-            </div>
-          )}
+            )}
+
+            {/* HOUSEKEEPING (UN.00.65): one proof photo for the whole
+                submission, not per item. */}
+            {selected.meta?.photoUrl && (
+              <button
+                type="button"
+                onClick={() => setLightboxUrl(cloudinaryUrl(selected.meta!.photoUrl, 1600) ?? null)}
+                className="block w-full rounded-2xl overflow-hidden border border-psu-gray/5"
+              >
+                <img src={cloudinaryUrl(selected.meta.photoUrl, 1000)} className="w-full h-64 object-cover" alt="Proof" />
+              </button>
+            )}
+          </div>
+
+          {/* The full checklist, now free to spread across the whole page
+              width instead of sharing it with the actions sidebar. */}
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+            {selected.items.map((item, idx) => (
+              <div key={idx} className="bg-white border border-psu-gray/10 p-4 rounded-2xl">
+                <p className="text-xs font-bold text-psu-gray">{item.question}</p>
+                {item.answer !== '' && (
+                  <p className="text-xs text-psu-gray/60 mt-1 flex items-center gap-1.5">
+                    {item.answer === true && <CheckCircle2 size={13} className="text-psu-green shrink-0" />}
+                    {item.answer === false && <XCircle size={13} className="text-psu-rejected shrink-0" />}
+                    {item.answer === true ? t('supervisorHK.pass') : item.answer === false ? t('supervisorHK.fail') : String(item.answer)}
+                  </p>
+                )}
+                {item.remarks && <p className="text-[10px] text-psu-gray/40 mt-1 italic">{item.remarks}</p>}
+                {item.photoUrl && (
+                  <button type="button" onClick={() => setLightboxUrl(cloudinaryUrl(item.photoUrl, 1600) ?? null)} className="block mt-2">
+                    <img src={cloudinaryUrl(item.photoUrl, 500)} className="w-full h-32 object-cover rounded-xl" alt="" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     );
