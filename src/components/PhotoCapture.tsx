@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Camera, Clock, AlertCircle, MapPin } from 'lucide-react';
+import { Camera, Clock, X, MapPin } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useTranslation } from '../i18n/LanguageContext';
 import { isFirebaseConfigured, auth } from '../lib/firebase';
@@ -146,9 +146,10 @@ export function PhotoCapture({ onCapture, uid }: PhotoCaptureProps) {
           <img src={preview} alt="Captured" className="w-full h-40 object-cover" />
           <button
             onClick={() => setPreview(null)}
+            aria-label={t('photoCapture.retake')}
             className="absolute top-3 right-3 bg-white/90 p-2 rounded-xl text-psu-rejected shadow-sm hover:bg-white transition-colors"
           >
-            <AlertCircle size={18} />
+            <X size={18} />
           </button>
           <div className="absolute bottom-0 left-0 right-0 bg-psu-gray/80 backdrop-blur-sm text-white text-[9px] px-3 py-2 flex justify-between font-black uppercase tracking-widest">
             <span className="flex items-center gap-1 opacity-70"><MapPin size={8} /> Stamped on capture</span>

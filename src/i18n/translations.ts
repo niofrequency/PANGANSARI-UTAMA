@@ -355,6 +355,7 @@ export const translations = {
       takePhoto: 'Take Photo',
       stamping: 'Stamping photo...',
       errorGeneric: 'Could not process that photo. Please try again.',
+      retake: 'Retake photo',
     },
     analyticsExtra: {
       total: 'Total',
@@ -1070,6 +1071,7 @@ export const translations = {
       takePhoto: 'Ambil Foto',
       stamping: 'Memberi stempel foto...',
       errorGeneric: 'Tidak dapat memproses foto tersebut. Silakan coba lagi.',
+      retake: 'Ambil ulang foto',
     },
     analyticsExtra: {
       total: 'Total',
