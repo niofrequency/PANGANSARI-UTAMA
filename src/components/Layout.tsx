@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { Toaster } from 'sonner';
 import { User } from '../types';
 import { LogOut, MapPin, Download, AlertTriangle, Bell, XCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -29,12 +30,34 @@ interface LayoutProps {
   // fix and resubmit (see useAppStore.ts's rejectSignoff/
   // resubmitAfterRejection). Empty or omitted hides the bell entirely.
   rejectedNotices?: RejectedNotice[];
+  // How many submissions are sitting in the Dexie outbox (useAppStore.ts)
+  // waiting to reach Firestore — set only in Firebase mode; demo mode
+  // never has one. Shown only while the browser also reports itself
+  // offline, same "don't nag about a queue that's about to flush anyway"
+  // reasoning as not showing it the instant one write is mid-flight.
+  offlinePendingCount?: number;
 }
 
-export function Layout({ user, onLogout, children, storageError, rejectedNotices = [] }: LayoutProps) {
+export function Layout({ user, onLogout, children, storageError, rejectedNotices = [], offlinePendingCount = 0 }: LayoutProps) {
   const { t, language, toggleLanguage } = useTranslation();
   const [showInstallGuide, setShowInstallGuide] = useState(false);
   const [showNotices, setShowNotices] = useState(false);
+  // navigator.onLine only tells you the OS thinks it has a link, not that
+  // Firestore is actually reachable — good enough for "don't show the
+  // pending-outbox chip while we're pretty sure we're online," which is
+  // all this drives. useAppStore.ts's own online listener is what
+  // actually retries the outbox; this one's purely for the chip's text.
+  const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' && !navigator.onLine);
+  useEffect(() => {
+    const goOnline = () => setIsOffline(false);
+    const goOffline = () => setIsOffline(true);
+    window.addEventListener('online', goOnline);
+    window.addEventListener('offline', goOffline);
+    return () => {
+      window.removeEventListener('online', goOnline);
+      window.removeEventListener('offline', goOffline);
+    };
+  }, []);
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -151,6 +174,13 @@ export function Layout({ user, onLogout, children, storageError, rejectedNotices
         </div>
       )}
 
+      {isOffline && offlinePendingCount > 0 && (
+        <div className="bg-psu-warning/10 border-b border-psu-warning/20 text-psu-warning px-4 sm:px-6 py-3 flex items-start gap-2.5 text-xs font-medium">
+          <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+          <span>{t('layout.offlinePending', { count: offlinePendingCount })}</span>
+        </div>
+      )}
+
       {/* No global max-width here anymore — on a phone this was already
           narrower than max-w-6xl so nothing changes below md, but on a
           wide screen every portal used to just be phone content stretched
@@ -163,6 +193,10 @@ export function Layout({ user, onLogout, children, storageError, rejectedNotices
       </main>
 
       <InstallGuide open={showInstallGuide} onClose={() => setShowInstallGuide(false)} />
+      {/* One Toaster for the whole app (sonner) — a slot save/submit
+          confirms with a toast instead of a modal or an alert(). See
+          LaundryShopForm/TempControlForm/DishwashForm for the call sites. */}
+      <Toaster position="top-center" richColors />
     </div>
   );
 }
