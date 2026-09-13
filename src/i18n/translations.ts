@@ -643,6 +643,8 @@ export const translations = {
         rejectedBanner: 'Rejected — needs fixing',
         editAndResubmit: 'Edit & resubmit',
         resubmitNote: "You're editing an existing entry. Saving sends it back for review from the start, even if it was already approved.",
+        editedAfterApproval: 'Edited after approval',
+        editedAfterApprovalBanner: 'This was already approved once — the filer has since edited it, so it needs a fresh review.',
       },
       messHall: {
         title: 'Mess Hall Hygiene (UWL10001)',
@@ -1354,6 +1356,8 @@ export const translations = {
         rejectedBanner: 'Ditolak — perlu diperbaiki',
         editAndResubmit: 'Edit & kirim ulang',
         resubmitNote: 'Anda sedang mengedit entri yang sudah ada. Menyimpan akan mengirimkannya kembali untuk ditinjau dari awal, meskipun sudah pernah disetujui.',
+        editedAfterApproval: 'Diedit setelah disetujui',
+        editedAfterApprovalBanner: 'Ini sudah pernah disetujui — pengisi telah mengeditnya sejak itu, jadi perlu ditinjau ulang.',
       },
       messHall: {
         title: 'Kebersihan Mess Hall (UWL10001)',

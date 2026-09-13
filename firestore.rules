@@ -144,34 +144,46 @@ service cloud.firestore {
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.status == 'PENDING';
 
-      // Two distinct actions share this collection's update path — see
-      // useAppStore.ts's addSignoffStamp/rejectSignoff/resubmitAfterRejection:
+      // Three distinct actions share this collection's update path — see
+      // useAppStore.ts's addSignoffStamp/rejectSignoff/resubmitAfterRejection/
+      // deleteSubmission:
       //
       // 1. A reviewer (not the submitter) stamps a sign-off step or
       //    rejects a still-PENDING submission — changes meta (the stamp)
       //    and/or status/rejectionReason, never the submitted answers
-      //    themselves (items is not in this list).
+      //    themselves (items is not in this list). A final stamp also
+      //    clears wasApprovedBeforeEdit (see its comment in types.ts).
       // 2. The original submitter edits their OWN entry in place from any
       //    status — including one already APPROVED, not just REJECTED —
       //    changes items/meta/score and always flips status back to
-      //    PENDING, clearing rejectionReason. Editing content a reviewer
+      //    PENDING, clearing rejectionReason and setting
+      //    wasApprovedBeforeEdit so a reviewer who already stamped this
+      //    can tell the content changed since. Editing content a reviewer
       //    already stamped has to re-enter review; there's no path here
       //    that lets an edit keep a prior approval attached to it.
+      // 3. The original submitter soft-deletes their OWN entry — sets
+      //    deletedAt/deletedBy and nothing else, from the History tab's
+      //    "type DELETE to confirm" fail-safe (ConfirmDeleteModal). Not a
+      //    real delete (see `allow delete: if false` below and
+      //    deletedAt's comment on Submission in types.ts) — status and
+      //    every other field stay exactly as they were, so the record
+      //    still reads as real history if it's ever needed again.
       allow update: if isSignedIn() && (
         (request.auth.uid != resource.data.userId
           && resource.data.status == 'PENDING'
-          && onlyChanged(['meta', 'status', 'rejectionReason']))
+          && onlyChanged(['meta', 'status', 'rejectionReason', 'wasApprovedBeforeEdit']))
         ||
         (request.auth.uid == resource.data.userId
           && request.resource.data.status == 'PENDING'
-          && onlyChanged(['items', 'meta', 'score', 'status', 'rejectionReason']))
+          && onlyChanged(['items', 'meta', 'score', 'status', 'rejectionReason', 'wasApprovedBeforeEdit']))
+        ||
+        (request.auth.uid == resource.data.userId
+          && onlyChanged(['deletedAt', 'deletedBy']))
       );
 
-      // The original submitter may delete their own entry, any status —
-      // this is the History tab's "type DELETE to confirm" fail-safe
-      // (ConfirmDeleteModal), not a status transition. Nobody else's
-      // submissions, and never someone else deleting on your behalf.
-      allow delete: if isSignedIn() && request.auth.uid == resource.data.userId;
+      // Real deletes never happen client-side — see the soft-delete
+      // branch of allow update above.
+      allow delete: if false;
     }
 
     // ── warnings ────────────────────────────────────────────────────

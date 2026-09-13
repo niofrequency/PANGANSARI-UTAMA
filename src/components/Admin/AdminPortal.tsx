@@ -3,7 +3,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { AnalyticsDashboard } from '../Dashboard/AnalyticsDashboard';
 import {
   Users, UserPlus, Shield, Trash2, XCircle, Search, Activity as ActivityIcon,
-  User as UserIcon, AlertTriangle, Copy, Check, Eye, EyeOff, RefreshCw, KeyRound, Hash, Printer, Mail, ListTodo,
+  User as UserIcon, AlertTriangle, Copy, Check, Eye, EyeOff, RefreshCw, KeyRound, Hash, Printer, Mail, ListTodo, Pencil,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
@@ -692,6 +692,11 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                           <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5 truncate">
                             {s.siteName} • {new Date(s.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                           </p>
+                          {s.wasApprovedBeforeEdit && (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-psu-rejected bg-psu-rejected/10 px-2 py-0.5 rounded-full mt-1.5">
+                              <Pencil size={10} /> {t('ops.signoff.editedAfterApproval')}
+                            </span>
+                          )}
                         </div>
                       </div>
                       <span className={statusBadgeClass(s.status)}>{statusLabel(s.status)}</span>
