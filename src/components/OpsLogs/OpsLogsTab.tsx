@@ -95,13 +95,14 @@ export function OpsLogsTab({
   store: ReturnType<typeof useAppStore>;
   department: OpsDepartment;
   tier: 'supervisor' | 'manager';
-  // 'full' (default, Manager Portal): the fillable-forms grid (if any) +
-  // queue + a collapsible History all in one screen, same as this tab has
-  // always worked. Supervisor Portal instead gives History its own
-  // top-level tab (queueOnly here, plus a second OpsLogsTab instance
-  // elsewhere in historyOnly mode) rather than nesting it as a disclosure
-  // — the two instances share nothing but this component's code; each
-  // mounts its own state.
+  // Both Supervisor and Manager Portals give History its own top-level
+  // tab (queueOnly for the Ops Logs tab, historyOnly for the History tab)
+  // rather than nesting it as a disclosure — the two OpsLogsTab instances
+  // share nothing but this component's code; each mounts its own state.
+  // 'full' (the fillable-forms grid, if any, + queue + a collapsible
+  // History all in one screen) is kept as the default for any future
+  // caller that wants the original single-screen layout, but nothing
+  // currently uses it.
   mode?: 'full' | 'queueOnly' | 'historyOnly';
 }) {
   const { t, language } = useTranslation();
