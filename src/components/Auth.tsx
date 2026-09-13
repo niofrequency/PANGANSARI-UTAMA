@@ -123,9 +123,9 @@ export function Login({ onLogin, onLoginWithGoogle, onSwitchToStaffId }: LoginPr
               sites; the FM mark identifies whose site this deployment
               serves. Not translated: it's a fixed designation, not UI
               copy. */}
-          <div className="flex items-center gap-2 mt-1.5">
+          <div className="flex flex-col items-center gap-1.5 mt-1.5">
             <span className="text-psu-gray/40 text-[10px] font-bold uppercase tracking-widest">IN PTFI</span>
-            <img src="/icons/fm-logo.png" alt="PT Freeport Indonesia" className="h-4 w-auto" />
+            <img src="/icons/fm-logo.png" alt="PT Freeport Indonesia" className="h-5 w-auto" />
           </div>
         </div>
 
