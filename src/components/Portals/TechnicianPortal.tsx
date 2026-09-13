@@ -236,7 +236,7 @@ export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob 
       )}
 
       {/* Tab Navigation */}
-      <div className="flex bg-white rounded-2xl p-1.5 shadow-sm border border-psu-gray/5">
+      <div className="flex bg-white rounded-2xl p-1.5 shadow-sm border border-psu-gray/5 md:max-w-3xl md:mx-auto">
         {[
           { id: 'TASKS', icon: ClipboardCheck, label: t('technician.tabChecks') },
           { id: 'HISTORY', icon: History, label: t('technician.tabHistory') },
@@ -264,7 +264,10 @@ export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob 
             key="tasks"
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="space-y-6"
+            // Capped on desktop so the form doesn't stretch across a
+            // whole monitor — a frontline portal gets no sidebar (see
+            // PSU_Desktop_PC_Layout_PRD.md), just a readable form width.
+            className="space-y-6 md:max-w-3xl md:mx-auto"
           >
             {editingSubmission && <ResubmitNotice />}
             <PortalHeaderRow
@@ -457,7 +460,7 @@ export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob 
             key="history"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="space-y-4"
+            className="space-y-4 md:max-w-3xl md:mx-auto"
           >
             <h2 className="text-lg font-black text-psu-gray">{t('technician.historyTitle')}</h2>
             <SubmissionHistoryList
@@ -531,9 +534,10 @@ export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob 
             key="training"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
+            className="md:max-w-3xl md:mx-auto"
           >
             <h2 className="text-lg font-black text-psu-gray mb-4">{t('technician.trainingTitle')}</h2>
-            <TrainingsTab 
+            <TrainingsTab
               trainings={trainings} 
               userId={currentUser?.id || ''} 
               onComplete={(id) => completeTraining(currentUser?.id || '', id)} 

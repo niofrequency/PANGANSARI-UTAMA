@@ -83,6 +83,16 @@ export function FieldReportsTab({ store, department }: FieldReportsTabProps) {
     </div>
   );
 
+  // md+ table columns (ListCard's desktopColumns) — same open + history
+  // lists below, just denser than the mobile cards renderRow builds.
+  const desktopColumns = [
+    { header: t('common.time'), width: '90px', render: (r: FieldReport) => new Date(r.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) },
+    { header: t('common.site'), width: '1fr', render: (r: FieldReport) => r.siteName },
+    { header: t('common.type'), width: '2fr', render: (r: FieldReport) => r.message },
+    { header: t('common.person'), width: '1fr', render: (r: FieldReport) => r.userName },
+    { header: t('common.status'), width: '110px', render: (r: FieldReport) => <span className={cn("text-[9px] font-black uppercase tracking-tighter px-2 py-1 rounded-md", STATUS_STYLE[r.status])}>{statusLabel(r.status)}</span> },
+  ];
+
   // Desktop-only (lg and up) full-width page instead of a popup — the
   // list is hidden entirely while this is open (see the render below),
   // same "list page ↔ detail page" navigation as OpsLogsTab.tsx. Below
@@ -206,13 +216,15 @@ export function FieldReportsTab({ store, department }: FieldReportsTabProps) {
         items={open}
         emptyIcon={<CheckCircle2 size={56} className="mx-auto" />}
         emptyLabel={t('fieldReport.allClear')}
+        onRowClick={setSelected}
+        desktopColumns={desktopColumns}
         renderRow={renderRow}
       />
 
       {history.length > 0 && (
         <>
           <h3 className="text-sm font-black text-psu-gray/30 uppercase tracking-[0.2em] border-b border-psu-gray/5 pb-2 px-2">{t('fieldReport.historyTitle')}</h3>
-          <ListCard items={history} renderRow={renderRow} />
+          <ListCard items={history} onRowClick={setSelected} desktopColumns={desktopColumns} renderRow={renderRow} />
         </>
       )}
       </div>

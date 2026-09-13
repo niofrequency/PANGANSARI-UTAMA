@@ -53,8 +53,11 @@ export function AnalyticsDashboard({ submissions, warnings, sites, users = [] }:
 
   return (
     <div className="space-y-8">
-      {/* High Level Stats */}
-      <div className="grid grid-cols-2 gap-4">
+      {/* High Level Stats — 2-up on mobile (unchanged), 4-up on desktop
+          instead of two stacked 2-up rows, so this reads as a real KPI
+          row on a wide screen instead of a bigger version of the phone
+          layout. */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white p-6 rounded-[28px] border border-psu-gray/5 shadow-xl shadow-psu-gray/5">
           <div className="w-10 h-10 bg-psu-green/10 rounded-xl flex items-center justify-center text-psu-green mb-4">
             <CheckCircle2 size={20} />
@@ -65,7 +68,7 @@ export function AnalyticsDashboard({ submissions, warnings, sites, users = [] }:
             <span className="text-xs font-bold text-psu-green">%</span>
           </div>
         </div>
-        
+
         <div className="bg-white p-6 rounded-[28px] border border-psu-gray/5 shadow-xl shadow-psu-gray/5">
           <div className="w-10 h-10 bg-psu-rejected/10 rounded-xl flex items-center justify-center text-psu-rejected mb-4">
             <AlertCircle size={20} />
@@ -75,9 +78,7 @@ export function AnalyticsDashboard({ submissions, warnings, sites, users = [] }:
             <span className="text-2xl font-black text-psu-gray">{warnings.length}</span>
           </div>
         </div>
-      </div>
 
-      <div className="grid grid-cols-2 gap-4">
         <div className="bg-white p-6 rounded-[28px] border border-psu-gray/5 shadow-xl shadow-psu-gray/5">
           <div className="w-10 h-10 bg-psu-blue/10 rounded-xl flex items-center justify-center text-psu-blue mb-4">
             <Users size={20} />
@@ -88,7 +89,7 @@ export function AnalyticsDashboard({ submissions, warnings, sites, users = [] }:
             {users.length > 0 && <span className="text-[10px] font-black text-psu-green ml-1 uppercase">{t('analytics.live')}</span>}
           </div>
         </div>
-        
+
         <div className="bg-white p-6 rounded-[28px] border border-psu-gray/5 shadow-xl shadow-psu-gray/5">
           <div className="w-10 h-10 bg-psu-gray/5 rounded-xl flex items-center justify-center text-psu-gray mb-4">
             <BarChart3 size={20} />
@@ -101,7 +102,10 @@ export function AnalyticsDashboard({ submissions, warnings, sites, users = [] }:
         </div>
       </div>
 
-      {/* Trend Chart */}
+      {/* Trend chart + site comparison — stacked on mobile/tablet, side
+          by side at lg so a wide screen shows two panels of real
+          information instead of one narrow column stretched out. */}
+      <div className="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start space-y-8 lg:space-y-0">
       <div className="card p-8">
         <h3 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em] mb-8">{t('analytics.trendTitle')}</h3>
         <div className="h-48 w-full">
@@ -109,20 +113,20 @@ export function AnalyticsDashboard({ submissions, warnings, sites, users = [] }:
             <LineChart data={stats.last7Days}>
               <XAxis dataKey="name" hide />
               <YAxis hide domain={[0, 100]} />
-              <Tooltip 
-                contentStyle={{ 
-                  borderRadius: '16px', 
-                  border: 'none', 
+              <Tooltip
+                contentStyle={{
+                  borderRadius: '16px',
+                  border: 'none',
                   boxShadow: '0 10px 30px -10px rgba(0,0,0,0.1)',
                   padding: '12px 16px'
                 }}
                 labelStyle={{ display: 'none' }}
               />
-              <Line 
-                type="monotone" 
-                dataKey="score" 
-                stroke="#2C88D9" 
-                strokeWidth={4} 
+              <Line
+                type="monotone"
+                dataKey="score"
+                stroke="#2C88D9"
+                strokeWidth={4}
                 dot={false}
                 animationDuration={2000}
               />
@@ -169,6 +173,7 @@ export function AnalyticsDashboard({ submissions, warnings, sites, users = [] }:
             </div>
           ))}
         </div>
+      </div>
       </div>
 
       {/* Attention Panel — built from real data: underperforming sites

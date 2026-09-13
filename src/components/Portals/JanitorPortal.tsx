@@ -62,7 +62,7 @@ export function JanitorPortal({ store, fromQr, onDeepLinkHandled, onScanJob }: J
 
   return (
     <div className="space-y-6">
-      <div className="flex bg-white rounded-2xl p-1.5 shadow-sm border border-psu-gray/5">
+      <div className="flex bg-white rounded-2xl p-1.5 shadow-sm border border-psu-gray/5 md:max-w-3xl md:mx-auto">
         {[
           { id: 'TASKS' as const, icon: ClipboardList, label: t('housekeeper.tabTasks') },
           { id: 'HISTORY' as const, icon: History, label: t('housekeeper.tabHistory') },
@@ -84,7 +84,7 @@ export function JanitorPortal({ store, fromQr, onDeepLinkHandled, onScanJob }: J
 
       <AnimatePresence mode="wait">
         {activeTab === 'TASKS' && (
-          <motion.div key="tasks" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} className="space-y-6">
+          <motion.div key="tasks" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} className="space-y-6 md:max-w-3xl md:mx-auto">
             <PortalHeaderRow
               title={t('ops.restroom.title')}
               controls={<>
@@ -107,7 +107,7 @@ export function JanitorPortal({ store, fromQr, onDeepLinkHandled, onScanJob }: J
         )}
 
         {activeTab === 'HISTORY' && (
-          <motion.div key="history" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-4">
+          <motion.div key="history" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-4 md:max-w-3xl md:mx-auto">
             <h2 className="text-xl font-bold tracking-tight text-psu-gray">{t('housekeeper.historyTitle')}</h2>
             <SubmissionHistoryList
               submissions={myHistory}
@@ -170,7 +170,7 @@ export function JanitorPortal({ store, fromQr, onDeepLinkHandled, onScanJob }: J
         )}
 
         {activeTab === 'TRAINING' && (
-          <motion.div key="training" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}>
+          <motion.div key="training" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="md:max-w-3xl md:mx-auto">
             <h2 className="text-lg font-black text-psu-gray mb-4">{t('housekeeper.trainingTitle')}</h2>
             <TrainingsTab trainings={trainings} userId={currentUser?.id || ''} onComplete={(id) => completeTraining(currentUser?.id || '', id)} />
           </motion.div>

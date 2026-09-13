@@ -277,6 +277,20 @@ export function CorrectiveActionsTab({ store, department, isGeneralManager }: Co
         items={createdByMe}
         emptyIcon={<ClipboardList size={56} className="mx-auto" />}
         emptyLabel={t('correctiveAction.noneCreated')}
+        onRowClick={setSelected}
+        desktopColumns={[
+          { header: t('common.time'), width: '110px', render: (a) => new Date(a.dueDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) },
+          { header: t('common.site'), width: '1fr', render: (a) => a.siteName },
+          { header: t('common.type'), width: '1.6fr', render: (a) => a.comment },
+          { header: t('common.person'), width: '1fr', render: (a) => a.assignedToName },
+          {
+            header: t('common.status'), width: '110px', render: (a) => (
+              <span className={cn('text-[9px] font-black uppercase tracking-tighter px-2 py-1 rounded-md', STATUS_STYLE[a.status], isOverdue(a) && 'bg-psu-rejected/10 text-psu-rejected')}>
+                {isOverdue(a) ? t('correctiveAction.overdueLabel') : statusLabel(a.status)}
+              </span>
+            ),
+          },
+        ]}
         renderRow={(a) => {
           const overdue = isOverdue(a);
           return (

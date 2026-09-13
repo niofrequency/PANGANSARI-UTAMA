@@ -151,7 +151,14 @@ export function Layout({ user, onLogout, children, storageError, rejectedNotices
         </div>
       )}
 
-      <main className="flex-1 container max-w-6xl mx-auto p-6">
+      {/* No global max-width here anymore — on a phone this was already
+          narrower than max-w-6xl so nothing changes below md, but on a
+          wide screen every portal used to just be phone content stretched
+          across the whole page. Width is now owned per page type: office
+          portals (Admin/Manager/Supervisor) get a DesktopShell sidebar +
+          full-width pane, forms and reports cap their own width with
+          md:max-w-3xl/md:max-w-2xl at the call site. */}
+      <main className="flex-1 min-w-0 p-6 lg:p-8">
         {children}
       </main>
 

@@ -23,6 +23,15 @@ export const translations = {
       close: 'Close',
       backToLogin: 'Back to Login',
       printButton: 'Print',
+      // Desktop table column headers (ListCard's desktopColumns —
+      // PSU_Desktop_PC_Layout_PRD.md's density rule for Ops Logs/
+      // Activity/Corrective Actions/Field Reports). Never shown on
+      // mobile, which keeps the existing card layout untouched.
+      time: 'Time',
+      site: 'Site',
+      type: 'Type',
+      person: 'Person',
+      status: 'Status',
     },
     history: {
       searchPlaceholder: 'Search by room or name...',
@@ -741,6 +750,11 @@ export const translations = {
       close: 'Tutup',
       backToLogin: 'Kembali ke Login',
       printButton: 'Cetak',
+      time: 'Waktu',
+      site: 'Lokasi',
+      type: 'Jenis',
+      person: 'Orang',
+      status: 'Status',
     },
     history: {
       searchPlaceholder: 'Cari berdasarkan kamar atau nama...',

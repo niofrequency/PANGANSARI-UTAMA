@@ -9,6 +9,7 @@ import { InspectionsTab } from '../Inspections/InspectionsTab';
 import { OpsLogsTab } from '../OpsLogs/OpsLogsTab';
 import { CorrectiveActionsTab } from '../CorrectiveActions/CorrectiveActionsTab';
 import { userCanSeeSite } from '../../lib/siteScope';
+import { DesktopShell } from '../DesktopShell';
 
 // The daily Housekeeping/Food Safety Escalations queue used to live here
 // as its own tab with a single Approve/Deny action, separate from Ops
@@ -53,9 +54,13 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
     ...(isFoodSafety ? [{ id: 'INSPECTIONS' as const, icon: ClipboardCheck, label: t('inspection.tabTitle') }] : []),
   ];
 
+  const activeTabLabel = tabs.find(tab => tab.id === activeTab)?.label ?? '';
+
   return (
     <div className="space-y-6">
-      <div className="flex bg-white rounded-2xl p-1.5 shadow-sm border border-psu-gray/5">
+      {/* Mobile pill tab bar — unchanged, just hidden once the sidebar
+          below takes over at md+. */}
+      <div className="flex md:hidden bg-white rounded-2xl p-1.5 shadow-sm border border-psu-gray/5">
         {tabs.map(tab => (
           <button
             key={tab.id}
@@ -73,6 +78,7 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
         ))}
       </div>
 
+      <DesktopShell navItems={tabs} activeId={activeTab} onNav={(id) => setActiveTab(id as any)} title={activeTabLabel}>
       <AnimatePresence mode="wait">
         {activeTab === 'DASHBOARD' && (
           <motion.div
@@ -88,7 +94,10 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
                 in the app to wire it to (language/account/logout already
                 live in the header — see Layout.tsx), so it's removed
                 rather than left to silently do nothing when tapped. */}
-            <div className="mb-6 px-2">
+            {/* DesktopShell already shows a page title at md+ (from the
+                nav item's own label) — this mobile-only title would
+                otherwise double up with it. */}
+            <div className="mb-6 px-2 md:hidden">
               <h2 className="text-xl font-bold tracking-tight text-psu-gray">{t('manager.dashboardTitle')}</h2>
             </div>
             <AnalyticsDashboard submissions={dashboardSubmissions} warnings={dashboardWarnings} sites={dashboardSites} users={users} />
@@ -170,6 +179,7 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
           </motion.div>
         )}
       </AnimatePresence>
+      </DesktopShell>
     </div>
   );
 }
