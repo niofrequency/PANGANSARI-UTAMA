@@ -120,11 +120,12 @@ export function Login({ onLogin, onLoginWithGoogle, onSwitchToStaffId }: LoginPr
           <h1 className="text-2xl font-bold tracking-tight text-psu-gray">FIELD<span className="text-psu-green">OPS</span></h1>
           <p className="text-psu-gray/40 text-[10px] font-bold uppercase tracking-widest mt-2">{t('auth.subtitle')}</p>
           {/* Client site tag — PSU operates inside PT Freeport Indonesia's
-              sites. The FM mark itself isn't wired in yet (see PR
-              description) — not translated: it's a fixed designation, not
-              UI copy. */}
+              sites; the FM mark identifies whose site this deployment
+              serves. Not translated: it's a fixed designation, not UI
+              copy. */}
           <div className="flex items-center gap-2 mt-1.5">
             <span className="text-psu-gray/40 text-[10px] font-bold uppercase tracking-widest">IN PTFI</span>
+            <img src="/icons/fm-logo.png" alt="PT Freeport Indonesia" className="h-4 w-auto" />
           </div>
         </div>
 
