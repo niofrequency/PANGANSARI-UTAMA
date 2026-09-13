@@ -226,6 +226,13 @@ export function OpsLogsTab({
           </div>
         )}
 
+        {selected.wasApprovedBeforeEdit && (
+          <div className="mb-5 bg-psu-rejected/10 border border-psu-rejected/20 rounded-2xl p-4 flex items-center gap-3">
+            <Pencil className="text-psu-rejected shrink-0" size={18} />
+            <p className="text-xs font-bold text-psu-rejected">{t('ops.signoff.editedAfterApprovalBanner')}</p>
+          </div>
+        )}
+
         {/* HOUSEKEEPING (UN.00.65): one proof photo for the whole
             submission, not per item. */}
         {selected.meta?.photoUrl && (
@@ -340,6 +347,13 @@ export function OpsLogsTab({
               </div>
             )}
 
+            {selected.wasApprovedBeforeEdit && (
+              <div className="bg-psu-rejected/10 border border-psu-rejected/20 rounded-2xl p-4 flex items-center gap-3">
+                <Pencil className="text-psu-rejected shrink-0" size={18} />
+                <p className="text-xs font-bold text-psu-rejected">{t('ops.signoff.editedAfterApprovalBanner')}</p>
+              </div>
+            )}
+
             {(canStamp || canEdit) && (
               <div className="space-y-3">
                 {canStamp && (
@@ -424,6 +438,11 @@ export function OpsLogsTab({
             <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5 truncate">
               {s.userName} · {new Date(s.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
             </p>
+            {s.wasApprovedBeforeEdit && (
+              <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-psu-rejected bg-psu-rejected/10 px-2 py-0.5 rounded-full mt-1.5">
+                <Pencil size={10} /> {t('ops.signoff.editedAfterApproval')}
+              </span>
+            )}
           </div>
         </div>
         <ChevronRight size={16} className="text-psu-gray/20 shrink-0" />
@@ -487,7 +506,7 @@ export function OpsLogsTab({
                   items={queue}
                   emptyIcon={<CheckCircle2 size={48} className="mx-auto" />}
                   emptyLabel={t('supervisorHK.allClear')}
-                  rowClassName={(s) => isNotReadyToWork(s) ? "bg-psu-rejected/5" : undefined}
+                  rowClassName={(s) => isNotReadyToWork(s) || s.wasApprovedBeforeEdit ? "bg-psu-rejected/5" : undefined}
                   renderRow={(s) => {
                     const titleKey = titleKeyFor(s);
                     const flagged = isNotReadyToWork(s);
@@ -501,6 +520,16 @@ export function OpsLogsTab({
                           {flagged && (
                             <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-psu-rejected bg-psu-rejected/10 px-2 py-0.5 rounded-full mt-1.5">
                               <AlertTriangle size={10} /> {t('supervisorHK.notReadyFlag')}
+                            </span>
+                          )}
+                          {/* The filer edited this AFTER it was already
+                              approved once (see wasApprovedBeforeEdit's
+                              comment in types.ts) — without this, a
+                              reviewer has no way to tell this apart from
+                              a first-time submission. */}
+                          {s.wasApprovedBeforeEdit && (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-psu-rejected bg-psu-rejected/10 px-2 py-0.5 rounded-full mt-1.5">
+                              <Pencil size={10} /> {t('ops.signoff.editedAfterApproval')}
                             </span>
                           )}
                           <div className="mt-2"><SignoffProgress submission={s} /></div>

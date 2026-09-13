@@ -14,7 +14,7 @@ import { subscribeUsers, updateUserRoleDoc, updateUserSiteDoc, updateUserAssigne
 import { createStaffAccountDirect } from '../services/adminCreateAccount';
 import { resetStaffCredentials } from '../services/adminResetCredentials';
 import { changeUserEmailDirect } from '../services/adminChangeEmailDirect';
-import { subscribeSubmissions, addSubmissionDoc, updateSubmissionDoc, deleteSubmissionDoc, CLEAR_FIELD } from '../services/submissionsService';
+import { subscribeSubmissions, addSubmissionDoc, updateSubmissionDoc, CLEAR_FIELD } from '../services/submissionsService';
 import { subscribeWarnings, addWarningDoc } from '../services/warningsService';
 import { subscribeFieldReports, addFieldReportDoc, updateFieldReportDoc } from '../services/fieldReportsService';
 import { subscribeCorrectiveActions, addCorrectiveActionDoc, updateCorrectiveActionDoc } from '../services/correctiveActionsService';
@@ -422,18 +422,30 @@ export function useAppStore() {
   // A filer removing their own entry from their own History tab — any
   // status, not just PENDING/REJECTED (see ConfirmDeleteModal's "type
   // DELETE" fail-safe in front of every call site, and firestore.rules'
-  // matching allow-delete). Checked here too, not just server-side: this
-  // guards demo mode (no rules engine at all) and keeps the UI from ever
-  // showing a delete affordance callers wouldn't be allowed to use.
+  // matching allow-update for exactly these two fields). Checked here too,
+  // not just server-side: this guards demo mode (no rules engine at all)
+  // and keeps the UI from ever showing a delete affordance callers
+  // wouldn't be allowed to use.
+  //
+  // This is a SOFT delete, not a real one — see deletedAt/deletedBy on
+  // Submission (types.ts). A food-safety/compliance app is exactly the
+  // place where "the record disappeared, with nothing left to show it
+  // ever existed" is a real problem if anyone (an auditor, a dispute
+  // between a worker and a reviewer) ever needs to reconstruct what
+  // happened. The record stays in Firestore/localStorage forever, with
+  // its original status untouched; `submissions` below just filters
+  // every deletedAt-set entry out of what any screen actually shows.
   const deleteSubmission = (submissionId: string) => {
     const target = submissions.find(s => s.id === submissionId);
     if (!target || !currentUser || target.userId !== currentUser.id) return;
+    const deletedBy = { userId: currentUser.id, name: currentUser.name };
+    const patch = { deletedAt: new Date().toISOString(), deletedBy };
 
     if (isFirebaseConfigured) {
-      deleteSubmissionDoc(submissionId).catch((err) => console.error('deleteSubmission failed:', err));
+      updateSubmissionDoc(submissionId, patch).catch((err) => console.error('deleteSubmission failed:', err));
       return;
     }
-    setSubmissions(prev => prev.filter(s => s.id !== submissionId));
+    setSubmissions(prev => prev.map(s => s.id === submissionId ? { ...s, ...patch } : s));
   };
 
   // Named sign-off chain — every submission type now goes through one
@@ -457,7 +469,10 @@ export function useAppStore() {
       const isFinalStep = chain ? chain[chain.length - 1] === step : false;
       updateSubmissionDoc(submissionId, {
         [`meta.signoff.${step}`]: stamp,
-        ...(isFinalStep ? { status: 'APPROVED' } : {}),
+        // Freshly re-approved — whatever prompted the "Edited after
+        // approval" callout is resolved now that a reviewer has actually
+        // seen and re-stamped the current content.
+        ...(isFinalStep ? { status: 'APPROVED', wasApprovedBeforeEdit: false } : {}),
       }).catch((err) => console.error('addSignoffStamp failed:', err));
       return;
     }
@@ -471,6 +486,7 @@ export function useAppStore() {
         ...s,
         meta: { ...s.meta, signoff: nextSignoff },
         status: isFinalStep ? 'APPROVED' : s.status,
+        wasApprovedBeforeEdit: isFinalStep ? false : s.wasApprovedBeforeEdit,
       };
     }));
   };
@@ -510,6 +526,13 @@ export function useAppStore() {
     const target = submissions.find(s => s.id === submissionId);
     if (!target || target.userId !== currentUser.id) return;
     const draftedBy = { userId: currentUser.id, name: currentUser.name, staffCode: currentUser.staffCode, at: new Date().toISOString() };
+    // A reviewer who already stamped this has no other way to find out
+    // the content underneath their approval just changed — this is what
+    // lets the queue show "Edited after approval" instead of a plain
+    // "Pending" (see wasApprovedBeforeEdit's comment on Submission in
+    // types.ts). A normal fix-after-rejection doesn't need the same
+    // callout: PENDING/REJECTED already reads as "not done yet."
+    const wasApprovedBeforeEdit = target.status === 'APPROVED';
 
     if (isFirebaseConfigured) {
       updateSubmissionDoc(submissionId, {
@@ -517,6 +540,7 @@ export function useAppStore() {
         meta: { ...target.meta, ...updates.meta, signoff: { draftedBy } },
         status: 'PENDING',
         rejectionReason: CLEAR_FIELD,
+        wasApprovedBeforeEdit,
       }).catch((err) => console.error('resubmitAfterRejection failed:', err));
       return;
     }
@@ -529,6 +553,7 @@ export function useAppStore() {
         status: 'PENDING' as const,
         rejectionReason: undefined,
         meta: { ...s.meta, ...updates.meta, signoff: { draftedBy } },
+        wasApprovedBeforeEdit,
       };
     }));
   };
@@ -814,12 +839,20 @@ export function useAppStore() {
     ));
   };
 
+  // Soft-deleted entries (deleteSubmission above) stay in `submissions`
+  // internally — every stamp/reject/resubmit/delete lookup by id above
+  // still needs to find them — but nothing outside this file should ever
+  // see one. Every queue, History list, and Admin's Activity tab reads
+  // submissions through this, so there's exactly one place a deleted
+  // entry gets filtered rather than every screen having to remember to.
+  const visibleSubmissions = submissions.filter(s => !s.deletedAt);
+
   return {
     currentUser,
     isAuthResolving,
     storageError,
     users,
-    submissions,
+    submissions: visibleSubmissions,
     warnings,
     fieldReports,
     correctiveActions,

@@ -12,7 +12,7 @@
 // next, whether a stamp is the final one, chain resets on resubmit) stays
 // in useAppStore.ts, same as before — this file is just Firestore I/O.
 
-import { collection, doc, addDoc, updateDoc, deleteDoc, deleteField, onSnapshot } from 'firebase/firestore';
+import { collection, doc, addDoc, updateDoc, deleteField, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Submission } from '../types';
 
@@ -59,17 +59,6 @@ export async function updateSubmissionDoc(
 ): Promise<void> {
   if (!db) return;
   await updateDoc(doc(db, 'submissions', submissionId), patch);
-}
-
-// A filer removing their own entry from their History tab (see
-// deleteSubmission in useAppStore.ts) — firestore.rules only lets the
-// original submitter delete their own doc, any status. There's no
-// undo: this is a real delete, not a status change, which is exactly
-// why the UI in front of it (ConfirmDeleteModal) makes them type
-// DELETE first.
-export async function deleteSubmissionDoc(submissionId: string): Promise<void> {
-  if (!db) return;
-  await deleteDoc(doc(db, 'submissions', submissionId));
 }
 
 // ignoreUndefinedProperties (lib/firebase.ts) makes Firestore silently

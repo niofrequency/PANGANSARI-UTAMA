@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ClipboardList, Plus, ChevronRight, ClipboardCheck, Footprints, Users, Pencil } from 'lucide-react';
+import { ClipboardList, Plus, ChevronRight, ClipboardCheck, Footprints, Users, Pencil, Trash2 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { useAppStore } from '../../store/useAppStore';
@@ -13,6 +13,7 @@ import { DailyFoodHandlerReportView } from './DailyFoodHandlerReportView';
 import { userCanSeeSite } from '../../lib/siteScope';
 import { HOUSEKEEPING_GEMBA_ROLES } from '../../data/opsLogsCatalog';
 import { SubmissionHistoryList } from '../SubmissionHistoryList';
+import { ConfirmDeleteModal } from '../ConfirmDeleteModal';
 
 type AuditType = 'FOOD_SAFETY_INSPECTION' | 'GEMBA_WALK' | 'DAILY_FOOD_HANDLER';
 
@@ -47,6 +48,12 @@ export function InspectionsTab({ store, department }: { store: ReturnType<typeof
   const [view, setView] = useState<'LIST' | 'PICKER' | 'NEW_FSI' | 'NEW_GEMBA' | 'NEW_DFH'>('LIST');
   const [selected, setSelected] = useState<Submission | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  // "Type DELETE to confirm" fail-safe (ConfirmDeleteModal) in front of
+  // permanently removing one of this inspector's own filed audits — see
+  // deleteSubmission in useAppStore.ts. Works the same for all three
+  // audit types, unlike Edit below (Gemba Walk only, since it's the only
+  // one of the three with an actual review step to redo).
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const currentSite = sites.find(s => s.id === currentUser?.site);
   const currentSiteName = currentSite?.name || currentUser?.site || '';
   const gembaSections: ('A' | 'B')[] = department === 'HOUSEKEEPING' ? ['A'] : ['A', 'B'];
@@ -65,10 +72,12 @@ export function InspectionsTab({ store, department }: { store: ReturnType<typeof
     )
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-  // Reopening a REJECTED Gemba Walk to fix and resubmit — see the "Fix &
-  // Resubmit" button below. FSI/DFH never reach REJECTED (always instant
-  // APPROVED — see this function's header comment), so this only ever
-  // matters for Gemba Walk.
+  // Reopening one of this inspector's own Gemba Walks to edit and
+  // resubmit — see the "Edit" button below, available regardless of
+  // status (not just REJECTED). FSI/DFH are always instant APPROVED with
+  // no reviewer at all (see this function's header comment) and neither
+  // form has editingSubmission wiring, so this only ever matters for
+  // Gemba Walk.
   const editingSubmission = editingId ? myAudits.find(s => s.id === editingId) : undefined;
 
   const commonSubmissionFields = (type: AuditType) => ({
@@ -224,23 +233,57 @@ export function InspectionsTab({ store, department }: { store: ReturnType<typeof
                         {s.status === 'REJECTED' ? t('common.rejected') : t('common.pending')}
                       </span>
                     )}
+                    {s.wasApprovedBeforeEdit && (
+                      <span className="inline-flex items-center gap-1 mt-1.5 ml-1.5 text-[9px] font-black uppercase tracking-widest text-psu-rejected bg-psu-rejected/10 px-2 py-0.5 rounded-full">
+                        <Pencil size={10} /> {t('ops.signoff.editedAfterApproval')}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <ChevronRight size={18} className="text-psu-gray/20 group-hover:text-psu-blue transition-colors shrink-0" />
               </div>
-              {s.type === 'GEMBA_WALK' && s.status === 'REJECTED' && s.userId === currentUser?.id && (
+              {/* Delete is available on any of this inspector's own
+                  filed audits, any type or status. Edit is Gemba Walk
+                  only (see editingSubmission's comment above) and, like
+                  every other portal's History tab, no longer gated to
+                  REJECTED — editing an already-APPROVED Gemba Walk just
+                  restarts its sign-off chain, same as a rejection-fix
+                  always did. */}
+              {s.userId === currentUser?.id && (
                 <div className="pt-3 border-t border-psu-gray/5 space-y-2">
-                  {s.rejectionReason && <p className="text-xs text-psu-gray/60 font-medium">{s.rejectionReason}</p>}
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setEditingId(s.id); setView('NEW_GEMBA'); }}
-                    className="w-full flex items-center justify-center gap-2 py-3 bg-psu-blue text-white rounded-xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all"
-                  >
-                    <Pencil size={14} /> {t('ops.signoff.editAndResubmit')}
-                  </button>
+                  {s.status === 'REJECTED' && s.rejectionReason && (
+                    <p className="text-xs text-psu-gray/60 font-medium">{s.rejectionReason}</p>
+                  )}
+                  <div className="flex gap-2">
+                    {s.type === 'GEMBA_WALK' && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setEditingId(s.id); setView('NEW_GEMBA'); }}
+                        className="flex-1 flex items-center justify-center gap-2 py-3 bg-psu-blue text-white rounded-xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all"
+                      >
+                        <Pencil size={14} /> {t('ops.signoff.editAndResubmit')}
+                      </button>
+                    )}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setDeleteTargetId(s.id); }}
+                      aria-label={t('confirmDelete.removeButton')}
+                      className="px-4 py-3 bg-psu-rejected/10 text-psu-rejected rounded-xl active:scale-95 transition-all"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
           );
+        }}
+      />
+
+      <ConfirmDeleteModal
+        open={Boolean(deleteTargetId)}
+        onCancel={() => setDeleteTargetId(null)}
+        onConfirm={() => {
+          if (deleteTargetId) store.deleteSubmission(deleteTargetId);
+          setDeleteTargetId(null);
         }}
       />
     </div>

@@ -124,6 +124,23 @@ export interface Submission {
   notes?: string;
   rejectionReason?: string;
   score?: number;
+  // Soft delete (see deleteSubmission in useAppStore.ts) — the filer
+  // removing their own entry never actually erases the record. `status`
+  // is left exactly as it was (APPROVED stays APPROVED) so this still
+  // reads as real audit history if anyone ever needs to reconstruct it;
+  // every normal screen just filters deletedAt-set entries out of what
+  // it shows.
+  deletedAt?: string;
+  deletedBy?: { userId: string; name: string };
+  // Set true by resubmitAfterRejection (useAppStore.ts) whenever the
+  // submission being edited was already APPROVED — as opposed to a
+  // normal fix-after-rejection, which doesn't need calling out since a
+  // PENDING/REJECTED item already reads as "not done yet." A reviewer
+  // who already stamped this once has no other way to know the content
+  // underneath their approval just changed; this is what lets the queue
+  // show "Edited after approval" instead of a plain "Pending." Cleared
+  // back to false the moment it's fully re-approved (addSignoffStamp).
+  wasApprovedBeforeEdit?: boolean;
   // Structured header + scoring info for audit-style submissions
   // (FOOD_SAFETY_INSPECTION, GEMBA_WALK). Optional so existing HOUSEKEEPING /
   // FOOD_SAFETY submissions are unaffected.
