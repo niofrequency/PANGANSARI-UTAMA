@@ -1,8 +1,10 @@
 import { Key, useState } from 'react';
+import { toast } from 'sonner';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { cn } from '../../utils/cn';
 import { OpsHeaderChip, OpsFormProps, OutOfRangeFlag } from './opsHelpers';
 import { assetsForSite, currentTempSlot, TEMP_CONTROL_SLOTS, TEMP_LIMITS, TempControlAsset, TempControlSlot } from '../../data/tempControlAssets';
+import { tempControlReadingsSchema } from '../../lib/validators/tempControl';
 import { Thermometer } from 'lucide-react';
 import { useWorkingSite } from '../../hooks/useWorkingSite';
 import { Submission } from '../../types';
@@ -131,16 +133,22 @@ function TempControlDayEditor({
 
   const handleSave = async () => {
     if (!canSubmit) return;
-    setIsSubmitting(true);
-    await new Promise(r => setTimeout(r, 400));
     const stamped = { ...readings };
     TEMP_CONTROL_SLOTS.forEach(s => {
       if (stamped[s]?.temp?.trim()) {
         stamped[s] = { ...stamped[s], at: new Date().toISOString(), by: currentUserName };
       }
     });
+    const parsed = tempControlReadingsSchema.safeParse(stamped);
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0]?.message ?? t('ops.tempControl.validationError'));
+      return;
+    }
+    setIsSubmitting(true);
+    await new Promise(r => setTimeout(r, 400));
     onSave(stamped, remarks);
     setIsSubmitting(false);
+    toast.success(t('ops.tempControl.savedToast'));
   };
 
   return (

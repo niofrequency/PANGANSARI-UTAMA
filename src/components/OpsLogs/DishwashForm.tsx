@@ -1,8 +1,10 @@
 import { Fragment, Key, useState } from 'react';
+import { toast } from 'sonner';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { cn } from '../../utils/cn';
 import { OpsHeaderChip, OpsFormProps, OutOfRangeFlag } from './opsHelpers';
 import { dishwashLocationsForSite, currentDishwashRound, DISHWASH_ROUNDS, DishwashLocation, DISHWASH_MIN_BILAS_C, DISHWASH_MIN_CUCI_C } from '../../data/dishwashData';
+import { dishwashReadingsSchema } from '../../lib/validators/dishwash';
 import { useWorkingSite } from '../../hooks/useWorkingSite';
 import { Submission } from '../../types';
 
@@ -114,16 +116,22 @@ function DishwashDayEditor({
 
   const handleSave = async () => {
     if (!canSubmit) return;
-    setIsSubmitting(true);
-    await new Promise(r => setTimeout(r, 400));
     const stamped = { ...readings };
     DISHWASH_ROUNDS.forEach(r => {
       if (stamped[r]?.cuci?.trim() || stamped[r]?.bilas?.trim()) {
         stamped[r] = { ...stamped[r], at: new Date().toISOString(), by: currentUserName };
       }
     });
+    const parsed = dishwashReadingsSchema.safeParse(stamped);
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0]?.message ?? t('ops.dishwash.validationError'));
+      return;
+    }
+    setIsSubmitting(true);
+    await new Promise(r => setTimeout(r, 400));
     onSave(stamped, remarks);
     setIsSubmitting(false);
+    toast.success(t('ops.dishwash.savedToast'));
   };
 
   return (

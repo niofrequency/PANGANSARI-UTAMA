@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Camera, Clock, X, MapPin } from 'lucide-react';
 import { motion } from 'motion/react';
+import imageCompression from 'browser-image-compression';
 import { useTranslation } from '../i18n/LanguageContext';
 import { isFirebaseConfigured, auth } from '../lib/firebase';
 import { uploadSubmissionPhoto } from '../services/cloudinaryPhotoService';
@@ -24,6 +25,29 @@ interface PhotoCaptureProps {
 // it's ever stored — still plenty for the timestamp/GPS stamp and for a
 // supervisor reviewing it, at a fraction of the size.
 const MAX_DIMENSION = 1280;
+
+// Real compression (browser-image-compression: resizes, re-encodes, and
+// fixes the iOS "photo shows sideways" EXIF-orientation quirk by drawing
+// through a canvas) runs BEFORE stampPhoto below, on the raw camera file
+// — stampPhoto's own resize then has nothing left to do (this already put
+// it at MAX_DIMENSION), it just draws the timestamp bar on an
+// already-small image instead of a multi-MB original. Runs off the main
+// thread (useWebWorker) so a big photo doesn't freeze the UI on a cheap
+// phone. Best-effort: if compression itself fails for any reason (an
+// unsupported format, e.g.), the original file is stamped as before
+// rather than losing the photo entirely.
+async function compressPhoto(file: File): Promise<File> {
+  try {
+    return await imageCompression(file, {
+      maxWidthOrHeight: MAX_DIMENSION,
+      initialQuality: 0.7,
+      useWebWorker: true,
+    });
+  } catch (err) {
+    console.error('Photo compression failed, using original file:', err);
+    return file;
+  }
+}
 
 // Draws the captured photo onto a canvas with a real timestamp (and GPS
 // coordinates, when the browser grants location permission) burned into the
@@ -91,7 +115,8 @@ export function PhotoCapture({ onCapture, uid }: PhotoCaptureProps) {
           { timeout: 4000 }
         );
       });
-      const stamped = await stampPhoto(file, coords);
+      const compressed = await compressPhoto(file);
+      const stamped = await stampPhoto(compressed, coords);
       setPreview(stamped);
       // Local data URL first, always — instant preview, and the value
       // used as-is in demo mode. In Firebase mode this is upgraded below

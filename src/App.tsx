@@ -47,7 +47,7 @@ const ACTION_ROLE: Record<DeepLinkAction, UserRole> = {
 
 export default function App() {
   const store = useAppStore();
-  const { currentUser, logout, isAuthResolving, storageError, sites } = store;
+  const { currentUser, logout, isAuthResolving, storageError, outboxPendingCount, sites } = store;
   const { t } = useTranslation();
 
   // Parsed once at boot: either freshly read off a `/go?...` URL (and
@@ -295,7 +295,7 @@ export default function App() {
             exit={{ opacity: 0, y: -10 }}
             className="pb-20"
           >
-            <Layout user={currentUser} onLogout={logout} storageError={storageError} rejectedNotices={rejectedNotices}>
+            <Layout user={currentUser} onLogout={logout} storageError={storageError} rejectedNotices={rejectedNotices} offlinePendingCount={outboxPendingCount}>
               {renderPortal()}
             </Layout>
           </motion.div>

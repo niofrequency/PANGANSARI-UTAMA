@@ -21,6 +21,7 @@ import { subscribeCorrectiveActions, addCorrectiveActionDoc, updateCorrectiveAct
 import { subscribeTrainings, completeTrainingDoc } from '../services/trainingsService';
 import { isValidStaffCode } from '../utils/staffCode';
 import { SIGNOFF_CHAINS } from '../data/opsLogsCatalog';
+import { outboxDb } from '../lib/outboxDb';
 
 // This store has two modes: 
 //
@@ -407,12 +408,57 @@ export function useAppStore() {
     setCurrentUser(null);
   };
 
+  // Dexie outbox (lib/outboxDb.ts) — Firebase mode only; see that file's
+  // header for why this exists and why it's a queue, not a second source
+  // of truth. `outboxPendingCount` just drives Layout's "Offline — N
+  // pending" chip; nothing renders submissions from this table.
+  const [outboxPendingCount, setOutboxPendingCount] = useState(0);
+  const refreshOutboxCount = () => {
+    outboxDb.outbox.count().then(setOutboxPendingCount).catch(() => {});
+  };
+  // Retries whatever's still queued — on mount (covers "closed the tab
+  // mid-outage, reopened it already back online") and every time the
+  // browser fires 'online' (covers "stayed on the same screen the whole
+  // time Wi-Fi was down"). Each entry is only removed from the outbox
+  // once Firestore actually confirms the write; a second failed attempt
+  // just leaves it queued for the next trigger.
+  useEffect(() => {
+    if (!isFirebaseConfigured) return;
+    const flushOutbox = async () => {
+      const pending = await outboxDb.outbox.toArray();
+      for (const entry of pending) {
+        try {
+          await addSubmissionDoc(entry.payload as Omit<Submission, 'id'>);
+          await outboxDb.outbox.delete(entry.id);
+        } catch (err) {
+          console.error('Outbox flush failed, still queued:', entry.id, err);
+        }
+      }
+      refreshOutboxCount();
+    };
+    flushOutbox();
+    window.addEventListener('online', flushOutbox);
+    return () => window.removeEventListener('online', flushOutbox);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const addSubmission = (submission: Omit<Submission, 'id'>) => {
     if (isFirebaseConfigured) {
-      // Fire-and-forget, same convention as every other Firestore write in
-      // this file — the live subscription above updates `submissions` once
-      // it round-trips, not this call directly.
-      addSubmissionDoc(submission).catch((err) => console.error('addSubmission failed:', err));
+      // Queued in Dexie FIRST, synchronously ahead of the network call —
+      // if the tab is killed the instant after this, the write is still
+      // sitting in IndexedDB for next launch's flushOutbox to pick up,
+      // not lost with the in-flight request. Same fire-and-forget
+      // convention as every other Firestore write in this file otherwise:
+      // the live subscription above updates `submissions` once the write
+      // actually round-trips, not this call directly.
+      const outboxId = `ob-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      outboxDb.outbox
+        .add({ id: outboxId, type: 'submission', payload: submission, createdAt: new Date().toISOString(), status: 'pending' })
+        .then(refreshOutboxCount)
+        .then(() => addSubmissionDoc(submission))
+        .then(() => outboxDb.outbox.delete(outboxId))
+        .then(refreshOutboxCount)
+        .catch((err) => console.error('addSubmission failed, queued for retry:', err));
       return;
     }
     const newSubmission = { ...submission, id: `s-${Date.now()}` };
@@ -851,6 +897,7 @@ export function useAppStore() {
     currentUser,
     isAuthResolving,
     storageError,
+    outboxPendingCount,
     users,
     submissions: visibleSubmissions,
     warnings,

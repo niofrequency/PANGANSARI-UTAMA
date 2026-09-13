@@ -1,7 +1,10 @@
-import { Key, useEffect, useRef, useState } from 'react';
+import { Key, useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
+import { useReactTable, getCoreRowModel, createColumnHelper, flexRender } from '@tanstack/react-table';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { cn } from '../../utils/cn';
 import { OpsHeaderChip, OpsFormProps, ResubmitNotice } from './opsHelpers';
+import { laundrySubmissionSchema } from '../../lib/validators/laundryShop';
 import {
   LAUNDRY_GARMENT_COLUMNS, FREQUENT_GARMENT_COLUMNS, OTHER_GARMENT_COLUMNS,
   LaundryGarmentId, LaundryRoomRow, emptyLaundryRow, totalRoomCount,
@@ -11,6 +14,26 @@ import { useWorkingSite } from '../../hooks/useWorkingSite';
 import { ConfirmDeleteModal } from '../ConfirmDeleteModal';
 import { Modal } from '../Modal';
 import { AnimatePresence } from 'motion/react';
+
+// TanStack Table's own callback-props-via-meta pattern for editable
+// cells (its docs' own recommended shape for this exact case) — column
+// defs below stay pure render functions; every mutation goes through
+// these instead of closing over component state directly, so the column
+// array itself doesn't need to be rebuilt as a special case.
+declare module '@tanstack/react-table' {
+  interface TableMeta<TData> {
+    invalidRowIds: Set<string>;
+    duplicateRoomNumbers: Set<string>;
+    onRoomNumberChange: (id: string, value: string) => void;
+    onCountChange: (id: string, garmentId: string, value: string) => void;
+    onKeteranganChange: (id: string, value: string) => void;
+    onEnterRoom: () => void;
+    setRoomRef: (id: string, el: HTMLInputElement | null) => void;
+    onDeleteRow: (id: string) => void;
+    canDeleteRows: boolean;
+  }
+}
+const laundryColumnHelper = createColumnHelper<LaundryRoomRow>();
 
 // A fresh Laundry log starts with this many blank numbered lines already
 // on screen — paper-speed means never seeing an empty "0 items" state as
@@ -70,7 +93,7 @@ function GarmentCounter({ label, title, value, onChange, onBump }: {
 // click/Tab/Enter like the paper book. Both share the same `rows` state;
 // only the editor chrome differs by breakpoint.
 export function LaundryShopForm({ store, onCancel, onSubmitted, editingSubmission }: OpsFormProps) {
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
   const { currentUser, sites, addSubmission, resubmitAfterRejection } = store;
   const { workingSiteId, workingSiteName: currentSiteName, availableSites, setWorkingSiteId } = useWorkingSite(currentUser, sites);
 
@@ -146,7 +169,7 @@ export function LaundryShopForm({ store, onCancel, onSubmitted, editingSubmissio
   // has a count in it — an empty scratch line is fine to leave blank.
   // Duplicate room numbers are a warning, not a block (two bags from the
   // same room in one day is a real thing).
-  const invalidRowIds = new Set(rows.filter(r => totalRoomCount(r) > 0 && !r.roomNumber.trim()).map(r => r.id));
+  const invalidRowIds: Set<string> = new Set(rows.filter(r => totalRoomCount(r) > 0 && !r.roomNumber.trim()).map(r => r.id));
   const roomNumberCounts = new Map<string, number>();
   rows.forEach(r => {
     const key = r.roomNumber.trim().toLowerCase();
@@ -180,6 +203,16 @@ export function LaundryShopForm({ store, onCancel, onSubmitted, editingSubmissio
 
   const handleSubmit = async () => {
     if (!canSubmit || !currentUser) return;
+    // Last-mile guard right before the write — the UI's own canSubmit/
+    // invalidRowIds checks already keep this from being reachable in
+    // normal use, but this is the one place the paper's actual rules
+    // (room number required, counts >= 0) are enforced as the real gate
+    // on what gets saved, not just what disables a button.
+    const parsed = laundrySubmissionSchema.safeParse(submittableRows);
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0]?.message ?? t('ops.laundryShop.validationError'));
+      return;
+    }
     setIsSubmitting(true);
     await new Promise(r => setTimeout(r, 500));
     const items = submittableRows.map(r => ({
@@ -212,10 +245,118 @@ export function LaundryShopForm({ store, onCancel, onSubmitted, editingSubmissio
       });
     }
     setIsSubmitting(false);
+    toast.success(t('ops.laundryShop.submittedToast'));
     onSubmitted();
   };
 
   const editingRoom = editingRoomId ? rows.find(r => r.id === editingRoomId) : undefined;
+
+  // Desktop grid — column defs once, one per garment plus room/keterangan/
+  // actions; every cell is a controlled input reading straight off `rows`,
+  // so the table has nothing of its own to keep in sync. A `footer` per
+  // garment column doubles as the totals row (table.getFooterGroups()
+  // below) instead of a hand-appended <tr>.
+  // Memoized on language alone (the only thing column *definitions*
+  // actually depend on — everything row-specific comes through `meta`,
+  // not a closure over `rows`/`t`) — a fresh columns array every render
+  // is a known TanStack Table foot-gun: it treats that as "the whole
+  // column model changed" and remounts every cell, which drops focus
+  // out of whatever input the person was mid-keystroke in. Redefining it
+  // only when the language actually toggles keeps Tab-to-next-cell
+  // working continuously while still translating header labels.
+  const laundryColumns = useMemo(() => [
+    laundryColumnHelper.display({
+      id: 'room',
+      header: () => t('ops.laundryShop.roomColumnHeader'),
+      cell: ({ row, table }) => {
+        const r = row.original;
+        const meta = table.options.meta!;
+        const invalid = meta.invalidRowIds.has(r.id);
+        const dup = !invalid && r.roomNumber.trim() && meta.duplicateRoomNumbers.has(r.roomNumber.trim().toLowerCase());
+        return (
+          <div className="flex items-center gap-1.5">
+            <span className="text-[9px] text-psu-gray/30 font-black w-4 text-right shrink-0">{row.index + 1}</span>
+            <input
+              ref={(el) => meta.setRoomRef(r.id, el)}
+              type="text" value={r.roomNumber}
+              onChange={(e) => meta.onRoomNumberChange(r.id, e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); meta.onEnterRoom(); } }}
+              placeholder={t('ops.laundryShop.roomPlaceholder')}
+              title={invalid ? t('ops.laundryShop.roomNumberRequired') : dup ? t('ops.laundryShop.duplicateRoomWarning', { room: r.roomNumber.trim() }) : undefined}
+              className={cn("w-full min-w-0 bg-transparent text-xs font-black focus:outline-none", invalid ? "text-psu-rejected" : dup ? "text-psu-warning" : "text-psu-gray")}
+            />
+          </div>
+        );
+      },
+      footer: () => t('ops.laundryShop.total'),
+    }),
+    ...LAUNDRY_GARMENT_COLUMNS.map(g => laundryColumnHelper.accessor(row => row.counts[g.id], {
+      id: g.id,
+      header: () => <span title={g.labelId} style={{ writingMode: 'vertical-rl' as const }} className="whitespace-nowrap">{g.labelId}</span>,
+      cell: ({ row, table }) => {
+        const r = row.original;
+        const meta = table.options.meta!;
+        return (
+          <input
+            type="text" inputMode="numeric"
+            value={r.counts[g.id]}
+            onChange={(e) => meta.onCountChange(r.id, g.id, e.target.value)}
+            placeholder="0"
+            className="w-full bg-transparent text-center text-xs font-bold text-psu-gray focus:outline-none focus:bg-psu-green/5 rounded py-1"
+          />
+        );
+      },
+      footer: ({ table }) => {
+        const total = table.getCoreRowModel().rows.reduce((sum, row) => sum + (parseInt(row.original.counts[g.id], 10) || 0), 0);
+        return total || '';
+      },
+    })),
+    laundryColumnHelper.display({
+      id: 'keterangan',
+      header: () => t('ops.laundryShop.keteranganHeader'),
+      cell: ({ row, table }) => {
+        const r = row.original;
+        const meta = table.options.meta!;
+        return (
+          <input
+            type="text" value={r.keterangan} onChange={(e) => meta.onKeteranganChange(r.id, e.target.value)}
+            placeholder={t('ops.laundryShop.keteranganPlaceholder')}
+            className="w-full bg-transparent text-[11px] font-medium text-psu-gray focus:outline-none"
+          />
+        );
+      },
+    }),
+    laundryColumnHelper.display({
+      id: 'actions',
+      cell: ({ row, table }) => {
+        const meta = table.options.meta!;
+        return meta.canDeleteRows ? (
+          <button type="button" onClick={() => meta.onDeleteRow(row.original.id)} className="text-psu-rejected/40 hover:text-psu-rejected transition-colors">
+            <Trash2 size={13} />
+          </button>
+        ) : null;
+      },
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [language]);
+
+  const laundryTable = useReactTable<LaundryRoomRow>({
+    data: rows,
+    columns: laundryColumns,
+    getCoreRowModel: getCoreRowModel(),
+    meta: {
+      invalidRowIds,
+      duplicateRoomNumbers,
+      onRoomNumberChange: updateRoomNumber,
+      onCountChange: updateCount,
+      onKeteranganChange: updateKeterangan,
+      onEnterRoom: addBlankRow,
+      setRoomRef: (id, el) => { roomInputRefs.current[id] = el; },
+      onDeleteRow: (id) => setRowToDelete(id),
+      canDeleteRows: rows.length > 1,
+    },
+  });
+  const isGarmentColumn = (id: string) => LAUNDRY_GARMENT_COLUMNS.some(g => g.id === id);
 
   return (
     <div className="space-y-6">
@@ -297,86 +438,82 @@ export function LaundryShopForm({ store, onCancel, onSubmitted, editingSubmissio
           <div className="overflow-x-auto">
             <table className="w-full border-separate border-spacing-0 text-xs">
               <thead>
-                <tr>
-                  <th className="sticky left-0 top-0 z-20 bg-psu-bg border-b border-r border-psu-gray/10 px-2 py-2 text-left align-middle text-[9px] font-black text-psu-gray/50 uppercase tracking-widest w-40 min-w-[10rem]">
-                    {t('ops.laundryShop.roomColumnHeader')}
-                  </th>
-                  {LAUNDRY_GARMENT_COLUMNS.map(g => (
-                    <th
-                      key={g.id} title={g.labelId}
-                      style={{ height: '92px' }}
-                      className="sticky top-0 z-10 bg-psu-bg border-b border-psu-gray/10 px-1 py-2 align-bottom text-[9px] font-black text-psu-gray/50 uppercase w-11 min-w-[2.75rem]"
-                    >
-                      <span style={{ writingMode: 'vertical-rl' }} className="whitespace-nowrap">{g.labelId}</span>
-                    </th>
-                  ))}
-                  <th className="sticky top-0 z-10 bg-psu-bg border-b border-psu-gray/10 px-2 py-2 align-middle text-left text-[9px] font-black text-psu-gray/50 uppercase tracking-widest min-w-[140px]">
-                    {t('ops.laundryShop.keteranganHeader')}
-                  </th>
-                  <th className="sticky top-0 z-10 bg-psu-bg border-b border-psu-gray/10 w-9" />
-                </tr>
+                {laundryTable.getHeaderGroups().map(headerGroup => (
+                  <tr key={headerGroup.id}>
+                    {headerGroup.headers.map(header => {
+                      const id = header.column.id;
+                      const isRoom = id === 'room';
+                      const isGarment = isGarmentColumn(id);
+                      const isKeterangan = id === 'keterangan';
+                      return (
+                        <th
+                          key={header.id}
+                          style={isGarment ? { height: '92px' } : undefined}
+                          className={cn(
+                            "bg-psu-bg border-b border-psu-gray/10",
+                            isRoom && "sticky left-0 top-0 z-20 border-r px-2 py-2 text-left align-middle text-[9px] font-black text-psu-gray/50 uppercase tracking-widest w-40 min-w-[10rem]",
+                            isGarment && "sticky top-0 z-10 px-1 py-2 align-bottom text-[9px] font-black text-psu-gray/50 uppercase w-11 min-w-[2.75rem]",
+                            isKeterangan && "sticky top-0 z-10 px-2 py-2 align-middle text-left text-[9px] font-black text-psu-gray/50 uppercase tracking-widest min-w-[140px]",
+                            id === 'actions' && "sticky top-0 z-10 w-9",
+                          )}
+                        >
+                          {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                        </th>
+                      );
+                    })}
+                  </tr>
+                ))}
               </thead>
               <tbody>
-                {rows.map((row, idx) => {
-                  const invalid = invalidRowIds.has(row.id);
-                  const dup = !invalid && row.roomNumber.trim() && duplicateRoomNumbers.has(row.roomNumber.trim().toLowerCase());
+                {laundryTable.getRowModel().rows.map(row => {
+                  const invalid = invalidRowIds.has(row.original.id);
                   return (
                     <tr key={row.id} className="hover:bg-psu-bg/40 transition-colors">
-                      <td className={cn("sticky left-0 z-10 border-b border-r border-psu-gray/10 px-2 py-1 align-middle", invalid ? "bg-psu-rejected/5" : "bg-white")}>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[9px] text-psu-gray/30 font-black w-4 text-right shrink-0">{idx + 1}</span>
-                          <input
-                            ref={(el) => { roomInputRefs.current[row.id] = el; }}
-                            type="text" value={row.roomNumber}
-                            onChange={(e) => updateRoomNumber(row.id, e.target.value)}
-                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addBlankRow(); } }}
-                            placeholder={t('ops.laundryShop.roomPlaceholder')}
-                            title={invalid ? t('ops.laundryShop.roomNumberRequired') : dup ? t('ops.laundryShop.duplicateRoomWarning', { room: row.roomNumber.trim() }) : undefined}
-                            className={cn("w-full min-w-0 bg-transparent text-xs font-black focus:outline-none", invalid ? "text-psu-rejected" : dup ? "text-psu-warning" : "text-psu-gray")}
-                          />
-                        </div>
-                      </td>
-                      {LAUNDRY_GARMENT_COLUMNS.map(g => (
-                        <td key={g.id} className="border-b border-psu-gray/5 p-0.5 align-middle">
-                          <input
-                            type="text" inputMode="numeric"
-                            value={row.counts[g.id]}
-                            onChange={(e) => updateCount(row.id, g.id, e.target.value)}
-                            placeholder="0"
-                            className="w-full bg-transparent text-center text-xs font-bold text-psu-gray focus:outline-none focus:bg-psu-green/5 rounded py-1"
-                          />
-                        </td>
-                      ))}
-                      <td className="border-b border-psu-gray/5 px-1 align-middle">
-                        <input
-                          type="text" value={row.keterangan}
-                          onChange={(e) => updateKeterangan(row.id, e.target.value)}
-                          placeholder={t('ops.laundryShop.keteranganPlaceholder')}
-                          className="w-full bg-transparent text-[11px] font-medium text-psu-gray focus:outline-none"
-                        />
-                      </td>
-                      <td className="border-b border-psu-gray/5 px-1 align-middle text-center">
-                        {rows.length > 1 && (
-                          <button type="button" onClick={() => setRowToDelete(row.id)} className="text-psu-rejected/40 hover:text-psu-rejected transition-colors">
-                            <Trash2 size={13} />
-                          </button>
-                        )}
-                      </td>
+                      {row.getVisibleCells().map(cell => {
+                        const id = cell.column.id;
+                        const isRoom = id === 'room';
+                        const isGarment = isGarmentColumn(id);
+                        const isKeterangan = id === 'keterangan';
+                        const isActions = id === 'actions';
+                        return (
+                          <td
+                            key={cell.id}
+                            className={cn(
+                              "border-b",
+                              isRoom && cn("sticky left-0 z-10 border-r border-psu-gray/10 px-2 py-1 align-middle", invalid ? "bg-psu-rejected/5" : "bg-white"),
+                              isGarment && "border-psu-gray/5 p-0.5 align-middle",
+                              isKeterangan && "border-psu-gray/5 px-1 align-middle",
+                              isActions && "border-psu-gray/5 px-1 align-middle text-center",
+                            )}
+                          >
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </td>
+                        );
+                      })}
                     </tr>
                   );
                 })}
-                <tr>
-                  <td className="sticky left-0 z-10 bg-psu-bg border-t border-r border-psu-gray/10 px-2 py-2 align-middle text-[9px] font-black uppercase tracking-widest text-psu-gray/50">
-                    {t('ops.laundryShop.total')}
-                  </td>
-                  {LAUNDRY_GARMENT_COLUMNS.map(g => (
-                    <td key={g.id} className="bg-psu-bg border-t border-psu-gray/10 text-center align-middle text-[10px] font-black text-psu-gray/60 py-2">
-                      {rows.reduce((sum, r) => sum + (parseInt(r.counts[g.id], 10) || 0), 0) || ''}
-                    </td>
-                  ))}
-                  <td className="bg-psu-bg border-t border-psu-gray/10" />
-                  <td className="bg-psu-bg border-t border-psu-gray/10" />
-                </tr>
+                {laundryTable.getFooterGroups().map(footerGroup => (
+                  <tr key={footerGroup.id}>
+                    {footerGroup.headers.map(header => {
+                      const id = header.column.id;
+                      const isRoom = id === 'room';
+                      const isGarment = isGarmentColumn(id);
+                      return (
+                        <td
+                          key={header.id}
+                          className={cn(
+                            "bg-psu-bg border-t border-psu-gray/10",
+                            isRoom && "sticky left-0 z-10 border-r px-2 py-2 align-middle text-[9px] font-black uppercase tracking-widest text-psu-gray/50",
+                            isGarment && "text-center align-middle text-[10px] font-black text-psu-gray/60 py-2",
+                          )}
+                        >
+                          {header.isPlaceholder ? null : flexRender(header.column.columnDef.footer, header.getContext())}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
