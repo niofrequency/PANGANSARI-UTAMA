@@ -507,6 +507,27 @@ export function OpsLogsTab({
                   emptyIcon={<CheckCircle2 size={48} className="mx-auto" />}
                   emptyLabel={t('supervisorHK.allClear')}
                   rowClassName={(s) => isNotReadyToWork(s) || s.wasApprovedBeforeEdit ? "bg-psu-rejected/5" : undefined}
+                  onRowClick={setSelected}
+                  desktopColumns={[
+                    { header: t('common.time'), width: '90px', render: (s) => new Date(s.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) },
+                    { header: t('common.site'), width: '1fr', render: (s) => s.siteName },
+                    { header: t('common.type'), width: '1.4fr', render: (s) => { const k = titleKeyFor(s); return k ? t(k) : s.type; } },
+                    { header: t('common.person'), width: '1fr', render: (s) => s.userName },
+                    {
+                      header: t('common.status'), width: '170px', render: (s) => (
+                        <div className="flex flex-col gap-1">
+                          {isNotReadyToWork(s) && (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-psu-rejected"><AlertTriangle size={10} /> {t('supervisorHK.notReadyFlag')}</span>
+                          )}
+                          {s.wasApprovedBeforeEdit && (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-psu-rejected"><Pencil size={10} /> {t('ops.signoff.editedAfterApproval')}</span>
+                          )}
+                          <SignoffProgress submission={s} />
+                        </div>
+                      ),
+                    },
+                    { header: '', width: '32px', className: 'text-right', render: () => <ChevronRight size={16} className="text-psu-gray/20 inline-block" /> },
+                  ]}
                   renderRow={(s) => {
                     const titleKey = titleKeyFor(s);
                     const flagged = isNotReadyToWork(s);
@@ -548,7 +569,11 @@ export function OpsLogsTab({
       {mode !== 'queueOnly' && (
         mode === 'historyOnly' ? (
           <div className="space-y-3">
-            <h2 className="text-xl font-bold tracking-tight text-psu-gray px-2">{t('ops.historySectionTitle')}</h2>
+            {/* On desktop this is reached through Supervisor/Manager
+                Portal's DesktopShell, which already shows "History" as
+                the page title (same translation key) — this would just
+                repeat it. */}
+            <h2 className="text-xl font-bold tracking-tight text-psu-gray px-2 md:hidden">{t('ops.historySectionTitle')}</h2>
             <SubmissionHistoryList
               submissions={history}
               emptyIcon={<ClipboardList size={48} className="mx-auto" />}

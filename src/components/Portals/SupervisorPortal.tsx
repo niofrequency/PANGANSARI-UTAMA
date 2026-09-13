@@ -9,6 +9,7 @@ import { OpsLogsTab } from '../OpsLogs/OpsLogsTab';
 import { FieldReportsTab } from '../FieldReports/FieldReportsTab';
 import { CorrectiveActionsTab } from '../CorrectiveActions/CorrectiveActionsTab';
 import { Modal } from '../Modal';
+import { DesktopShell } from '../DesktopShell';
 
 interface SupervisorPortalProps {
   store: ReturnType<typeof useAppStore>;
@@ -65,18 +66,23 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled }: Supervi
     setWarningData({ userId: '', reason: '', severity: 'LOW' });
   };
 
+  const tabs = [
+    { id: 'OPS_LOGS' as const, icon: ListChecks, label: t('ops.tabTitle') },
+    { id: 'HISTORY' as const, icon: History, label: t('ops.historySectionTitle') },
+    { id: 'REPORTS' as const, icon: MessageSquareWarning, label: t('fieldReport.tabTitle') },
+    { id: 'ACTIONS' as const, icon: ListTodo, label: t('correctiveAction.tabTitle') },
+    // Housekeeping Supervisor gets this too now, restricted to Gemba
+    // Walk's Section A only — see InspectionsTab.tsx.
+    { id: 'INSPECTIONS' as const, icon: ClipboardCheck, label: t('inspection.tabTitle') },
+  ];
+  const activeTabLabel = tabs.find(tab => tab.id === activeTab)?.label ?? '';
+
   return (
     <div className="space-y-6">
-      <div className="flex bg-white rounded-2xl p-1.5 shadow-sm border border-psu-gray/5">
-        {[
-          { id: 'OPS_LOGS' as const, icon: ListChecks, label: t('ops.tabTitle') },
-          { id: 'HISTORY' as const, icon: History, label: t('ops.historySectionTitle') },
-          { id: 'REPORTS' as const, icon: MessageSquareWarning, label: t('fieldReport.tabTitle') },
-          { id: 'ACTIONS' as const, icon: ListTodo, label: t('correctiveAction.tabTitle') },
-          // Housekeeping Supervisor gets this too now, restricted to
-          // Gemba Walk's Section A only — see InspectionsTab.tsx.
-          { id: 'INSPECTIONS' as const, icon: ClipboardCheck, label: t('inspection.tabTitle') },
-        ].map(tab => (
+      {/* Mobile pill tab bar — unchanged, just hidden once the sidebar
+          below takes over at md+. */}
+      <div className="flex md:hidden bg-white rounded-2xl p-1.5 shadow-sm border border-psu-gray/5">
+        {tabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
@@ -93,6 +99,7 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled }: Supervi
         ))}
       </div>
 
+      <DesktopShell navItems={tabs} activeId={activeTab} onNav={(id) => setActiveTab(id as any)} title={activeTabLabel}>
       {activeTab === 'INSPECTIONS' && (
         <InspectionsTab store={store} department={isFoodSafety ? 'FOOD_SAFETY' : 'HOUSEKEEPING'} />
       )}
@@ -125,6 +132,7 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled }: Supervi
           {t('supervisorHK.issueWarning')}
         </button>
       )}
+      </DesktopShell>
 
       {/* Warning Dialog */}
       <AnimatePresence>

@@ -14,11 +14,13 @@ import { isFirebaseConfigured } from '../../lib/firebase';
 import { Modal } from '../Modal';
 import { Lightbox } from '../Lightbox';
 import { ListCard } from '../ListCard';
+import { DesktopShell } from '../DesktopShell';
 import { DateFilterBar } from '../DateFilterBar';
 import { useDateFilter } from '../../hooks/useDateFilter';
 import { isValidStaffCode } from '../../utils/staffCode';
 import { cloudinaryUrl } from '../../utils/cloudinaryUrl';
 import { PrintQrPanel } from './PrintQrPanel';
+import { titleKeyForChainType } from '../../data/opsLogsCatalog';
 
 // Avoids visually-ambiguous characters (0/O, 1/l/I) since this password
 // gets read aloud, typed by hand, or copy-pasted into a text message.
@@ -452,22 +454,27 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
   const statusLabel = (status: Submission['status']) =>
     status === 'APPROVED' ? t('common.approved') : status === 'REJECTED' ? t('common.rejected') : t('common.pending');
 
+  const tabs = [
+    { id: 'USERS', icon: Users, label: t('admin.tabPersonnel') },
+    { id: 'ACTIVITY', icon: ActivityIcon, label: t('admin.tabActivity') },
+    { id: 'ANALYTICS', icon: Shield, label: t('admin.tabAnalytics') },
+    { id: 'PRINT', icon: Printer, label: t('admin.tabPrint') },
+  ];
+  const activeTabLabel = tabs.find(tab => tab.id === activeTab)?.label ?? '';
+
   return (
     <div className="space-y-6">
-      <div className="flex bg-white rounded-2xl p-1.5 shadow-sm border border-psu-gray/5">
-        {[
-          { id: 'USERS', icon: Users, label: t('admin.tabPersonnel') },
-          { id: 'ACTIVITY', icon: ActivityIcon, label: t('admin.tabActivity') },
-          { id: 'ANALYTICS', icon: Shield, label: t('admin.tabAnalytics') },
-          { id: 'PRINT', icon: Printer, label: t('admin.tabPrint') },
-        ].map(tab => (
+      {/* Mobile pill tab bar — unchanged, just hidden once the sidebar
+          below takes over at md+. */}
+      <div className="flex md:hidden bg-white rounded-2xl p-1.5 shadow-sm border border-psu-gray/5">
+        {tabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
             className={cn(
               "flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
-              activeTab === tab.id 
-                ? "bg-psu-gray text-white shadow-md shadow-psu-gray/20" 
+              activeTab === tab.id
+                ? "bg-psu-gray text-white shadow-md shadow-psu-gray/20"
                 : "text-psu-gray/40 hover:text-psu-gray"
             )}
           >
@@ -476,6 +483,8 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
           </button>
         ))}
       </div>
+
+      <DesktopShell navItems={tabs} activeId={activeTab} onNav={(id) => setActiveTab(id as any)} title={activeTabLabel}>
 
       <AnimatePresence mode="wait">
         {activeTab === 'USERS' && (
@@ -681,6 +690,23 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                   items={filteredSubmissions}
                   emptyIcon={<ActivityIcon size={48} className="mx-auto" />}
                   emptyLabel={t('admin.noActivity')}
+                  onRowClick={setSelectedSubmission}
+                  desktopColumns={[
+                    { header: t('common.time'), width: '90px', render: (s) => new Date(s.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) },
+                    { header: t('common.site'), width: '1fr', render: (s) => s.siteName },
+                    { header: t('common.type'), width: '1.4fr', render: (s) => { const k = titleKeyForChainType(s.type); return k ? t(k) : s.type; } },
+                    { header: t('common.person'), width: '1fr', render: (s) => s.userName },
+                    {
+                      header: t('common.status'), width: '150px', render: (s) => (
+                        <div className="flex flex-col gap-1 items-start">
+                          <span className={statusBadgeClass(s.status)}>{statusLabel(s.status)}</span>
+                          {s.wasApprovedBeforeEdit && (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-psu-rejected"><Pencil size={10} /> {t('ops.signoff.editedAfterApproval')}</span>
+                          )}
+                        </div>
+                      ),
+                    },
+                  ]}
                   renderRow={(s) => (
                     <div onClick={() => setSelectedSubmission(s)} className="flex items-center justify-between gap-3 cursor-pointer">
                       <div className="flex items-center gap-4 min-w-0">
@@ -789,6 +815,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
           </motion.div>
         )}
       </AnimatePresence>
+      </DesktopShell>
 
       {/* Submission Detail Modal (read-only — Admin can see everything but
           approving/rejecting stays with Supervisors/Managers) */}

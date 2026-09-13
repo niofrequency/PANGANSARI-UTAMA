@@ -181,8 +181,11 @@ export function InspectionsTab({ store, department }: { store: ReturnType<typeof
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between px-2">
-        <h2 className="text-xl font-bold tracking-tight text-psu-gray">{t('inspection.historyTitle')}</h2>
+      <div className="flex items-center justify-between px-2 md:justify-end">
+        {/* On desktop this is reached through Supervisor/Manager
+            Portal's DesktopShell, which already shows "Inspections" as
+            the page title — this would just repeat it. */}
+        <h2 className="text-xl font-bold tracking-tight text-psu-gray md:hidden">{t('inspection.historyTitle')}</h2>
         <button
           // Housekeeping only ever does Gemba Walk here — skip straight to
           // it instead of making them choose from a picker with one option.
