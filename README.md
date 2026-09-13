@@ -155,6 +155,58 @@ comment on which parts are read verbatim from the workbook versus this
 app's own scoring assumptions where the source formula wasn't
 recoverable.
 
+## Ops Logs (paper-form digitization)
+
+A separate set of forms, one per PSU paper log, filled by the frontline
+role that owns that sheet on paper (Laundry staff, Housekeeping, or a
+Food Safety Technician) and requiring no supervisor approval — same
+"fill → submit → done" model as the Inspections audits above, one
+submission per asset/area per calendar day. Each form matches its paper
+sheet's own grain: phone shows *today's* entry, desktop (`md+`) adds a
+read-only month grid alongside it, exactly like the paper sheet's
+month/day layout. Transcribed per **`PSU_Paper_Speed_Forms_PRD.md`**:
+
+| Form | Paper code | What it captures |
+|---|---|---|
+| **Laundry Shop Daily Log** | UN.00-Laundry | 8 prefilled room lines + tap-to-add, garment counts per room |
+| **Restroom Cleaning** | UN.00.45 | One sheet, 08/11/16 slots as chips, "All Bersih" shortcut |
+| **Temperature Control** | UF.10000 | Chiller/freezer/dry assets, 5 daily slots, flags over-limit readings |
+| **Dishwash Temperature** | UN.00.51 | Cuci + bilas per location, 3 daily rounds |
+| **Mess Hall Hygiene** | UWL10001 | Today's B/R marks per area, month grid on desktop |
+| **Staff Ready (Persiapan Diri Karyawan)** | — | Shift roster prefilled from site staff, "All OK" per person |
+| **Cooking Service** | UF.09001 | Pick today's meal period first (phone), cook/install time+temp |
+| **Hot Packed Meal** | UF.09000 | Pack + cook/hold/pack time windows |
+| **Thawing** | UN.00.43 | One lot card per batch (method + product), not a giant matrix |
+
+Source data, sign-off chains, and form registration live in
+`src/data/opsLogsCatalog.ts` plus one data file per form (e.g.
+`tempControlAssets.ts`, `dishwashData.ts`, `staffReadyData.ts`); the forms
+themselves are under `src/components/OpsLogs/`.
+
+## Client-side libraries
+
+A small, deliberately curated set of free/OSS browser libraries — no new
+servers, paid APIs, or backend changes — added only where they replace
+something hand-rolled on a real screen, per **`PSU_OSS_Client_Libraries_PRD.md`**:
+
+- **`browser-image-compression`** — compresses a captured photo (≤1280px
+  long edge, JPEG ~0.7) before `PhotoCapture`'s existing canvas step burns
+  in the timestamp/GPS overlay.
+- **`zod`** — form-level validators in `src/lib/validators/` (laundry
+  submit, temp control and dishwash readings); a failed submit is blocked
+  with a toast instead of saving bad data.
+- **`sonner`** — one `<Toaster/>` in `Layout`, replacing ad-hoc `alert()`s
+  on those same saves with success/error toasts.
+- **`dexie`** — `src/lib/outboxDb.ts`, an IndexedDB retry queue in front
+  of `addSubmission` in Firebase mode: a submission made while offline is
+  queued and flushed automatically on reconnect. Firestore/Zustand remain
+  the only source of truth ever rendered on screen; the outbox only
+  tracks "hasn't reached the server yet," shown as an "Offline — N
+  pending" banner in `Layout`.
+- **`@tanstack/react-table`** — powers the existing desktop (`md+`)
+  Laundry Shop grid (sticky room column, per-garment totals footer),
+  replacing a hand-rolled `<table>`.
+
 ## Project structure
 
 ```
@@ -166,6 +218,8 @@ src/
                            General Manager)
     Inspections/           The 3 audit forms + report views + the shared
                            Inspections tab/history
+    OpsLogs/               The 9 paper-log forms (see Ops Logs above) +
+                           the shared Ops Logs tab/history
     Admin/                 Admin Portal (user/role management)
     Dashboard/             Analytics dashboard
     Auth.tsx, Layout.tsx, PhotoCapture.tsx, InstallGuide.tsx, ...
@@ -176,7 +230,12 @@ src/
     inspectionChecklistData.ts / inspectionScoring.ts    FSI audit
     gembaWalkData.ts / gembaWalkScoring.ts                GEMBA Walk
     dailyFoodHandlerData.ts / dailyFoodHandlerScoring.ts  DFH assessment
-  lib/firebase.ts          Firebase init (reads env vars, no-ops if absent)
+    opsLogsCatalog.ts, tempControlAssets.ts, dishwashData.ts,
+    staffReadyData.ts, ...                                Ops Logs forms
+  lib/
+    firebase.ts            Firebase init (reads env vars, no-ops if absent)
+    outboxDb.ts             Dexie/IndexedDB offline outbox for addSubmission
+    validators/              Zod schemas per Ops Logs form
   services/                Firebase Auth + Firestore data access
   store/useAppStore.ts     Central app state — branches between Firebase
                            mode and localStorage demo mode
