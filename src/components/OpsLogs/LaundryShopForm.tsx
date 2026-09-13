@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { Key, useEffect, useRef, useState } from 'react';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { cn } from '../../utils/cn';
 import { OpsHeaderChip, OpsFormProps, ResubmitNotice } from './opsHelpers';
@@ -6,15 +6,31 @@ import {
   LAUNDRY_GARMENT_COLUMNS, FREQUENT_GARMENT_COLUMNS, OTHER_GARMENT_COLUMNS,
   LaundryGarmentId, LaundryRoomRow, emptyLaundryRow, totalRoomCount,
 } from '../../data/laundryShopData';
-import { ChevronDown, ChevronUp, Plus, Trash2, Minus, Copy, Clock } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, Trash2, Minus, Copy, Clock, X } from 'lucide-react';
 import { useWorkingSite } from '../../hooks/useWorkingSite';
 import { ConfirmDeleteModal } from '../ConfirmDeleteModal';
+import { Modal } from '../Modal';
+import { AnimatePresence } from 'motion/react';
+
+// A fresh Laundry log starts with this many blank numbered lines already
+// on screen — paper-speed means never seeing an empty "0 items" state as
+// the first thing you do. Reopening a REJECTED entry to fix/resubmit
+// still hydrates from whatever rooms were actually saved (see the rows
+// initializer below), not padded back up to 8.
+const PREFILLED_LINE_COUNT = 8;
 
 // One garment row inside a room's Frequent/All-types list — label, a
 // minus/qty/plus stepper. Typing directly into the qty field still works
 // (fast for a big count), the +/- buttons are for the common case of
-// one or two more pieces.
+// one or two more pieces. Only ever rendered inside the mobile
+// full-screen counter editor, so the qty input is a flat 16px
+// (text-base) + inputMode="numeric" — no iOS focus-zoom, no desktop
+// variant needed.
 function GarmentCounter({ label, title, value, onChange, onBump }: {
+  // Declared (never read) purely so key={...} type-checks when this is
+  // rendered from a .map() — see ChecklistRow's identical comment in
+  // opsHelpers.tsx.
+  key?: Key;
   label: string;
   title?: string;
   value: string;
@@ -22,21 +38,21 @@ function GarmentCounter({ label, title, value, onChange, onBump }: {
   onBump: (delta: number) => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 py-2 border-b border-psu-gray/5 last:border-0">
-      <span className="text-xs font-bold text-psu-gray truncate min-w-0 flex-1" title={title}>{label}</span>
-      <div className="flex items-center gap-1.5 shrink-0">
-        <button type="button" onClick={() => onBump(-1)} className="w-8 h-8 rounded-lg bg-psu-bg border border-psu-gray/10 flex items-center justify-center text-psu-gray/50 active:scale-95 transition-all">
-          <Minus size={14} />
+    <div className="flex items-center justify-between gap-3 py-2.5 border-b border-psu-gray/5 last:border-0">
+      <span className="text-sm font-bold text-psu-gray truncate min-w-0 flex-1" title={title}>{label}</span>
+      <div className="flex items-center gap-2 shrink-0">
+        <button type="button" onClick={() => onBump(-1)} className="w-10 h-10 rounded-xl bg-psu-bg border border-psu-gray/10 flex items-center justify-center text-psu-gray/50 active:scale-95 transition-all">
+          <Minus size={16} />
         </button>
         <input
           type="text" inputMode="numeric"
           value={value}
           onChange={(e) => onChange(e.target.value.replace(/\D/g, ''))}
           placeholder="0"
-          className="w-10 text-center text-sm font-black bg-transparent focus:outline-none"
+          className="w-12 text-center text-base font-black bg-transparent focus:outline-none"
         />
-        <button type="button" onClick={() => onBump(1)} className="w-8 h-8 rounded-lg bg-psu-green/10 text-psu-green flex items-center justify-center active:scale-95 transition-all">
-          <Plus size={14} />
+        <button type="button" onClick={() => onBump(1)} className="w-10 h-10 rounded-xl bg-psu-green/10 text-psu-green flex items-center justify-center active:scale-95 transition-all">
+          <Plus size={16} />
         </button>
       </div>
     </div>
@@ -47,23 +63,28 @@ function GarmentCounter({ label, title, value, onChange, onBump }: {
 // laundry shop's own receiving log. One submit = one date, with one row
 // per room dropped off that day and a count per garment type (blank = 0).
 //
-// Mobile (<md): a thumb grid, not a wizard — add a room number, tap
-// counts on a short Frequent list (All types expands the rest), never
-// "add an item". Desktop (md+): a real spreadsheet — sticky room column,
-// one column per garment, click/Tab/Enter like the paper book. Both
-// share the same `rows` state; only the editor chrome differs by
-// breakpoint (see the md:hidden / hidden md:block split below).
+// Mobile (<md): 8 prefilled numbered lines, collapsed to # / room / total
+// pcs. Tapping a line opens a full-screen counter editor (Frequent list
+// first, All types expands the rest) — never an "add item" flow. Desktop
+// (md+): a real spreadsheet — sticky room column, one column per garment,
+// click/Tab/Enter like the paper book. Both share the same `rows` state;
+// only the editor chrome differs by breakpoint.
 export function LaundryShopForm({ store, onCancel, onSubmitted, editingSubmission }: OpsFormProps) {
   const { t } = useTranslation();
   const { currentUser, sites, addSubmission, resubmitAfterRejection } = store;
   const { workingSiteId, workingSiteName: currentSiteName, availableSites, setWorkingSiteId } = useWorkingSite(currentUser, sites);
 
-  const [rows, setRows] = useState<LaundryRoomRow[]>(
-    () => editingSubmission?.meta?.laundryRows?.map(r => ({ ...r, counts: r.counts as LaundryRoomRow['counts'] })) || [emptyLaundryRow('room-1')]
-  );
-  const [expandedId, setExpandedId] = useState<string | null>(rows[0]?.id ?? null);
+  const [rows, setRows] = useState<LaundryRoomRow[]>(() => {
+    if (editingSubmission?.meta?.laundryRows?.length) {
+      return editingSubmission.meta.laundryRows.map(r => ({ ...r, counts: r.counts as LaundryRoomRow['counts'] }));
+    }
+    return Array.from({ length: PREFILLED_LINE_COUNT }, (_, i) => emptyLaundryRow(`room-${i + 1}`));
+  });
+  // Mobile only — which room's full-screen counter editor is open. Never
+  // auto-opened on mount: the collapsed line list itself is the landing
+  // view, not a wizard step.
+  const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
   const [showAllTypes, setShowAllTypes] = useState(false);
-  const [newRoomNumber, setNewRoomNumber] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   // A tap on the trash icon used to remove a room's counts immediately,
   // with no way back — that's real data entry lost to one accidental
@@ -84,21 +105,15 @@ export function LaundryShopForm({ store, onCancel, onSubmitted, editingSubmissio
     }
   }, [focusRoomId, rows]);
 
+  // Shared by both breakpoints' "add" controls — a line only ever appends
+  // one blank row. Desktop also focuses it (see the effect above);
+  // mobile just appends it to the collapsed list for whenever the filer
+  // gets to it — no auto-opened editor, no room-number prompt.
   const addBlankRow = () => {
     const row = emptyLaundryRow(`room-${Date.now()}`);
     setRows(prev => [...prev, row]);
     setFocusRoomId(row.id);
     return row.id;
-  };
-  // Mobile's prominent "add room" field — a room appears immediately,
-  // expanded, all counts 0, instead of an empty "0 items" dead state.
-  const handleAddRoomMobile = () => {
-    const row = emptyLaundryRow(`room-${Date.now()}`);
-    row.roomNumber = newRoomNumber.trim();
-    setRows(prev => [...prev, row]);
-    setExpandedId(row.id);
-    setShowAllTypes(false);
-    setNewRoomNumber('');
   };
   const duplicateRow = (id: string) => {
     const source = rows.find(r => r.id === id);
@@ -112,7 +127,7 @@ export function LaundryShopForm({ store, onCancel, onSubmitted, editingSubmissio
       next.splice(idx + 1, 0, newRow);
       return next;
     });
-    setExpandedId(newRow.id);
+    setEditingRoomId(newRow.id);
     setShowAllTypes(false);
   };
   const removeRow = (id: string) => setRows(prev => prev.length > 1 ? prev.filter(r => r.id !== id) : prev);
@@ -128,7 +143,7 @@ export function LaundryShopForm({ store, onCancel, onSubmitted, editingSubmissio
     }));
 
   // Validation: a room number is only required once that room actually
-  // has a count in it — an empty scratch row is fine to leave blank.
+  // has a count in it — an empty scratch line is fine to leave blank.
   // Duplicate room numbers are a warning, not a block (two bags from the
   // same room in one day is a real thing).
   const invalidRowIds = new Set(rows.filter(r => totalRoomCount(r) > 0 && !r.roomNumber.trim()).map(r => r.id));
@@ -147,12 +162,14 @@ export function LaundryShopForm({ store, onCancel, onSubmitted, editingSubmissio
   const previousSubmission = store.submissions
     .filter(s => s.type === 'LAUNDRY_SHOP' && s.userId === currentUser?.id && s.meta?.laundryDate && s.meta.laundryDate < today && (s.meta?.laundryRows?.length ?? 0) > 0)
     .sort((a, b) => (b.meta?.laundryDate ?? '').localeCompare(a.meta?.laundryDate ?? ''))[0];
-  const previousRoomNumbers = Array.from(new Set(
-    (previousSubmission?.meta?.laundryRows ?? []).map(r => r.roomNumber.trim()).filter(Boolean)
+  const previousRoomNumbers: string[] = Array.from(new Set(
+    (previousSubmission?.meta?.laundryRows ?? [])
+      .map(r => r.roomNumber.trim())
+      .filter((roomNumber): roomNumber is string => roomNumber.length > 0)
   ));
   const copyYesterdayRooms = () => {
     const existing = new Set(rows.map(r => r.roomNumber.trim().toLowerCase()).filter(Boolean));
-    const toAdd = previousRoomNumbers.filter(rn => !existing.has(rn.toLowerCase()));
+    const toAdd = previousRoomNumbers.filter((rn: string) => !existing.has(rn.toLowerCase()));
     if (toAdd.length === 0) return;
     setRows(prev => [...prev, ...toAdd.map((rn, i) => {
       const row = emptyLaundryRow(`room-${Date.now()}-${i}`);
@@ -198,6 +215,8 @@ export function LaundryShopForm({ store, onCancel, onSubmitted, editingSubmissio
     onSubmitted();
   };
 
+  const editingRoom = editingRoomId ? rows.find(r => r.id === editingRoomId) : undefined;
+
   return (
     <div className="space-y-6">
       {editingSubmission && <ResubmitNotice />}
@@ -215,113 +234,62 @@ export function LaundryShopForm({ store, onCancel, onSubmitted, editingSubmissio
         <span className="text-[10px] font-black text-psu-gray/40 uppercase tracking-widest">{t('ops.laundryShop.dateLabel')}: {today}</span>
       </div>
 
-      {/* Mobile: thumb grid — add-room bar, then one card per room with a
-          Frequent stepper list (All types expands the rest). */}
-      <div className="space-y-3 md:hidden">
-        <div className="space-y-2">
-          <div className="flex gap-2">
-            <input
-              type="text" inputMode="numeric"
-              value={newRoomNumber}
-              onChange={(e) => setNewRoomNumber(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddRoomMobile(); } }}
-              placeholder={t('ops.laundryShop.roomPlaceholder')}
-              className="flex-1 min-w-0 bg-white border border-psu-gray/10 rounded-2xl px-4 py-4 text-base font-black text-psu-gray focus:outline-none focus:ring-2 focus:ring-psu-green/20"
-            />
-            <button
-              type="button" onClick={handleAddRoomMobile}
-              className="px-5 rounded-2xl bg-psu-green text-white font-black text-[10px] uppercase tracking-widest flex items-center gap-1.5 active:scale-95 transition-all shrink-0"
-            >
-              <Plus size={16} /> {t('ops.laundryShop.addRoom')}
-            </button>
-          </div>
-          {previousRoomNumbers.length > 0 && (
-            <button type="button" onClick={copyYesterdayRooms} className="w-full flex items-center justify-center gap-2 py-2.5 text-psu-blue font-black text-[9px] uppercase tracking-widest">
-              <Clock size={13} /> {t('ops.laundryShop.copyYesterday')}
-            </button>
-          )}
-        </div>
+      {/* Mobile: numbered lines, collapsed to #/room/total — tap a line
+          for the full-screen counter editor, never an inline "add item". */}
+      <div className="space-y-2 md:hidden">
+        {previousRoomNumbers.length > 0 && (
+          <button type="button" onClick={copyYesterdayRooms} className="w-full flex items-center justify-center gap-2 py-2 text-psu-blue font-black text-[9px] uppercase tracking-widest">
+            <Clock size={13} /> {t('ops.laundryShop.copyYesterday')}
+          </button>
+        )}
 
-        {rows.map(row => {
-          const expanded = expandedId === row.id;
-          const invalid = invalidRowIds.has(row.id);
-          const dup = !invalid && row.roomNumber.trim() && duplicateRoomNumbers.has(row.roomNumber.trim().toLowerCase());
-          return (
-            <div key={row.id} className="card">
-              <div className="flex items-center justify-between gap-3 cursor-pointer" onClick={() => setExpandedId(expanded ? null : row.id)}>
+        <div className="card !p-0 divide-y divide-psu-gray/5 overflow-hidden">
+          {rows.map((row, idx) => {
+            const invalid = invalidRowIds.has(row.id);
+            const dup = !invalid && row.roomNumber.trim() && duplicateRoomNumbers.has(row.roomNumber.trim().toLowerCase());
+            return (
+              <div
+                key={row.id}
+                className="flex items-center gap-3 p-4 active:bg-psu-bg/50 transition-colors"
+                onClick={() => { setEditingRoomId(row.id); setShowAllTypes(false); }}
+              >
+                <span className="text-[10px] font-black text-psu-gray/25 w-4 text-right shrink-0">{idx + 1}</span>
                 <div className="min-w-0 flex-1">
                   <input
                     type="text" value={row.roomNumber} onClick={(e) => e.stopPropagation()}
                     onChange={(e) => updateRoomNumber(row.id, e.target.value)}
                     placeholder={t('ops.laundryShop.roomPlaceholder')}
-                    className={cn("w-full bg-transparent text-lg font-black focus:outline-none", invalid ? "text-psu-rejected" : "text-psu-gray")}
+                    className={cn("w-full bg-transparent text-base font-black focus:outline-none", invalid ? "text-psu-rejected" : "text-psu-gray")}
                   />
-                  <p className="text-[9px] font-black text-psu-gray/30 uppercase tracking-widest mt-0.5">
-                    {totalRoomCount(row)} {t('ops.laundryShop.itemsUnit')}
-                  </p>
                   {invalid && <p className="text-[9px] font-bold text-psu-rejected mt-0.5">{t('ops.laundryShop.roomNumberRequired')}</p>}
                   {dup && <p className="text-[9px] font-bold text-psu-warning mt-0.5">{t('ops.laundryShop.duplicateRoomWarning', { room: row.roomNumber.trim() })}</p>}
                 </div>
+                <span className="text-[10px] font-black text-psu-gray/40 uppercase tracking-widest shrink-0">
+                  {totalRoomCount(row)} {t('ops.laundryShop.itemsUnit')}
+                </span>
                 <div className="flex items-center gap-1 shrink-0">
-                  <button onClick={(e) => { e.stopPropagation(); duplicateRow(row.id); }} className="text-psu-blue/50 p-1" aria-label={t('ops.laundryShop.duplicateRoom')}>
-                    <Copy size={16} />
+                  <button onClick={(e) => { e.stopPropagation(); duplicateRow(row.id); }} className="text-psu-blue/50 p-1.5" aria-label={t('ops.laundryShop.duplicateRoom')}>
+                    <Copy size={15} />
                   </button>
                   {rows.length > 1 && (
-                    <button onClick={(e) => { e.stopPropagation(); setRowToDelete(row.id); }} className="text-psu-rejected/50 p-1"><Trash2 size={16} /></button>
+                    <button onClick={(e) => { e.stopPropagation(); setRowToDelete(row.id); }} className="text-psu-rejected/50 p-1.5"><Trash2 size={15} /></button>
                   )}
-                  {expanded ? <ChevronUp size={18} className="text-psu-gray/30 shrink-0" /> : <ChevronDown size={18} className="text-psu-gray/30 shrink-0" />}
                 </div>
               </div>
+            );
+          })}
+        </div>
 
-              {expanded && (
-                <div className="mt-4 pt-4 border-t border-psu-gray/5 space-y-3">
-                  <div>
-                    <p className="text-[9px] font-black text-psu-gray/30 uppercase tracking-widest mb-1">{t('ops.laundryShop.frequent')}</p>
-                    {FREQUENT_GARMENT_COLUMNS.map(g => (
-                      <GarmentCounter
-                        key={g.id} label={g.labelId} title={g.labelEn}
-                        value={row.counts[g.id]}
-                        onChange={(v) => updateCount(row.id, g.id, v)}
-                        onBump={(d) => bumpCount(row.id, g.id, d)}
-                      />
-                    ))}
-                  </div>
-
-                  <button
-                    type="button" onClick={() => setShowAllTypes(s => !s)}
-                    className="w-full flex items-center justify-center gap-1.5 py-2 text-psu-gray/40 font-black text-[9px] uppercase tracking-widest"
-                  >
-                    {showAllTypes ? <ChevronUp size={14} /> : <ChevronDown size={14} />} {t('ops.laundryShop.allTypes')}
-                  </button>
-
-                  {showAllTypes && (
-                    <div>
-                      {OTHER_GARMENT_COLUMNS.map(g => (
-                        <GarmentCounter
-                          key={g.id} label={g.labelId} title={g.labelEn}
-                          value={row.counts[g.id]}
-                          onChange={(v) => updateCount(row.id, g.id, v)}
-                          onBump={(d) => bumpCount(row.id, g.id, d)}
-                        />
-                      ))}
-                    </div>
-                  )}
-
-                  <textarea
-                    value={row.keterangan}
-                    onChange={(e) => updateKeterangan(row.id, e.target.value)}
-                    placeholder={t('ops.laundryShop.keteranganPlaceholder')}
-                    className="w-full p-3 bg-psu-bg border border-psu-gray/10 rounded-xl text-xs h-16"
-                  />
-                </div>
-              )}
-            </div>
-          );
-        })}
+        <button
+          type="button" onClick={addBlankRow}
+          className="w-full flex items-center justify-center gap-2 py-3.5 border-2 border-dashed border-psu-gray/20 rounded-2xl text-psu-gray/40 font-black text-[10px] uppercase tracking-widest"
+        >
+          <Plus size={14} /> {t('ops.laundryShop.addRoom')}
+        </button>
       </div>
 
       {/* Desktop: the paper sheet — a real spreadsheet grid, not the
-          mobile accordion. Sticky room column + header, click/Tab/Enter
+          mobile line list. Sticky room column + header, click/Tab/Enter
           like the book, a totals row at the bottom. */}
       <div className="hidden md:block space-y-2">
         <p className="text-[10px] text-psu-gray/40 font-bold uppercase tracking-widest px-1">{t('ops.laundryShop.emptyGridHint')}</p>
@@ -430,10 +398,92 @@ export function LaundryShopForm({ store, onCancel, onSubmitted, editingSubmissio
         >{isSubmitting ? t('common.loading') : t('common.submit')}</button>
       </div>
 
+      {/* Mobile-only full-screen counter editor. Rendered unconditionally
+          (not inside the md:hidden block above) since Modal's backdrop is
+          position:fixed — a display:none ancestor would hide it too — and
+          it's never triggered from anywhere on desktop, so this simply
+          never opens at md+. */}
+      <AnimatePresence>
+        {editingRoom && (
+          <Modal
+            size="sm"
+            backdropClassName="p-0 sm:p-6"
+            boxClassName="w-full h-full sm:h-auto sm:max-h-[85vh] rounded-none sm:rounded-[32px] flex flex-col"
+          >
+            <div className="flex items-center justify-between gap-3 p-5 border-b border-psu-gray/5 shrink-0">
+              <div className="min-w-0 flex-1">
+                <input
+                  type="text" value={editingRoom.roomNumber}
+                  onChange={(e) => updateRoomNumber(editingRoom.id, e.target.value)}
+                  placeholder={t('ops.laundryShop.roomPlaceholder')}
+                  className="w-full bg-transparent text-xl font-black text-psu-gray focus:outline-none"
+                />
+                <p className="text-[10px] font-black text-psu-gray/30 uppercase tracking-widest mt-0.5">
+                  {totalRoomCount(editingRoom)} {t('ops.laundryShop.itemsUnit')}
+                </p>
+              </div>
+              <button onClick={() => setEditingRoomId(null)} className="w-9 h-9 rounded-full bg-psu-bg flex items-center justify-center text-psu-gray/40 shrink-0" aria-label={t('common.close')}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              <div>
+                <p className="text-[9px] font-black text-psu-gray/30 uppercase tracking-widest mb-1">{t('ops.laundryShop.frequent')}</p>
+                {FREQUENT_GARMENT_COLUMNS.map(g => (
+                  <GarmentCounter
+                    key={g.id} label={g.labelId} title={g.labelEn}
+                    value={editingRoom.counts[g.id]}
+                    onChange={(v) => updateCount(editingRoom.id, g.id, v)}
+                    onBump={(d) => bumpCount(editingRoom.id, g.id, d)}
+                  />
+                ))}
+              </div>
+
+              <button
+                type="button" onClick={() => setShowAllTypes(s => !s)}
+                className="w-full flex items-center justify-center gap-1.5 py-2.5 text-psu-gray/40 font-black text-[10px] uppercase tracking-widest"
+              >
+                {showAllTypes ? <ChevronUp size={14} /> : <ChevronDown size={14} />} {t('ops.laundryShop.allTypes')}
+              </button>
+
+              {showAllTypes && (
+                <div>
+                  {OTHER_GARMENT_COLUMNS.map(g => (
+                    <GarmentCounter
+                      key={g.id} label={g.labelId} title={g.labelEn}
+                      value={editingRoom.counts[g.id]}
+                      onChange={(v) => updateCount(editingRoom.id, g.id, v)}
+                      onBump={(d) => bumpCount(editingRoom.id, g.id, d)}
+                    />
+                  ))}
+                </div>
+              )}
+
+              <textarea
+                value={editingRoom.keterangan}
+                onChange={(e) => updateKeterangan(editingRoom.id, e.target.value)}
+                placeholder={t('ops.laundryShop.keteranganPlaceholder')}
+                className="w-full p-3 bg-psu-bg border border-psu-gray/10 rounded-xl text-base h-20"
+              />
+            </div>
+
+            <div className="p-5 border-t border-psu-gray/5 shrink-0">
+              <button
+                type="button" onClick={() => setEditingRoomId(null)}
+                className="w-full py-4 bg-psu-green text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-psu-green/20 active:scale-95 transition-all"
+              >
+                {t('common.close')}
+              </button>
+            </div>
+          </Modal>
+        )}
+      </AnimatePresence>
+
       <ConfirmDeleteModal
         open={!!rowToDelete}
         onCancel={() => setRowToDelete(null)}
-        onConfirm={() => { removeRow(rowToDelete!); setRowToDelete(null); }}
+        onConfirm={() => { removeRow(rowToDelete!); if (editingRoomId === rowToDelete) setEditingRoomId(null); setRowToDelete(null); }}
       />
     </div>
   );
