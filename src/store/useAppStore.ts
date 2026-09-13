@@ -14,7 +14,7 @@ import { subscribeUsers, updateUserRoleDoc, updateUserSiteDoc, updateUserAssigne
 import { createStaffAccountDirect } from '../services/adminCreateAccount';
 import { resetStaffCredentials } from '../services/adminResetCredentials';
 import { changeUserEmailDirect } from '../services/adminChangeEmailDirect';
-import { subscribeSubmissions, addSubmissionDoc, updateSubmissionDoc, CLEAR_FIELD } from '../services/submissionsService';
+import { subscribeSubmissions, addSubmissionDoc, updateSubmissionDoc, deleteSubmissionDoc, CLEAR_FIELD } from '../services/submissionsService';
 import { subscribeWarnings, addWarningDoc } from '../services/warningsService';
 import { subscribeFieldReports, addFieldReportDoc, updateFieldReportDoc } from '../services/fieldReportsService';
 import { subscribeCorrectiveActions, addCorrectiveActionDoc, updateCorrectiveActionDoc } from '../services/correctiveActionsService';
@@ -419,6 +419,23 @@ export function useAppStore() {
     setSubmissions(prev => [newSubmission, ...prev]);
   };
 
+  // A filer removing their own entry from their own History tab — any
+  // status, not just PENDING/REJECTED (see ConfirmDeleteModal's "type
+  // DELETE" fail-safe in front of every call site, and firestore.rules'
+  // matching allow-delete). Checked here too, not just server-side: this
+  // guards demo mode (no rules engine at all) and keeps the UI from ever
+  // showing a delete affordance callers wouldn't be allowed to use.
+  const deleteSubmission = (submissionId: string) => {
+    const target = submissions.find(s => s.id === submissionId);
+    if (!target || !currentUser || target.userId !== currentUser.id) return;
+
+    if (isFirebaseConfigured) {
+      deleteSubmissionDoc(submissionId).catch((err) => console.error('deleteSubmission failed:', err));
+      return;
+    }
+    setSubmissions(prev => prev.filter(s => s.id !== submissionId));
+  };
+
   // Named sign-off chain — every submission type now goes through one
   // (Escalations and Ops Logs merged into one mechanism; see
   // opsLogsCatalog.ts's SIGNOFF_CHAINS). Stamps a named slot (checkedBy/
@@ -478,15 +495,26 @@ export function useAppStore() {
   // so its original id/timestamp/history stay intact. Restarts the chain
   // from the first step: whatever had already been stamped before this
   // doesn't carry over, since it was stamped against the old content.
+  //
+  // Despite the name, this isn't gated on the submission actually being
+  // REJECTED anymore — a filer can edit any of their own History entries
+  // this same way (see the "Edit" affordance next to Delete on each
+  // worker portal's History row), including an already-APPROVED one.
+  // Always resetting to PENDING (and clearing every prior stamp) is
+  // exactly right there too: an approval only vouches for the content it
+  // was given, so editing that content has to send it back through
+  // review, not silently keep an approval that no longer matches what's
+  // actually on the record.
   const resubmitAfterRejection = (submissionId: string, updates: Partial<Pick<Submission, 'items' | 'meta' | 'score'>>) => {
     if (!currentUser) return;
+    const target = submissions.find(s => s.id === submissionId);
+    if (!target || target.userId !== currentUser.id) return;
     const draftedBy = { userId: currentUser.id, name: currentUser.name, staffCode: currentUser.staffCode, at: new Date().toISOString() };
 
     if (isFirebaseConfigured) {
-      const target = submissions.find(s => s.id === submissionId);
       updateSubmissionDoc(submissionId, {
         ...updates,
-        meta: { ...target?.meta, ...updates.meta, signoff: { draftedBy } },
+        meta: { ...target.meta, ...updates.meta, signoff: { draftedBy } },
         status: 'PENDING',
         rejectionReason: CLEAR_FIELD,
       }).catch((err) => console.error('resubmitAfterRejection failed:', err));
@@ -802,6 +830,7 @@ export function useAppStore() {
     loginByStaffCode,
     logout,
     addSubmission,
+    deleteSubmission,
     addSignoffStamp,
     rejectSignoff,
     resubmitAfterRejection,

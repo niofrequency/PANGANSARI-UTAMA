@@ -151,21 +151,27 @@ service cloud.firestore {
       //    rejects a still-PENDING submission — changes meta (the stamp)
       //    and/or status/rejectionReason, never the submitted answers
       //    themselves (items is not in this list).
-      // 2. The original submitter fixes and resubmits their OWN
-      //    REJECTED submission in place — changes items/meta/score and
-      //    flips status back to PENDING, clearing rejectionReason.
+      // 2. The original submitter edits their OWN entry in place from any
+      //    status — including one already APPROVED, not just REJECTED —
+      //    changes items/meta/score and always flips status back to
+      //    PENDING, clearing rejectionReason. Editing content a reviewer
+      //    already stamped has to re-enter review; there's no path here
+      //    that lets an edit keep a prior approval attached to it.
       allow update: if isSignedIn() && (
         (request.auth.uid != resource.data.userId
           && resource.data.status == 'PENDING'
           && onlyChanged(['meta', 'status', 'rejectionReason']))
         ||
         (request.auth.uid == resource.data.userId
-          && resource.data.status == 'REJECTED'
           && request.resource.data.status == 'PENDING'
           && onlyChanged(['items', 'meta', 'score', 'status', 'rejectionReason']))
       );
 
-      allow delete: if false;
+      // The original submitter may delete their own entry, any status —
+      // this is the History tab's "type DELETE to confirm" fail-safe
+      // (ConfirmDeleteModal), not a status transition. Nobody else's
+      // submissions, and never someone else deleting on your behalf.
+      allow delete: if isSignedIn() && request.auth.uid == resource.data.userId;
     }
 
     // ── warnings ────────────────────────────────────────────────────
