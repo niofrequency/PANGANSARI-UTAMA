@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { AnalyticsDashboard } from '../Dashboard/AnalyticsDashboard';
-import { LayoutDashboard, ClipboardCheck, ClipboardList, ListTodo } from 'lucide-react';
+import { LayoutDashboard, ClipboardCheck, ClipboardList, History, ListTodo } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
@@ -28,7 +28,7 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
   // departments' Ops Logs queue, below.
   const isGeneralManager = currentUser?.role === 'GENERAL_MANAGER';
   const isFoodSafety = currentUser?.role === 'FOOD_SAFETY_MANAGER' || isGeneralManager;
-  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'OPS_LOGS' | 'ACTIONS' | 'INSPECTIONS'>('DASHBOARD');
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'OPS_LOGS' | 'HISTORY' | 'ACTIONS' | 'INSPECTIONS'>('DASHBOARD');
 
   // The Dashboard tab used to get the raw, unfiltered store data — every
   // site's submissions, blended together, regardless of who was looking at
@@ -48,6 +48,7 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
   const tabs = [
     { id: 'DASHBOARD' as const, icon: LayoutDashboard, label: t('manager.tabAnalytics') },
     { id: 'OPS_LOGS' as const, icon: ClipboardList, label: t('ops.tabTitle') },
+    { id: 'HISTORY' as const, icon: History, label: t('ops.historySectionTitle') },
     { id: 'ACTIONS' as const, icon: ListTodo, label: t('correctiveAction.tabTitle') },
     ...(isFoodSafety ? [{ id: 'INSPECTIONS' as const, icon: ClipboardCheck, label: t('inspection.tabTitle') }] : []),
   ];
@@ -120,13 +121,39 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
             {(isGeneralManager || !isFoodSafety) && (
               <div className="space-y-3">
                 {isGeneralManager && <h3 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em] px-2">{t('roles.HOUSEKEEPING_MANAGER')}</h3>}
-                <OpsLogsTab store={store} department="HOUSEKEEPING" tier="manager" />
+                <OpsLogsTab store={store} department="HOUSEKEEPING" tier="manager" mode="queueOnly" />
               </div>
             )}
             {isFoodSafety && (
               <div className="space-y-3">
                 {isGeneralManager && <h3 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em] px-2">{t('roles.FOOD_SAFETY_MANAGER')}</h3>}
-                <OpsLogsTab store={store} department="FOOD_SAFETY" tier="manager" />
+                <OpsLogsTab store={store} department="FOOD_SAFETY" tier="manager" mode="queueOnly" />
+              </div>
+            )}
+          </motion.div>
+        )}
+
+        {activeTab === 'HISTORY' && (
+          <motion.div
+            key="history"
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            className="space-y-8"
+          >
+            {/* Same department split as Ops Logs above — a General
+                Manager gets both departments' History, one below the
+                other; a department Manager only gets their own. */}
+            {(isGeneralManager || !isFoodSafety) && (
+              <div className="space-y-3">
+                {isGeneralManager && <h3 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em] px-2">{t('roles.HOUSEKEEPING_MANAGER')}</h3>}
+                <OpsLogsTab store={store} department="HOUSEKEEPING" tier="manager" mode="historyOnly" />
+              </div>
+            )}
+            {isFoodSafety && (
+              <div className="space-y-3">
+                {isGeneralManager && <h3 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em] px-2">{t('roles.FOOD_SAFETY_MANAGER')}</h3>}
+                <OpsLogsTab store={store} department="FOOD_SAFETY" tier="manager" mode="historyOnly" />
               </div>
             )}
           </motion.div>

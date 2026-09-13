@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../../store/useAppStore';
-import { AlertTriangle, ClipboardCheck, ListChecks, ListTodo, MessageSquareWarning } from 'lucide-react';
+import { AlertTriangle, ClipboardCheck, History, ListChecks, ListTodo, MessageSquareWarning } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
@@ -33,7 +33,7 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled }: Supervi
   const { t } = useTranslation();
   const { currentUser, addWarning, users } = store;
   const isFoodSafety = currentUser?.role === 'FOOD_SAFETY_SUPERVISOR';
-  const [activeTab, setActiveTab] = useState<'OPS_LOGS' | 'REPORTS' | 'ACTIONS' | 'INSPECTIONS'>(startTab ?? 'OPS_LOGS');
+  const [activeTab, setActiveTab] = useState<'OPS_LOGS' | 'HISTORY' | 'REPORTS' | 'ACTIONS' | 'INSPECTIONS'>(startTab ?? 'OPS_LOGS');
   const [showWarningDialog, setShowWarningDialog] = useState(false);
   const [warningData, setWarningData] = useState({ userId: '', reason: '', severity: 'LOW' as any });
 
@@ -70,6 +70,7 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled }: Supervi
       <div className="flex bg-white rounded-2xl p-1.5 shadow-sm border border-psu-gray/5">
         {[
           { id: 'OPS_LOGS' as const, icon: ListChecks, label: t('ops.tabTitle') },
+          { id: 'HISTORY' as const, icon: History, label: t('ops.historySectionTitle') },
           { id: 'REPORTS' as const, icon: MessageSquareWarning, label: t('fieldReport.tabTitle') },
           { id: 'ACTIONS' as const, icon: ListTodo, label: t('correctiveAction.tabTitle') },
           // Housekeeping Supervisor gets this too now, restricted to
@@ -97,7 +98,11 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled }: Supervi
       )}
 
       {activeTab === 'OPS_LOGS' && (
-        <OpsLogsTab store={store} department={isFoodSafety ? 'FOOD_SAFETY' : 'HOUSEKEEPING'} tier="supervisor" />
+        <OpsLogsTab store={store} department={isFoodSafety ? 'FOOD_SAFETY' : 'HOUSEKEEPING'} tier="supervisor" mode="queueOnly" />
+      )}
+
+      {activeTab === 'HISTORY' && (
+        <OpsLogsTab store={store} department={isFoodSafety ? 'FOOD_SAFETY' : 'HOUSEKEEPING'} tier="supervisor" mode="historyOnly" />
       )}
 
       {activeTab === 'REPORTS' && (
