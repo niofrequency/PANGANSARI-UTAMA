@@ -88,9 +88,11 @@ export interface DailyFoodHandlerRosterEntry {
 // fill form under src/components/OpsLogs/.
 //
 // UF.10000 (Temperature Control) and UN.00.51 (Dishwashing Temp) were
-// removed from every worker-facing portal by request; kept out of this
-// union entirely so nothing can newly submit them.
+// removed from every worker-facing portal for a while, then restored per
+// PSU_Paper_Speed_Forms_PRD.md — the paper sheets are still in live use.
 export type OpsLogType =
+  | 'TEMP_CONTROL'       // UF.10000 — chiller/freezer/dry, 5 daily slots, one submission per asset per day
+  | 'DISHWASH_TEMP'      // UN.00.51 — cuci + bilas, 3 daily rounds, one submission per location per day
   | 'MESS_HALL_HYGIENE'  // UWL10001 — area checklist, B/R marks
   | 'COOKING_SERVICE'    // UF.09001 — cook + install time/temp per meal
   | 'HOT_PACKED_MEAL'    // UF.09000 — pack + cook/hold/pack windows
@@ -184,7 +186,7 @@ export interface Submission {
     // read-only header chip (site / department / form id / user / staff
     // code) every ops-log fill screen shows instead of handwriting lokasi
     // and ID. 'UN.00.65' kept for the room-cleaning checklist above.
-    formId?: 'UN.00.65' | 'UWL10001' | 'UF.09001' | 'UF.09000' | 'UN.00.43' | 'STAFF_READY' | 'UN.00-LAUNDRY' | 'UN.00.45';
+    formId?: 'UN.00.65' | 'UF.10000' | 'UN.00.51' | 'UWL10001' | 'UF.09001' | 'UF.09000' | 'UN.00.43' | 'STAFF_READY' | 'UN.00-LAUNDRY' | 'UN.00.45';
 
     // Named sign-off chain (PRD section 6) — logged-in user + timestamp,
     // not a signature canvas. Which of these four a given OpsLogType uses,
@@ -204,6 +206,32 @@ export interface Submission {
     // COOKING_SERVICE / HOT_PACKED_MEAL / THAWING — true if any reading on
     // this submission breached its paper limit; still saves either way.
     outOfRange?: boolean;
+
+    // Standing-sheet Pattern A forms (TEMP_CONTROL, DISHWASH_TEMP —
+    // PSU_Paper_Speed_Forms_PRD.md) — one submission per asset/location
+    // per calendar DAY, 'YYYY-MM-DD'. A desktop month grid is built by
+    // querying every submission for the same asset whose `date` falls in
+    // the month being viewed, rather than one submission per month —
+    // simpler, and it reuses every existing addSubmission/
+    // resubmitAfterRejection/signoff-chain assumption unchanged. Also
+    // reusable by any future Pattern A form that wants the same shape.
+    date?: string;
+    // TEMP_CONTROL (UF.10000) / DISHWASH_TEMP (UN.00.51) — which
+    // cabinet/machine this day's readings are for.
+    assetId?: string;
+    assetName?: string;
+    storeKind?: 'dry' | 'freezer' | 'chiller'; // TEMP_CONTROL only
+    // TEMP_CONTROL (UF.10000) — one entry per filled daily slot (08/12/
+    // 16/20/24). `by`/`at` are this slot's paraf — the filer's name and
+    // timestamp, written automatically on save, never a signature
+    // canvas. Kept separate from meta.signoff, which is the day's
+    // supervisor review chain, not the filer's own paraf.
+    tempReadings?: Record<string, { temp: string; at: string; by: string }>;
+    // DISHWASH_TEMP (UN.00.51) — one entry per filled daily round (07/
+    // 12/18), same `by`/`at` paraf convention as tempReadings above.
+    dishwashReadings?: Record<string, { cuci: string; bilas: string; at: string; by: string }>;
+    // TEMP_CONTROL / DISHWASH_TEMP — free-text notes for the day.
+    dayRemarks?: string;
 
     // MESS_HALL_HYGIENE (UWL10001)
     areaKey?: string;

@@ -17,6 +17,10 @@ import { MyActionItems } from '../CorrectiveActions/MyActionItems';
 import { ResubmitNotice, ChecklistRow, PortalHeaderRow } from '../OpsLogs/opsHelpers';
 import { SubmissionHistoryList } from '../SubmissionHistoryList';
 import { ConfirmDeleteModal } from '../ConfirmDeleteModal';
+import { TempControlForm } from '../OpsLogs/TempControlForm';
+import { DishwashForm } from '../OpsLogs/DishwashForm';
+import { titleKeyForChainType } from '../../data/opsLogsCatalog';
+import { Thermometer, Droplets, ChevronRight } from 'lucide-react';
 
 type DeepLinkStartAt = 'fridge' | 'core' | 'clean' | 'wellness';
 
@@ -57,6 +61,13 @@ export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob 
   const { t } = useTranslation();
   const { currentUser, submissions, addSubmission, trainings, completeTraining, warnings, sites } = store;
   const [activeTab, setActiveTab] = useState<'TASKS' | 'HISTORY' | 'TRAINING'>('TASKS');
+  // Additional Checks (PSU_Paper_Speed_Forms_PRD.md) — UF.10000/UN.00.51
+  // were restored as their own month-sheet forms, not folded into the
+  // daily fridge/core log above. Same tile-then-form pattern OpsLogsTab
+  // uses for its own pickable forms, just nested inside this portal's
+  // TASKS tab instead of swapping the whole screen (History/Training
+  // stay one tap away while one of these is open).
+  const [openType, setOpenType] = useState<'TEMP_CONTROL' | 'DISHWASH_TEMP' | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showValidation, setShowValidation] = useState(false);
   const [highlightSection, setHighlightSection] = useState<DeepLinkStartAt | null>(null);
@@ -269,6 +280,50 @@ export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob 
             // PSU_Desktop_PC_Layout_PRD.md), just a readable form width.
             className="space-y-6 md:max-w-3xl md:mx-auto"
           >
+            {openType ? (
+              openType === 'TEMP_CONTROL' ? (
+                <TempControlForm store={store} onCancel={() => setOpenType(null)} onSubmitted={() => setOpenType(null)} />
+              ) : (
+                <DishwashForm store={store} onCancel={() => setOpenType(null)} onSubmitted={() => setOpenType(null)} />
+              )
+            ) : (
+            <>
+            {/* Additional Checks — UF.10000/UN.00.51, restored as their
+                own standing-sheet forms (see the openType comment above).
+                Tiles only, same shape as OpsLogsTab's own fillable-forms
+                grid, so opening one doesn't disturb the daily log below. */}
+            <div className="space-y-3">
+              <h3 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em] px-2">{t('technician.additionalChecksTitle')}</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  type="button" onClick={() => setOpenType('TEMP_CONTROL')}
+                  className="card text-left flex items-center gap-3 hover:border-psu-blue/20 transition-all active:scale-98"
+                >
+                  <div className="w-11 h-11 rounded-2xl bg-psu-blue/10 text-psu-blue flex items-center justify-center shrink-0">
+                    <Thermometer size={20} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-sm font-bold text-psu-gray truncate">{t('ops.tempControl.title')}</h4>
+                    <p className="text-[9px] font-black text-psu-gray/30 uppercase tracking-widest mt-0.5">UF.10000</p>
+                  </div>
+                  <ChevronRight size={16} className="text-psu-gray/20 shrink-0" />
+                </button>
+                <button
+                  type="button" onClick={() => setOpenType('DISHWASH_TEMP')}
+                  className="card text-left flex items-center gap-3 hover:border-psu-blue/20 transition-all active:scale-98"
+                >
+                  <div className="w-11 h-11 rounded-2xl bg-psu-blue/10 text-psu-blue flex items-center justify-center shrink-0">
+                    <Droplets size={20} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-sm font-bold text-psu-gray truncate">{t('ops.dishwash.title')}</h4>
+                    <p className="text-[9px] font-black text-psu-gray/30 uppercase tracking-widest mt-0.5">UN.00.51</p>
+                  </div>
+                  <ChevronRight size={16} className="text-psu-gray/20 shrink-0" />
+                </button>
+              </div>
+            </div>
+
             {editingSubmission && <ResubmitNotice />}
             <PortalHeaderRow
               title={t('technician.dailyLogTitle')}
@@ -452,6 +507,8 @@ export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob 
                 {isSubmitting ? t('technician.submitting') : t('technician.submitButton')}
               </button>
             </div>
+            </>
+            )}
           </motion.div>
         )}
 
@@ -483,7 +540,7 @@ export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob 
                       </div>
                       <div className="min-w-0">
                         <h4 className="text-sm font-bold text-psu-gray truncate">{new Date(s.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</h4>
-                        <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5 truncate">{s.type} • ID {s.id.slice(-6)}</p>
+                        <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5 truncate">{titleKeyForChainType(s.type) ? t(titleKeyForChainType(s.type)!) : s.type} • ID {s.id.slice(-6)}</p>
                       </div>
                     </div>
                     <span className={cn(

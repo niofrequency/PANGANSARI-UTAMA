@@ -2,13 +2,13 @@
 // (PSU_Additional_Ops_Forms_PRD.md). Each entry drives the "Ops Logs"
 // picker/queue screens (OpsLogsTab.tsx) in the Supervisor and Manager
 // portals, and the dedicated worker portals (LaundryStaffPortal.tsx,
-// JanitorPortal.tsx) — so the list of forms and who owns them lives in
-// exactly one place.
+// JanitorPortal.tsx, TechnicianPortal.tsx) — so the list of forms and
+// who owns them lives in exactly one place.
 //
 // UF.10000 (Temperature Control) and UN.00.51 (Dishwashing Temp) were
-// removed from every worker-facing portal by request — frontline staff
-// don't need to see them. See git history for the removed
-// TempControlForm.tsx / DishwashForm.tsx if they're ever wanted back.
+// removed from every worker-facing portal for a while, then restored per
+// PSU_Paper_Speed_Forms_PRD.md as month-sheet editors — see
+// TempControlForm.tsx / DishwashForm.tsx.
 
 import { OpsLogType, Submission, UserRole } from '../types';
 
@@ -32,6 +32,8 @@ export type SignoffChainType = OpsLogType | 'HOUSEKEEPING' | 'FOOD_SAFETY' | 'GE
 // resubmitting (resubmitAfterRejection()) always restarts the chain from
 // the first step, regardless of how far it had gotten.
 export const SIGNOFF_CHAINS: Record<SignoffChainType, SignoffStep[]> = {
+  TEMP_CONTROL: ['checkedBy'],
+  DISHWASH_TEMP: ['checkedBy'],
   MESS_HALL_HYGIENE: ['checkedBy', 'approvedBy', 'verifiedBy'],
   COOKING_SERVICE: ['checkedBy', 'approvedBy'],
   HOT_PACKED_MEAL: ['checkedBy', 'approvedBy'],
@@ -63,6 +65,16 @@ export interface OpsLogDef {
 }
 
 export const OPS_LOG_DEFS: OpsLogDef[] = [
+  {
+    type: 'TEMP_CONTROL', formId: 'UF.10000', department: 'FOOD_SAFETY',
+    titleKey: 'ops.tempControl.title', descKey: 'ops.tempControl.desc',
+    fillerRoles: ['FOOD_SAFETY_TECHNICIAN', 'FOOD_SAFETY_SUPERVISOR'],
+  },
+  {
+    type: 'DISHWASH_TEMP', formId: 'UN.00.51', department: 'FOOD_SAFETY',
+    titleKey: 'ops.dishwash.title', descKey: 'ops.dishwash.desc',
+    fillerRoles: ['FOOD_SAFETY_TECHNICIAN', 'FOOD_SAFETY_SUPERVISOR'],
+  },
   {
     type: 'MESS_HALL_HYGIENE', formId: 'UWL10001', department: 'FOOD_SAFETY',
     titleKey: 'ops.messHall.title', descKey: 'ops.messHall.desc',

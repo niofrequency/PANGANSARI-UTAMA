@@ -21,6 +21,8 @@ import { ThawingForm } from './ThawingForm';
 import { StaffReadyForm } from './StaffReadyForm';
 import { LaundryShopForm } from './LaundryShopForm';
 import { RestroomForm } from './RestroomForm';
+import { TempControlForm } from './TempControlForm';
+import { DishwashForm } from './DishwashForm';
 import { MessHallHygienePrintSheet } from './print/MessHallHygienePrintSheet';
 import { CookingServicePrintSheet } from './print/CookingServicePrintSheet';
 import { HotPackedMealPrintSheet } from './print/HotPackedMealPrintSheet';
@@ -64,14 +66,21 @@ const isNotReadyToWork = (s: Submission) =>
 // Which OpsLogTypes actually reconstruct their form state from an
 // existing submission (see each form's own `editingSubmission` handling)
 // — Restroom and Laundry Shop's inputs map directly onto stored fields,
-// so editing them is exact. The other five (Mess Hall Hygiene, Cooking &
-// Service, Hot Packed Meal, Thawing, Staff Ready) have more deeply nested
-// per-meal/per-row state that isn't fully captured in `items`/`meta` yet
-// — until that's added, "Edit & Resubmit" stays hidden for those so a
-// reopen can't silently lose data; Reject still works for all seven.
+// so editing them is exact. TEMP_CONTROL/DISHWASH_TEMP don't take
+// editingSubmission at all: they're "one submission per asset per day"
+// standing sheets (see TempControlForm.tsx's header comment) — reopening
+// today's own entry to add another slot just means opening the form
+// again and picking the same asset, not a separate Edit flow. The other
+// four (Mess Hall Hygiene, Cooking & Service, Hot Packed Meal, Staff
+// Ready) have more deeply nested per-meal/per-row state that isn't fully
+// captured in `items`/`meta` yet — until that's added, "Edit & Resubmit"
+// stays hidden for those so a reopen can't silently lose data; Reject
+// still works for all nine.
 const EDITABLE_OPS_LOG_TYPES: OpsLogType[] = ['RESTROOM', 'LAUNDRY_SHOP'];
 
 const FORM_COMPONENTS: Record<OpsLogType, ComponentType<OpsFormProps>> = {
+  TEMP_CONTROL: TempControlForm,
+  DISHWASH_TEMP: DishwashForm,
   MESS_HALL_HYGIENE: MessHallHygieneForm,
   COOKING_SERVICE: CookingServiceForm,
   HOT_PACKED_MEAL: HotPackedMealForm,
