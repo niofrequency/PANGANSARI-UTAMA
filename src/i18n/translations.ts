@@ -664,6 +664,9 @@ export const translations = {
         title: 'Toilet Cleaning (UN.00.45)',
         desc: 'Cleanliness and supply check for one restroom section, per slot.',
         sectionLabel: 'Section / location',
+        sectionRequiredHint: 'Enter a section above to start today’s sheet.',
+        allBersih: 'All Bersih',
+        slotSaved: '{slot} saved',
         mark: {
           bersih: 'Clean',
           tidak: 'Not clean',
@@ -1393,6 +1396,9 @@ export const translations = {
         title: 'Pembersihan Toilet (UN.00.45)',
         desc: 'Pemeriksaan kebersihan dan persediaan untuk satu bagian toilet, per slot.',
         sectionLabel: 'Bagian / lokasi',
+        sectionRequiredHint: 'Masukkan bagian di atas untuk memulai lembar hari ini.',
+        allBersih: 'Semua Bersih',
+        slotSaved: '{slot} tersimpan',
         mark: {
           bersih: 'Bersih',
           tidak: 'Tidak',
