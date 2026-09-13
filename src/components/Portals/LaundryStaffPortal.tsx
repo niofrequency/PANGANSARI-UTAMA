@@ -85,7 +85,11 @@ export function LaundryStaffPortal({ store, fromQr, onDeepLinkHandled, onScanJob
 
       <AnimatePresence mode="wait">
         {activeTab === 'TASKS' && (
-          <motion.div key="tasks" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} className="space-y-6 md:max-w-3xl md:mx-auto">
+          // Not capped at md:max-w-3xl like the other frontline portals'
+          // Tasks tab — LaundryShopForm's desktop editor is a spreadsheet
+          // (one column per garment type) that needs the full main-pane
+          // width, not a phone-width form centered on a wide screen.
+          <motion.div key="tasks" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} className="space-y-6">
             <PortalHeaderRow
               title={t('ops.laundryShop.title')}
               controls={<>

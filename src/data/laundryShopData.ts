@@ -48,3 +48,24 @@ export function emptyLaundryRow(id: string): LaundryRoomRow {
   for (const g of LAUNDRY_GARMENT_COLUMNS) counts[g.id] = '';
   return { id, roomNumber: '', counts, keterangan: '' };
 }
+
+// Mobile's default garment list before "All types" is expanded — the
+// types housekeeping actually drops off most days, so a room doesn't
+// mean scrolling all 28 rows to find Handuk. Order matches the PRD's own
+// list. Every id here must already exist in LAUNDRY_GARMENT_COLUMNS.
+export const FREQUENT_GARMENT_IDS: LaundryGarmentId[] = [
+  'handuk', 'kaos', 'celana_pendek', 'celana_panjang',
+  'seprei', 'selimut', 'sarung_bantal', 'kaos_kaki',
+];
+
+export const FREQUENT_GARMENT_COLUMNS = FREQUENT_GARMENT_IDS.map(
+  id => LAUNDRY_GARMENT_COLUMNS.find(g => g.id === id)!
+);
+export const OTHER_GARMENT_COLUMNS = LAUNDRY_GARMENT_COLUMNS.filter(
+  g => !(FREQUENT_GARMENT_IDS as string[]).includes(g.id)
+);
+
+// Piece count for one room row, across every garment column.
+export function totalRoomCount(row: LaundryRoomRow): number {
+  return (Object.values(row.counts) as string[]).reduce((sum, v) => sum + (parseInt(v, 10) || 0), 0);
+}
