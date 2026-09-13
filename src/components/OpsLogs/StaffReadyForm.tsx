@@ -4,13 +4,18 @@ import { useTranslation } from '../../i18n/LanguageContext';
 import { cn } from '../../utils/cn';
 import { OpsHeaderChip } from './opsHelpers';
 import { STAFF_READY_GROUPS, STAFF_READY_POSITIONS, StaffReadyRow, emptyStaffReadyRow } from '../../data/staffReadyData';
-import { ChevronDown, ChevronUp, Plus, Trash2, UserPlus } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, Plus, Trash2, UserPlus } from 'lucide-react';
 import { useWorkingSite } from '../../hooks/useWorkingSite';
 import { ConfirmDeleteModal } from '../ConfirmDeleteModal';
 
 // Checklist Persiapan Diri Karyawan — a shift roster, not the Daily Food
-// Handler self-check (Inspections tab). Pulls names from active users at
-// this site as a starting point; extra names can be typed in too.
+// Handler self-check (Inspections tab). Starts prefilled with every
+// active Food Safety Technician at this site as their own row (empty
+// marks) instead of an empty list + "add" — same paper-speed idea as
+// Laundry's 8 prefilled lines. "All OK" per person bulk-fills the
+// passing mark down every group for that one row; exceptions still get
+// tapped individually. Extra names (contractors, a name not yet in the
+// roster) can still be typed in.
 export function StaffReadyForm({ store, onCancel, onSubmitted }: {
   store: ReturnType<typeof useAppStore>;
   onCancel: () => void;
@@ -30,7 +35,11 @@ export function StaffReadyForm({ store, onCancel, onSubmitted }: {
   const siteStaff = users.filter(u => u.site === workingSiteId && u.role === 'FOOD_SAFETY_TECHNICIAN');
 
   const [shift, setShift] = useState<'day' | 'night'>('day');
-  const [rows, setRows] = useState<StaffReadyRow[]>([]);
+  // Prefilled once at mount from whichever site this form opened on —
+  // switching sites afterward via the picker doesn't re-derive this list
+  // (would silently drop anything already marked), it just changes who
+  // "Add from roster" offers next.
+  const [rows, setRows] = useState<StaffReadyRow[]>(() => siteStaff.map(u => emptyStaffReadyRow(`r-${u.id}`, u.name, u.id)));
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Same type-DELETE-to-confirm fail-safe as AdminPortal.tsx's delete-user
@@ -53,10 +62,22 @@ export function StaffReadyForm({ store, onCancel, onSubmitted }: {
   const removeRow = (id: string) => setRows(prev => prev.filter(r => r.id !== id));
   const updateRow = (id: string, patch: Partial<StaffReadyRow>) => setRows(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r));
   const setMark = (id: string, itemId: string, mark: string) => setRows(prev => prev.map(r => r.id === id ? { ...r, marks: { ...r.marks, [itemId]: mark } } : r));
+  const markAllOk = (id: string) => setRows(prev => prev.map(r => {
+    if (r.id !== id) return r;
+    const marks = { ...r.marks };
+    STAFF_READY_GROUPS.forEach(g => g.items.forEach(i => { marks[i.id] = g.passingMark; }));
+    return { ...r, marks, fhCardValid: true };
+  }));
 
   const totalItems = STAFF_READY_GROUPS.reduce((n, g) => n + g.items.length, 0);
   const rowComplete = (r: StaffReadyRow) => r.name.trim() && r.position && Object.keys(r.marks).length === totalItems;
-  const canSubmit = rows.length > 0 && rows.every(rowComplete);
+  const filledRows = rows.filter(r => r.name.trim());
+  const canSubmit = filledRows.length > 0 && filledRows.every(rowComplete);
+  // Passing means every mark matches its OWN group's passing value — not
+  // just "every mark is Y or B": penyakit's passing mark is T (no
+  // symptom), so a stray Y there must fail the row like any other
+  // exception would.
+  const rowPasses = (r: StaffReadyRow) => STAFF_READY_GROUPS.every(g => g.items.every(i => r.marks[i.id] === g.passingMark)) && r.fhCardValid;
 
   const handleSubmit = async () => {
     if (!canSubmit || !currentUser) return;
@@ -66,10 +87,10 @@ export function StaffReadyForm({ store, onCancel, onSubmitted }: {
       userId: currentUser.id, userName: currentUser.name, role: currentUser.role,
       siteId: workingSiteId, siteName: currentSiteName, timestamp: new Date().toISOString(),
       type: 'STAFF_READY', status: 'PENDING',
-      items: rows.map(r => ({
+      items: filledRows.map(r => ({
         id: r.id,
         question: `${r.name} (${r.position})`,
-        answer: Object.values(r.marks).every(m => m === 'Y' || m === 'B'),
+        answer: rowPasses(r),
         remarks: [
           r.bodyTempC ? `${r.bodyTempC}°C` : '',
           !r.fhCardValid ? t('ops.staffReady.fhCardInvalid') : '',
@@ -100,8 +121,8 @@ export function StaffReadyForm({ store, onCancel, onSubmitted }: {
         </div>
       </div>
 
-      {siteStaff.length > 0 && (
-        <div className="card space-y-2">
+      {siteStaff.some(u => !rows.some(r => r.userId === u.id)) && (
+        <div className="card space-y-2 md:hidden">
           <label className="block text-[10px] font-black text-psu-gray/40 uppercase tracking-widest">{t('ops.staffReady.addFromRosterLabel')}</label>
           <select onChange={(e) => { if (e.target.value) addFromRoster(e.target.value); e.target.value = ''; }} className="w-full p-3 bg-psu-bg border border-psu-gray/10 rounded-xl text-sm font-bold" defaultValue="">
             <option value="">{t('ops.staffReady.addFromRosterPlaceholder')}</option>
@@ -110,10 +131,12 @@ export function StaffReadyForm({ store, onCancel, onSubmitted }: {
         </div>
       )}
 
-      <div className="space-y-3">
+      {/* Mobile: prefilled roster rows, expand for the full checklist. */}
+      <div className="space-y-3 md:hidden">
         {rows.map(row => {
           const expanded = expandedId === row.id;
           const markedCount = Object.keys(row.marks).length;
+          const allOk = markedCount === totalItems;
           return (
             <div key={row.id} className="card">
               <div className="flex items-center justify-between gap-3 cursor-pointer" onClick={() => setExpandedId(expanded ? null : row.id)}>
@@ -132,6 +155,11 @@ export function StaffReadyForm({ store, onCancel, onSubmitted }: {
                     {row.position ? STAFF_READY_POSITIONS.find(p => p.id === row.position)?.labelId : t('ops.staffReady.noPosition')} · {markedCount}/{totalItems}
                   </p>
                 </div>
+                {!allOk && (
+                  <button onClick={(e) => { e.stopPropagation(); markAllOk(row.id); }} className="flex items-center gap-1 px-2.5 py-1.5 bg-psu-green/10 text-psu-green rounded-lg text-[9px] font-black uppercase tracking-widest shrink-0">
+                    <Check size={12} /> {t('ops.staffReady.allOk')}
+                  </button>
+                )}
                 <button onClick={(e) => { e.stopPropagation(); setRowToDelete(row.id); }} className="text-psu-rejected/50 shrink-0"><Trash2 size={16} /></button>
                 {expanded ? <ChevronUp size={18} className="text-psu-gray/30 shrink-0" /> : <ChevronDown size={18} className="text-psu-gray/30 shrink-0" />}
               </div>
@@ -162,7 +190,7 @@ export function StaffReadyForm({ store, onCancel, onSubmitted }: {
                                 <button key={opt} type="button" onClick={() => setMark(row.id, item.id, opt)}
                                   className={cn("w-8 h-8 rounded-lg text-[10px] font-black transition-all",
                                     row.marks[item.id] === opt
-                                      ? (opt === 'T' || opt === 'J' ? "bg-psu-rejected text-white" : opt === 'C' ? "bg-psu-warning text-white" : "bg-psu-green text-white")
+                                      ? (opt === group.passingMark ? "bg-psu-green text-white" : opt === 'C' ? "bg-psu-warning text-white" : "bg-psu-rejected text-white")
                                       : "bg-psu-bg text-psu-gray/30 border border-psu-gray/10")}
                                 >{opt}</button>
                               ))}
@@ -178,11 +206,11 @@ export function StaffReadyForm({ store, onCancel, onSubmitted }: {
                       <input type="checkbox" checked={row.fhCardValid} onChange={(e) => updateRow(row.id, { fhCardValid: e.target.checked })} />
                       <span className="text-[10px] font-black text-psu-gray/60 uppercase">{t('ops.staffReady.fhCardLabel')}</span>
                     </label>
-                    <input type="number" step="0.1" value={row.bodyTempC} onChange={(e) => updateRow(row.id, { bodyTempC: e.target.value })}
-                      placeholder={t('ops.staffReady.bodyTempLabel')} className="bg-psu-bg border border-psu-gray/10 rounded-xl p-3 text-xs font-bold" />
+                    <input type="text" inputMode="decimal" value={row.bodyTempC} onChange={(e) => updateRow(row.id, { bodyTempC: e.target.value.replace(/[^0-9.]/g, '') })}
+                      placeholder={t('ops.staffReady.bodyTempLabel')} className="bg-psu-bg border border-psu-gray/10 rounded-xl p-3 text-base font-bold" />
                   </div>
                   <textarea value={row.remark} onChange={(e) => updateRow(row.id, { remark: e.target.value })}
-                    placeholder={t('ops.remarkPlaceholder')} className="w-full p-3 bg-psu-bg border border-psu-gray/10 rounded-xl text-xs h-16" />
+                    placeholder={t('ops.remarkPlaceholder')} className="w-full p-3 bg-psu-bg border border-psu-gray/10 rounded-xl text-base h-16" />
                 </div>
               )}
             </div>
@@ -192,6 +220,20 @@ export function StaffReadyForm({ store, onCancel, onSubmitted }: {
         <button onClick={addBlankRow} className="w-full flex items-center justify-center gap-2 py-4 border-2 border-dashed border-psu-gray/20 rounded-2xl text-psu-gray/40 font-black text-[10px] uppercase tracking-widest">
           <UserPlus size={16} /> {t('ops.staffReady.addBlank')}
         </button>
+      </div>
+
+      {/* Desktop: a roster table — names x every group item, click cells,
+          FH card + body temp + remark columns. */}
+      <div className="hidden md:block">
+        <StaffReadyDesktopTable
+          rows={rows}
+          onUpdateRow={updateRow}
+          onSetMark={setMark}
+          onMarkAllOk={markAllOk}
+          onDeleteRow={(id) => setRowToDelete(id)}
+          onAddBlankRow={addBlankRow}
+          totalItems={totalItems}
+        />
       </div>
 
       <div className="flex gap-3">
@@ -206,6 +248,117 @@ export function StaffReadyForm({ store, onCancel, onSubmitted }: {
         onCancel={() => setRowToDelete(null)}
         onConfirm={() => { removeRow(rowToDelete!); setRowToDelete(null); }}
       />
+    </div>
+  );
+}
+
+// Desktop roster table — sticky name column, one compact column per
+// group item (Y/T or B/C/J toggle buttons, not free text), FH Card,
+// body temp, remark. Same sticky-header/sticky-column pattern as
+// LaundryShopForm's desktop grid.
+function StaffReadyDesktopTable({
+  rows, onUpdateRow, onSetMark, onMarkAllOk, onDeleteRow, onAddBlankRow, totalItems,
+}: {
+  rows: StaffReadyRow[];
+  onUpdateRow: (id: string, patch: Partial<StaffReadyRow>) => void;
+  onSetMark: (id: string, itemId: string, mark: string) => void;
+  onMarkAllOk: (id: string) => void;
+  onDeleteRow: (id: string) => void;
+  onAddBlankRow: () => void;
+  totalItems: number;
+}) {
+  const { t } = useTranslation();
+  const allItems = STAFF_READY_GROUPS.flatMap(g => g.items.map(i => ({ ...i, group: g })));
+
+  return (
+    <div className="bg-white rounded-xl border border-psu-gray/10 overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full border-separate border-spacing-0 text-xs">
+          <thead>
+            <tr>
+              <th className="sticky left-0 top-0 z-20 bg-psu-bg border-b border-r border-psu-gray/10 px-2 py-2 text-left align-middle text-[9px] font-black text-psu-gray/50 uppercase tracking-widest w-40 min-w-[10rem]">{t('ops.staffReady.namePlaceholder')}</th>
+              {allItems.map(item => (
+                <th key={item.id} title={item.labelId} style={{ height: '92px' }} className="sticky top-0 z-10 bg-psu-bg border-b border-psu-gray/10 px-0.5 py-2 align-bottom text-[8px] font-black text-psu-gray/40 uppercase w-9 min-w-[2.25rem]">
+                  <span style={{ writingMode: 'vertical-rl' }} className="whitespace-nowrap">{item.labelId}</span>
+                </th>
+              ))}
+              <th className="sticky top-0 z-10 bg-psu-bg border-b border-psu-gray/10 px-2 py-2 text-center text-[9px] font-black text-psu-gray/50 uppercase w-20">{t('ops.staffReady.fhCardLabel')}</th>
+              <th className="sticky top-0 z-10 bg-psu-bg border-b border-psu-gray/10 px-2 py-2 text-center text-[9px] font-black text-psu-gray/50 uppercase w-16">°C</th>
+              <th className="sticky top-0 z-10 bg-psu-bg border-b border-psu-gray/10 px-2 py-2 text-left text-[9px] font-black text-psu-gray/50 uppercase min-w-[140px]">{t('ops.remarkLabel')}</th>
+              <th className="sticky top-0 z-10 bg-psu-bg border-b border-psu-gray/10 w-16" />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(row => {
+              const markedCount = Object.keys(row.marks).length;
+              const allOk = markedCount === totalItems;
+              return (
+                <tr key={row.id} className="hover:bg-psu-bg/40 transition-colors">
+                  <td className="sticky left-0 z-10 bg-white border-b border-r border-psu-gray/10 px-2 py-1.5 align-middle">
+                    {row.userId ? (
+                      <p className="text-xs font-bold text-psu-gray truncate">{row.name}</p>
+                    ) : (
+                      <input
+                        type="text" value={row.name} onChange={(e) => onUpdateRow(row.id, { name: e.target.value })}
+                        placeholder={t('ops.staffReady.namePlaceholder')}
+                        className="w-full bg-transparent text-xs font-bold text-psu-gray focus:outline-none"
+                      />
+                    )}
+                  </td>
+                  {allItems.map(item => {
+                    const options = item.group.markType === 'yn' ? ['Y', 'T'] : ['B', 'C', 'J'];
+                    const current = row.marks[item.id];
+                    return (
+                      <td key={item.id} className="border-b border-psu-gray/5 px-0.5 py-1 align-middle text-center">
+                        <div className="flex items-center justify-center gap-0.5">
+                          {options.map(opt => (
+                            <button
+                              key={opt} type="button" onClick={() => onSetMark(row.id, item.id, opt)}
+                              className={cn("w-5 h-5 rounded text-[8px] font-black transition-all",
+                                current === opt
+                                  ? (opt === item.group.passingMark ? "bg-psu-green text-white" : opt === 'C' ? "bg-psu-warning text-white" : "bg-psu-rejected text-white")
+                                  : "bg-psu-bg text-psu-gray/30")}
+                            >{opt}</button>
+                          ))}
+                        </div>
+                      </td>
+                    );
+                  })}
+                  <td className="border-b border-psu-gray/5 px-2 py-1.5 align-middle text-center">
+                    <input type="checkbox" checked={row.fhCardValid} onChange={(e) => onUpdateRow(row.id, { fhCardValid: e.target.checked })} />
+                  </td>
+                  <td className="border-b border-psu-gray/5 px-1 py-1.5 align-middle">
+                    <input type="text" inputMode="decimal" value={row.bodyTempC} onChange={(e) => onUpdateRow(row.id, { bodyTempC: e.target.value.replace(/[^0-9.]/g, '') })}
+                      className="w-full bg-transparent text-center text-xs font-bold text-psu-gray focus:outline-none" />
+                  </td>
+                  <td className="border-b border-psu-gray/5 px-2 py-1.5 align-middle">
+                    <input type="text" value={row.remark} onChange={(e) => onUpdateRow(row.id, { remark: e.target.value })}
+                      className="w-full bg-transparent text-[11px] font-medium text-psu-gray focus:outline-none" />
+                  </td>
+                  <td className="border-b border-psu-gray/5 px-2 py-1.5 align-middle">
+                    <div className="flex items-center justify-end gap-2">
+                      {!allOk && (
+                        <button type="button" onClick={() => onMarkAllOk(row.id)} className="text-psu-green" title={t('ops.staffReady.allOk')}>
+                          <Check size={14} />
+                        </button>
+                      )}
+                      <button type="button" onClick={() => onDeleteRow(row.id)} className="text-psu-rejected/40 hover:text-psu-rejected transition-colors">
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <button
+        type="button" onClick={onAddBlankRow}
+        className="w-full flex items-center justify-center gap-2 py-3 border-t border-dashed border-psu-gray/20 text-psu-gray/40 font-black text-[10px] uppercase tracking-widest hover:text-psu-gray/60 transition-colors"
+      >
+        <Plus size={14} /> {t('ops.staffReady.addBlank')}
+      </button>
     </div>
   );
 }

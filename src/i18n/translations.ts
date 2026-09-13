@@ -686,6 +686,7 @@ export const translations = {
         title: 'Mess Hall Hygiene (UWL10001)',
         desc: 'Cleanliness and condition check for a mess hall storage area.',
         areaLabel: 'Area',
+        monthGridTitle: 'Area {area} — this month',
       },
       restroom: {
         title: 'Toilet Cleaning (UN.00.45)',
@@ -750,6 +751,7 @@ export const translations = {
         fhCardInvalid: 'FH card not valid',
         bodyTempLabel: 'Body temp (°C)',
         addBlank: 'Add staff',
+        allOk: 'All OK',
       },
       laundryShop: {
         title: 'Laundry Shop Daily Log',
@@ -1443,6 +1445,7 @@ export const translations = {
         title: 'Kebersihan Mess Hall (UWL10001)',
         desc: 'Pemeriksaan kebersihan dan kondisi area penyimpanan mess hall.',
         areaLabel: 'Area',
+        monthGridTitle: 'Area {area} — bulan ini',
       },
       restroom: {
         title: 'Pembersihan Toilet (UN.00.45)',
@@ -1507,6 +1510,7 @@ export const translations = {
         fhCardInvalid: 'FH card tidak berlaku',
         bodyTempLabel: 'Suhu tubuh (°C)',
         addBlank: 'Tambah staf',
+        allOk: 'Semua OK',
       },
       laundryShop: {
         title: 'Daily Check List — Laundryshop',
