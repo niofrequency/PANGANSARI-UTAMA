@@ -123,8 +123,8 @@ export function Login({ onLogin, onLoginWithGoogle, onSwitchToStaffId }: LoginPr
               sites. The FM mark itself isn't wired in yet (see PR
               description) — not translated: it's a fixed designation, not
               UI copy. */}
-          <div className="flex items-center gap-2 mt-3">
-            <span className="text-psu-gray/30 text-[10px] font-bold uppercase tracking-widest">IN PTFI</span>
+          <div className="flex items-center gap-2 mt-1.5">
+            <span className="text-psu-gray/40 text-[10px] font-bold uppercase tracking-widest">IN PTFI</span>
           </div>
         </div>
 
