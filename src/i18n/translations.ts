@@ -25,7 +25,7 @@ export const translations = {
       printButton: 'Print',
     },
     history: {
-      searchPlaceholder: 'Search by room, name, or ID...',
+      searchPlaceholder: 'Search by room or name...',
       filterToday: 'Today',
       filter7d: '7 days',
       filter30d: '30 days',
@@ -741,7 +741,7 @@ export const translations = {
       printButton: 'Cetak',
     },
     history: {
-      searchPlaceholder: 'Cari berdasarkan kamar, nama, atau ID...',
+      searchPlaceholder: 'Cari berdasarkan kamar atau nama...',
       filterToday: 'Hari ini',
       filter7d: '7 hari',
       filter30d: '30 hari',

@@ -7,16 +7,19 @@ import { DateFilterBar } from './DateFilterBar';
 
 // Everything a submission carries that a person filing/reviewing dozens of
 // these might actually search for — room/barak (Room Cleaning), staff
-// name, site, form type, and the short ID shown in every history card.
-// One free-text box against all of these beats separate "search by room"
-// / "search by name" fields: the person doesn't have to know which box a
-// term belongs in.
+// name, site, and form type. One free-text box against all of these beats
+// separate "search by room" / "search by name" fields: the person doesn't
+// have to know which box a term belongs in.
+//
+// Deliberately excludes the submission's own id — it's an internal,
+// unmemorable string nobody actually searches by; showing it as a search
+// dimension in the placeholder just confused people into thinking it was
+// meant to be typed in.
 function searchHaystack(s: Submission): string {
   return [
     s.userName,
     s.siteName,
     s.type,
-    s.id,
     s.meta?.roomId,
     s.meta?.barak,
     s.meta?.areaAudited,
