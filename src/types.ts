@@ -122,6 +122,16 @@ export interface Submission {
     // (carried in `remarks` above).
     correctiveAction?: string;
     comment?: string;
+    // Non-conformity assignment (GEMBA_WALK 'Not Conform' / FOOD_SAFETY_
+    // INSPECTION 'C' items only) — who's responsible for the corrective
+    // action above and by when. When both are filled at submit time,
+    // InspectionsTab.tsx also spawns a real CorrectiveAction record (see
+    // useAppStore.ts's addCorrectiveAction) so the assignee actually sees
+    // it as a tracked, closeable task — not just descriptive text nobody
+    // owns.
+    assignedToId?: string;
+    assignedToName?: string;
+    dueDate?: string; // ISO date (yyyy-mm-dd), same convention as CorrectiveAction.dueDate
   }[];
   notes?: string;
   rejectionReason?: string;

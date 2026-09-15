@@ -13,7 +13,7 @@ import {
   THREE_IN_A_ROW_STEPS,
 } from '../../data/gembaWalkData';
 import { scoreGembaEvaluations } from '../../data/gembaWalkScoring';
-import { Submission } from '../../types';
+import { Submission, User } from '../../types';
 import { ResubmitNotice } from '../OpsLogs/opsHelpers';
 
 const EVAL_KEY: Record<GembaEvaluation, string> = {
@@ -45,9 +45,13 @@ interface Props {
   // needed, no lossy reconstruction like some Ops Log forms need). See
   // InspectionsTab.tsx's "Fix & Resubmit" button.
   editingSubmission?: Submission;
+  // Who a Not Conform item's corrective action can be assigned to —
+  // computed once by InspectionsTab.tsx (site + department scoped, same
+  // rule as CorrectiveActionsTab's own assignableUsers).
+  assignableUsers: User[];
 }
 
-export function GembaWalkForm({ onSubmit, onCancel, inspectorName, sections, editingSubmission }: Props) {
+export function GembaWalkForm({ onSubmit, onCancel, inspectorName, sections, editingSubmission, assignableUsers }: Props) {
   const { t, language } = useTranslation();
   const [project, setProject] = useState(editingSubmission?.meta?.project || '');
   const [unit, setUnit] = useState(editingSubmission?.meta?.unit || '');
@@ -71,6 +75,19 @@ export function GembaWalkForm({ onSubmit, onCancel, inspectorName, sections, edi
   const [comments, setComments] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
     editingSubmission?.items.forEach(i => { if (i.comment) initial[i.id] = i.comment; });
+    return initial;
+  });
+  // Non-conformity assignment — who's fixing a Not Conform item's
+  // corrective action, and by when. See types.ts's item.assignedToId/
+  // dueDate comment for why this also spawns a real CorrectiveAction.
+  const [assignees, setAssignees] = useState<Record<string, string>>(() => {
+    const initial: Record<string, string> = {};
+    editingSubmission?.items.forEach(i => { if (i.assignedToId) initial[i.id] = i.assignedToId; });
+    return initial;
+  });
+  const [dueDates, setDueDates] = useState<Record<string, string>>(() => {
+    const initial: Record<string, string> = {};
+    editingSubmission?.items.forEach(i => { if (i.dueDate) initial[i.id] = i.dueDate; });
     return initial;
   });
   const [positives, setPositives] = useState(editingSubmission?.meta?.threeInARowNotes?.positives || '');
@@ -131,6 +148,9 @@ export function GembaWalkForm({ onSubmit, onCancel, inspectorName, sections, edi
       remarks: observations[item.id]?.trim() || undefined,
       correctiveAction: correctiveActions[item.id]?.trim() || undefined,
       comment: comments[item.id]?.trim() || undefined,
+      assignedToId: assignees[item.id] || undefined,
+      assignedToName: assignees[item.id] ? assignableUsers.find(u => u.id === assignees[item.id])?.name : undefined,
+      dueDate: dueDates[item.id] || undefined,
     }));
 
     onSubmit({
@@ -264,8 +284,9 @@ export function GembaWalkForm({ onSubmit, onCancel, inspectorName, sections, edi
                           return (
                             <div key={item.id} className={cn("p-5 space-y-3", missing && "bg-psu-rejected/5")}>
                               <div>
-                                <p className="text-xs text-psu-gray/70 font-medium leading-relaxed">{item.descEn}</p>
-                                <p className="text-xs text-psu-gray/40 font-medium leading-relaxed italic mt-1">{item.descId}</p>
+                                <p className="text-xs text-psu-gray/70 font-medium leading-relaxed">
+                                  {language === 'id' ? item.descId : item.descEn}
+                                </p>
                               </div>
 
                               <div className="flex gap-2 flex-wrap">
@@ -297,6 +318,25 @@ export function GembaWalkForm({ onSubmit, onCancel, inspectorName, sections, edi
                                     placeholder={t('gemba.correctiveActionPlaceholder')}
                                     className="w-full p-3 bg-psu-bg border border-psu-gray/10 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-psu-blue/20"
                                   />
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <select
+                                      value={assignees[item.id] || ''}
+                                      onChange={e => setAssignees(p => ({ ...p, [item.id]: e.target.value }))}
+                                      className="w-full p-3 bg-psu-bg border border-psu-gray/10 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-psu-blue/20"
+                                    >
+                                      <option value="">{t('gemba.assigneePlaceholder')}</option>
+                                      {assignableUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                                    </select>
+                                    <div>
+                                      <label className="block text-[8px] font-black text-psu-gray/30 uppercase tracking-widest mb-1">{t('gemba.dueDateLabel')}</label>
+                                      <input
+                                        type="date"
+                                        value={dueDates[item.id] || ''}
+                                        onChange={e => setDueDates(p => ({ ...p, [item.id]: e.target.value }))}
+                                        className="w-full p-3 bg-psu-bg border border-psu-gray/10 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-psu-blue/20"
+                                      />
+                                    </div>
+                                  </div>
                                 </div>
                               )}
                               <input
