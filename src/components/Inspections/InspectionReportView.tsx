@@ -105,6 +105,13 @@ export function InspectionReportView({ submission, onBack }: { submission: Submi
               </span>
             </div>
             {item.remarks && <p className="text-[11px] text-psu-gray/50 font-medium italic">{item.remarks}</p>}
+            {item.correctiveAction && <p className="text-[11px] text-psu-gray/50 font-medium italic">{t('inspection.correctiveActionLabel')}: {item.correctiveAction}</p>}
+            {item.assignedToName && (
+              <p className="text-[11px] text-psu-blue font-bold">
+                {t('inspection.assignedToDisplay', { name: item.assignedToName })}
+                {item.dueDate ? ` · ${t('inspection.dueDateDisplay', { date: item.dueDate })}` : ''}
+              </p>
+            )}
           </div>
         ))}
       </div>

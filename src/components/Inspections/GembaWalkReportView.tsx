@@ -102,6 +102,12 @@ export function GembaWalkReportView({ submission, onBack }: { submission: Submis
             {item.remarks && <p className="text-[11px] text-psu-gray/50 font-medium italic">{t('gemba.observationLabel')}: {item.remarks}</p>}
             {item.correctiveAction && <p className="text-[11px] text-psu-gray/50 font-medium italic">{t('gemba.correctiveActionLabel')}: {item.correctiveAction}</p>}
             {item.comment && <p className="text-[11px] text-psu-gray/50 font-medium italic">{t('gemba.commentLabel')}: {item.comment}</p>}
+            {item.assignedToName && (
+              <p className="text-[11px] text-psu-blue font-bold">
+                {t('gemba.assignedToDisplay', { name: item.assignedToName })}
+                {item.dueDate ? ` · ${t('gemba.dueDateDisplay', { date: item.dueDate })}` : ''}
+              </p>
+            )}
           </div>
         ))}
       </div>

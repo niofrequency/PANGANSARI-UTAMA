@@ -42,9 +42,30 @@ function scoreColor(score?: number) {
 // approval (OpsLogsTab.tsx), same as a daily Housekeeping/Food Safety
 // submission — and can come back REJECTED, fixed in place here, and
 // resubmitted (see editingSubmission below).
+// Same department-derivation rule as CorrectiveActionsTab's own local copy
+// — kept duplicated rather than shared since it's a 3-line role-prefix
+// check, not real logic worth a shared import for.
+function departmentOfRole(role: string): 'HOUSEKEEPING' | 'FOOD_SAFETY' | null {
+  if (role.startsWith('HOUSEKEEPING')) return 'HOUSEKEEPING';
+  if (role.startsWith('FOOD_SAFETY')) return 'FOOD_SAFETY';
+  return null;
+}
+
 export function InspectionsTab({ store, department }: { store: ReturnType<typeof useAppStore>; department: 'HOUSEKEEPING' | 'FOOD_SAFETY' }) {
   const { t } = useTranslation();
-  const { currentUser, submissions, addSubmission, resubmitAfterRejection, sites } = store;
+  const { currentUser, users, submissions, addSubmission, addCorrectiveAction, resubmitAfterRejection, sites } = store;
+
+  // Who a Gemba Walk / Food Safety Inspection non-conformity's corrective
+  // action can be assigned to — same site + department scoping rule as
+  // CorrectiveActionsTab's own assignableUsers, so an assignment made
+  // here behaves exactly like one made by hand in that tab.
+  const assignableUsers = users.filter(u =>
+    u.id !== currentUser?.id
+    && u.isActive
+    && userCanSeeSite(currentUser, u.site)
+    && departmentOfRole(u.role) === department
+  );
+
   const [view, setView] = useState<'LIST' | 'PICKER' | 'NEW_FSI' | 'NEW_GEMBA' | 'NEW_DFH'>('LIST');
   const [selected, setSelected] = useState<Submission | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -57,6 +78,35 @@ export function InspectionsTab({ store, department }: { store: ReturnType<typeof
   const currentSite = sites.find(s => s.id === currentUser?.site);
   const currentSiteName = currentSite?.name || currentUser?.site || '';
   const gembaSections: ('A' | 'B')[] = department === 'HOUSEKEEPING' ? ['A'] : ['A', 'B'];
+
+  // Turns every non-conformity item that actually got a corrective
+  // action + assignee + due date filled in (both forms leave these
+  // optional — an inspector can still just describe the finding without
+  // assigning it) into a real, trackable CorrectiveAction record. Fires
+  // only on a fresh submit, not on Gemba's resubmit-after-rejection path,
+  // so fixing and resubmitting a rejected walk never double-creates
+  // actions for findings already turned into one the first time.
+  const createCorrectiveActionsForFlaggedItems = (items: Submission['items']) => {
+    if (!currentUser) return;
+    for (const item of items) {
+      if (!item.correctiveAction?.trim() || !item.assignedToId || !item.dueDate) continue;
+      const assignee = assignableUsers.find(u => u.id === item.assignedToId);
+      if (!assignee) continue;
+      addCorrectiveAction({
+        comment: item.comment?.trim() || item.remarks?.trim() || item.question,
+        action: item.correctiveAction.trim(),
+        assignedToId: assignee.id,
+        assignedToName: assignee.name,
+        createdById: currentUser.id,
+        createdByName: currentUser.name,
+        siteId: currentUser.site,
+        siteName: currentSiteName,
+        department,
+        dueDate: item.dueDate,
+        sourceType: 'SUBMISSION',
+      });
+    }
+  };
 
   // Site-scoped per lib/siteScope.ts — Home Site by default, 'ALL' for
   // GENERAL_MANAGER unless the Admin overrides it, or wider still if the
@@ -103,9 +153,11 @@ export function InspectionsTab({ store, department }: { store: ReturnType<typeof
     return (
       <FoodSafetyInspectionForm
         inspectorName={currentUser?.name || ''}
+        assignableUsers={assignableUsers}
         onCancel={() => setView('LIST')}
         onSubmit={(payload) => {
           addSubmission({ ...payload, ...commonSubmissionFields('FOOD_SAFETY_INSPECTION') });
+          createCorrectiveActionsForFlaggedItems(payload.items);
           setView('LIST');
         }}
       />
@@ -118,12 +170,14 @@ export function InspectionsTab({ store, department }: { store: ReturnType<typeof
         inspectorName={editingSubmission?.meta?.inspectorName || currentUser?.name || ''}
         sections={gembaSections}
         editingSubmission={editingSubmission}
+        assignableUsers={assignableUsers}
         onCancel={() => { setView('LIST'); setEditingId(null); }}
         onSubmit={(payload) => {
           if (editingSubmission) {
             resubmitAfterRejection(editingSubmission.id, payload);
           } else {
             addSubmission({ ...payload, ...commonSubmissionFields('GEMBA_WALK') });
+            createCorrectiveActionsForFlaggedItems(payload.items);
           }
           setView('LIST');
           setEditingId(null);

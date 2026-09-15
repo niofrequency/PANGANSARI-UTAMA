@@ -5,7 +5,7 @@ import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { INSPECTION_SECTIONS } from '../../data/inspectionChecklistData';
 import { ConformityCode, scoreItems, getPsuCategory } from '../../data/inspectionScoring';
-import { Submission } from '../../types';
+import { Submission, User } from '../../types';
 
 const CONFORMITY_CODES: ConformityCode[] = ['A', 'B', 'C', 'NA'];
 
@@ -20,14 +20,24 @@ interface Props {
   onSubmit: (payload: Omit<Submission, 'id' | 'userId' | 'userName' | 'role' | 'siteId' | 'siteName' | 'timestamp' | 'status'>) => void;
   onCancel: () => void;
   inspectorName: string;
+  // Who a 'C' (non-conforming) item's corrective action can be assigned
+  // to — computed once by InspectionsTab.tsx (site + department scoped,
+  // same rule as CorrectiveActionsTab's own assignableUsers).
+  assignableUsers: User[];
 }
 
-export function FoodSafetyInspectionForm({ onSubmit, onCancel, inspectorName }: Props) {
+export function FoodSafetyInspectionForm({ onSubmit, onCancel, inspectorName, assignableUsers }: Props) {
   const { t, language } = useTranslation();
   const [areaAudited, setAreaAudited] = useState('');
   const [areaOwner, setAreaOwner] = useState('');
   const [answers, setAnswers] = useState<Record<string, ConformityCode>>({});
   const [remarks, setRemarks] = useState<Record<string, string>>({});
+  // Non-conformity assignment ('C' items only) — corrective action text
+  // plus who's fixing it and by when. See types.ts's item.assignedToId/
+  // dueDate comment for why this also spawns a real CorrectiveAction.
+  const [correctiveActions, setCorrectiveActions] = useState<Record<string, string>>({});
+  const [assignees, setAssignees] = useState<Record<string, string>>({});
+  const [dueDates, setDueDates] = useState<Record<string, string>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({ [INSPECTION_SECTIONS[0].key]: true });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showValidation, setShowValidation] = useState(false);
@@ -80,6 +90,10 @@ export function FoodSafetyInspectionForm({ onSubmit, onCancel, inspectorName }: 
       question: `${item.no ? item.no + ' — ' : ''}${item.labelEn || item.descEn}`,
       answer: answers[item.id],
       remarks: remarks[item.id]?.trim() || undefined,
+      correctiveAction: correctiveActions[item.id]?.trim() || undefined,
+      assignedToId: assignees[item.id] || undefined,
+      assignedToName: assignees[item.id] ? assignableUsers.find(u => u.id === assignees[item.id])?.name : undefined,
+      dueDate: dueDates[item.id] || undefined,
     }));
 
     onSubmit({
@@ -221,8 +235,9 @@ export function FoodSafetyInspectionForm({ onSubmit, onCancel, inspectorName }: 
                                     {language === 'id' ? item.labelId : item.labelEn}
                                   </p>
                                 )}
-                                <p className="text-xs text-psu-gray/70 font-medium leading-relaxed mt-1">{item.descId}</p>
-                                <p className="text-xs text-psu-gray/40 font-medium leading-relaxed italic mt-1">{item.descEn}</p>
+                                <p className="text-xs text-psu-gray/70 font-medium leading-relaxed mt-1">
+                                  {language === 'id' ? item.descId : item.descEn}
+                                </p>
                                 {item.reference && (
                                   <p className="text-[9px] text-psu-gray/30 font-bold uppercase tracking-wide mt-2">{t('inspection.itemReference')}: {item.reference}</p>
                                 )}
@@ -250,6 +265,36 @@ export function FoodSafetyInspectionForm({ onSubmit, onCancel, inspectorName }: 
                               placeholder={t('inspection.remarksPlaceholder')}
                               className="w-full p-3 bg-psu-bg border border-psu-gray/10 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-psu-blue/20"
                             />
+
+                            {code === 'C' && (
+                              <div className="space-y-2 pt-1">
+                                <input
+                                  value={correctiveActions[item.id] || ''}
+                                  onChange={e => setCorrectiveActions(p => ({ ...p, [item.id]: e.target.value }))}
+                                  placeholder={t('inspection.correctiveActionPlaceholder')}
+                                  className="w-full p-3 bg-psu-bg border border-psu-gray/10 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-psu-blue/20"
+                                />
+                                <div className="grid grid-cols-2 gap-2">
+                                  <select
+                                    value={assignees[item.id] || ''}
+                                    onChange={e => setAssignees(p => ({ ...p, [item.id]: e.target.value }))}
+                                    className="w-full p-3 bg-psu-bg border border-psu-gray/10 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-psu-blue/20"
+                                  >
+                                    <option value="">{t('inspection.assigneePlaceholder')}</option>
+                                    {assignableUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                                  </select>
+                                  <div>
+                                    <label className="block text-[8px] font-black text-psu-gray/30 uppercase tracking-widest mb-1">{t('inspection.dueDateLabel')}</label>
+                                    <input
+                                      type="date"
+                                      value={dueDates[item.id] || ''}
+                                      onChange={e => setDueDates(p => ({ ...p, [item.id]: e.target.value }))}
+                                      className="w-full p-3 bg-psu-bg border border-psu-gray/10 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-psu-blue/20"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
