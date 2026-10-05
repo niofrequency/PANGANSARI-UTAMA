@@ -13,7 +13,6 @@ import {
 import { subscribeUsers, updateUserRoleDoc, updateUserSiteDoc, updateUserAssignedSitesDoc, setStaffIdentityDoc, toggleUserActiveDoc, deleteUserDoc } from '../services/usersService';
 import { createStaffAccountDirect } from '../services/adminCreateAccount';
 import { resetStaffCredentials } from '../services/adminResetCredentials';
-import { changeUserEmailDirect } from '../services/adminChangeEmailDirect';
 import { subscribeSubmissions, addSubmissionDoc, updateSubmissionDoc, CLEAR_FIELD } from '../services/submissionsService';
 import { subscribeWarnings, addWarningDoc } from '../services/warningsService';
 import { subscribeFieldReports, addFieldReportDoc, updateFieldReportDoc } from '../services/fieldReportsService';
@@ -705,31 +704,6 @@ export function useAppStore() {
     return { ok: false, error: result.error };
   };
 
-  // Admin changes a user's email WITHOUT the Cloud Function — client-only,
-  // via changeUserEmailDirect (adminChangeEmailDirect.ts): briefly signs in
-  // AS the target person on a throwaway secondary Auth session to call
-  // Firebase Auth's own updateEmail, which is why it needs their CURRENT
-  // password (there's no client-side way around that — see that file's
-  // comment). Firebase mode only.
-  const changeUserEmail = async (
-    userId: string,
-    currentPassword: string,
-    newEmail: string
-  ): Promise<{ ok: boolean; error?: string }> => {
-    if (!isFirebaseConfigured) {
-      return { ok: false, error: 'not-configured' };
-    }
-    const target = users.find(u => u.id === userId);
-    if (!target) return { ok: false, error: 'unknown' };
-    const result = await changeUserEmailDirect({
-      currentEmail: target.email,
-      currentPassword,
-      newEmail,
-    });
-    if (result.ok) return { ok: true };
-    return { ok: false, error: result.error };
-  };
-
   // Admin sets/changes a user's Scan-to-Job Staff ID. No PIN — the code
   // itself is the credential, since it's only ever handed out by an Admin.
   const setStaffIdentity = async (
@@ -919,7 +893,6 @@ export function useAppStore() {
     updateUserSite,
     updateUserAssignedSites,
     resetUserCredentials,
-    changeUserEmail,
     setStaffIdentity,
     toggleUserActive,
     deleteUser,
