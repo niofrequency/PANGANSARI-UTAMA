@@ -11,6 +11,7 @@ rules_version = '2';
 //   correctiveActions — CAPA-style assigned action items (two-step close)
 //   trainings    — training module completion
 //   messages     — in-app chat between two people
+//   pushTokens   — devices that turned on chat notifications
 //
 // NOTE: as of this version, all five collections above are actually
 // read/written from Firestore by the client (authService.ts/
@@ -372,6 +373,19 @@ service cloud.firestore {
         && request.resource.data.read == true;
 
       allow delete: if false;
+    }
+
+    // ── pushTokens ──────────────────────────────────────────────────
+    // One doc per device that turned on chat notifications, keyed by its
+    // FCM token (src/lib/pushNotifications.ts). Only the notifyChatMessage
+    // Cloud Function reads them (Admin SDK, bypasses rules). A device that
+    // switches accounts simply overwrites the doc with the new uid.
+    match /pushTokens/{token} {
+      allow read: if false;
+      allow create, update: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email == email();
+      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
     }
 
     // ── trainings ───────────────────────────────────────────────────

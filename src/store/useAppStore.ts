@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { User, Submission, UserRole, Site, Warning, TrainingModule, FieldReport, FieldReportStatus, CorrectiveAction, CorrectiveActionStatus, ChatMessage } from '../types';
 import { subscribeMyMessages, addMessageDoc, markMessageReadDoc } from '../services/chatService';
 import { canChatUsers, conversationId } from '../lib/chatPolicy';
+import { registerPush, unregisterPush, setAppBadgeCount } from '../lib/pushNotifications';
 import { INITIAL_USERS, INITIAL_SUBMISSIONS, INITIAL_WARNINGS, INITIAL_FIELD_REPORTS, INITIAL_CORRECTIVE_ACTIONS, SITES, TRAINING_MODULES } from '../data/mockData';
 import { isFirebaseConfigured } from '../lib/firebase';
 import {
@@ -346,9 +347,18 @@ export function useAppStore() {
       return;
     }
     const unsub = subscribeMyMessages(currentUser.id, setMessages);
+    // If this device already allowed notifications, refresh its push token
+    // for whoever is signed in now (never prompts — see ChatTab's button).
+    registerPush(currentUser.id, currentUser.email, false).catch(() => {});
     return () => unsub();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isFirebaseConfigured, currentUser?.id, pinSessionActive]);
+
+  // Unread chat count on the installed app's icon.
+  const unreadChatCount = currentUser ? messages.filter(m => m.toId === currentUser.id && !m.read).length : 0;
+  useEffect(() => {
+    setAppBadgeCount(unreadChatCount);
+  }, [unreadChatCount]);
 
   useEffect(() => {
     if (isFirebaseConfigured) return;
@@ -471,8 +481,11 @@ export function useAppStore() {
     const wasPinSession = pinSessionActive;
     setPinSessionActive(false);
     clearPinSession();
+    setAppBadgeCount(0);
     if (isFirebaseConfigured) {
-      firebaseLogout();
+      // Stop this account's chat pushes reaching this device, then sign
+      // out (the token doc can only be deleted while still signed in).
+      unregisterPush().finally(() => firebaseLogout());
       if (wasPinSession) setCurrentUser(null);
       return;
     }

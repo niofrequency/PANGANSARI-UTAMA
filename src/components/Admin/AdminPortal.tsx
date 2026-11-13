@@ -21,14 +21,15 @@ import { isValidStaffCode } from '../../utils/staffCode';
 import { cloudinaryUrl } from '../../utils/cloudinaryUrl';
 import { PrintQrPanel } from './PrintQrPanel';
 import { UserManagementPanel } from './UserManagementPanel';
-import { ChatTab, useChatTabLabel } from '../Chat/ChatTab';
+import { ChatTab, useChatTab, useOpenChatSignal } from '../Chat/ChatTab';
 import { titleKeyForChainType } from '../../data/opsLogsCatalog';
 
 export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }) {
   const { t } = useTranslation();
   const { users, sites, submissions, warnings, correctiveActions } = store;
   const [activeTab, setActiveTab] = useState<'USERS' | 'ACTIVITY' | 'ANALYTICS' | 'PRINT' | 'CHAT'>('USERS');
-  const chatLabel = useChatTabLabel(store);
+  const chatTab = useChatTab(store);
+  useOpenChatSignal(() => setActiveTab('CHAT'));
   // Activity tab state
   const [activitySegment, setActivitySegment] = useState<'SUBMISSIONS' | 'WARNINGS' | 'ACTIONS'>('SUBMISSIONS');
   const [activitySearch, setActivitySearch] = useState('');
@@ -141,7 +142,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
     { id: 'ACTIVITY', icon: ActivityIcon, label: t('admin.tabActivity') },
     { id: 'ANALYTICS', icon: Shield, label: t('admin.tabAnalytics') },
     { id: 'PRINT', icon: Printer, label: t('admin.tabPrint') },
-    { id: 'CHAT', icon: MessageCircle, label: chatLabel },
+    { id: 'CHAT', icon: chatTab.icon, label: chatTab.label },
   ];
   const activeTabLabel = tabs.find(tab => tab.id === activeTab)?.label ?? '';
 

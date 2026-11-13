@@ -519,3 +519,44 @@ export const mintCloudinaryUploadSignature = onCall(
     };
   }
 );
+
+// ── Chat push notifications ──────────────────────────────────────────
+// When a chat message is created (src/store/useAppStore.ts's
+// sendChatMessage), push it to every device the recipient enabled
+// notifications on (pushTokens/{token}, written by
+// src/lib/pushNotifications.ts). Data-only message: public/sw.js decides
+// how the notification looks and skips it if the app is already focused.
+// 1st-gen Firestore trigger on purpose — it works with the (default)
+// database in any location, no Eventarc region pairing needed.
+export const notifyChatMessage = functionsV1.firestore
+  .document('messages/{messageId}')
+  .onCreate(async (snap) => {
+    const m = snap.data() as { toId?: string; fromName?: string; text?: string };
+    if (!m?.toId) return;
+
+    const tokensSnap = await admin.firestore().collection('pushTokens').where('uid', '==', m.toId).get();
+    if (tokensSnap.empty) return;
+    const tokens = tokensSnap.docs.map((d) => d.id);
+
+    const body = (m.text || '').slice(0, 180);
+    const response = await admin.messaging().sendEachForMulticast({
+      tokens,
+      data: {
+        title: m.fromName || 'PSU FieldOps',
+        body,
+        url: '/?tab=chat',
+        tag: `chat-${snap.id}`,
+      },
+      webpush: { headers: { Urgency: 'high', TTL: '86400' } },
+    });
+
+    // Drop tokens FCM says are dead (app uninstalled, permission revoked…).
+    const dead: Promise<unknown>[] = [];
+    response.responses.forEach((r, i) => {
+      const code = r.error?.code || '';
+      if (code === 'messaging/registration-token-not-registered' || code === 'messaging/invalid-registration-token' || code === 'messaging/invalid-argument') {
+        dead.push(admin.firestore().collection('pushTokens').doc(tokens[i]).delete());
+      }
+    });
+    await Promise.all(dead);
+  });

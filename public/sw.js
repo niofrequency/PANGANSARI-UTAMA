@@ -1,4 +1,4 @@
-const CACHE_NAME = 'psu-fieldops-v2';
+const CACHE_NAME = 'psu-fieldops-v3';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -52,6 +52,52 @@ self.addEventListener('fetch', (event) => {
         caches.open(CACHE_NAME).then((c) => c.put(event.request, clone));
         return res;
       }).catch(() => cached);
+    })
+  );
+});
+
+// ── Chat push notifications ─────────────────────────────────────────
+// Sent by the notifyChatMessage Cloud Function (functions/src/index.ts)
+// through Firebase Cloud Messaging as a data-only message, so this worker
+// decides how it looks. Skipped when the app is already open and focused —
+// the Chat tab's unread badge covers that case.
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch (e) {
+    payload = { data: { title: 'PSU FieldOps', body: event.data ? event.data.text() : '' } };
+  }
+  const d = payload.data || payload.notification || payload;
+  const title = d.title || 'PSU FieldOps';
+  const options = {
+    body: d.body || '',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
+    tag: d.tag || 'psu-chat',
+    renotify: true,
+    data: { url: d.url || '/?tab=chat' },
+  };
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      if (clients.some((c) => c.focused)) return;
+      return self.registration.showNotification(title, options);
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || '/?tab=chat';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      for (const c of clients) {
+        if ('focus' in c) {
+          c.postMessage({ type: 'OPEN_CHAT' });
+          return c.focus();
+        }
+      }
+      return self.clients.openWindow(url);
     })
   );
 });

@@ -14,7 +14,7 @@ import { MyActionItems } from '../CorrectiveActions/MyActionItems';
 import { PortalHeaderRow } from '../OpsLogs/opsHelpers';
 import { SubmissionHistoryList } from '../SubmissionHistoryList';
 import { ConfirmDeleteModal } from '../ConfirmDeleteModal';
-import { ChatTab, useChatTabLabel } from '../Chat/ChatTab';
+import { ChatTab, useChatTab, useOpenChatSignal } from '../Chat/ChatTab';
 
 interface JanitorPortalProps {
   store: ReturnType<typeof useAppStore>;
@@ -36,7 +36,8 @@ export function JanitorPortal({ store, fromQr, onDeepLinkHandled, onScanJob }: J
   const { t } = useTranslation();
   const { currentUser, submissions, trainings, completeTraining, sites } = store;
   const [activeTab, setActiveTab] = useState<'TASKS' | 'HISTORY' | 'CHAT' | 'TRAINING'>('TASKS');
-  const chatLabel = useChatTabLabel(store);
+  const chatTab = useChatTab(store);
+  useOpenChatSignal(() => setActiveTab('CHAT'));
   const myHistory = submissions.filter(s => s.userId === currentUser?.id);
   const cameFromQr = Boolean(fromQr);
   // Reopening one of this Janitor's own History entries to edit and
@@ -68,7 +69,7 @@ export function JanitorPortal({ store, fromQr, onDeepLinkHandled, onScanJob }: J
         {[
           { id: 'TASKS' as const, icon: ClipboardList, label: t('housekeeper.tabTasks') },
           { id: 'HISTORY' as const, icon: History, label: t('housekeeper.tabHistory') },
-          { id: 'CHAT' as const, icon: MessageCircle, label: chatLabel },
+          { id: 'CHAT' as const, icon: chatTab.icon, label: chatTab.label },
           { id: 'TRAINING' as const, icon: GraduationCap, label: t('housekeeper.tabTraining') },
         ].map(tab => (
           <button
