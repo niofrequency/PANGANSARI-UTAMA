@@ -15,6 +15,7 @@ import { Modal } from '../Modal';
 import { ChecksTab, useOpenChecksSignal } from '../Checks/ChecksTab';
 import { ExportPanel } from '../Export/ExportPanel';
 import { AppHealthPanel } from './AppHealthPanel';
+import { TrendsPanel } from '../Dashboard/TrendsPanel';
 import { AlarmClock } from 'lucide-react';
 import { Lightbox } from '../Lightbox';
 import { ListCard } from '../ListCard';
@@ -376,6 +377,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
             <div className="mb-6"><AppHealthPanel /></div>
             <div className="mb-6">{renderScopeFilters()}</div>
             <AnalyticsDashboard submissions={scopedSubmissions} warnings={scopedWarnings} sites={scopedSites} users={scopedUsers} />
+            <div className="mt-8"><TrendsPanel store={store} /></div>
           </motion.div>
         )}
 

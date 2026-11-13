@@ -15,6 +15,7 @@ import { FieldReportsTab } from '../FieldReports/FieldReportsTab';
 import { ChatTab, useChatTab, useOpenChatSignal } from '../Chat/ChatTab';
 import { ChecksTab, MissedChecksBanner, useOpenChecksSignal } from '../Checks/ChecksTab';
 import { ExportPanel } from '../Export/ExportPanel';
+import { TrendsPanel } from '../Dashboard/TrendsPanel';
 import { AlarmClock } from 'lucide-react';
 
 // The daily Housekeeping/Food Safety Escalations queue used to live here
@@ -122,6 +123,7 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
             </div>
             <div className="mb-6"><MissedChecksBanner store={store} department={checksDepartment} onOpen={() => setActiveTab('CHECKS')} /></div>
             <AnalyticsDashboard submissions={dashboardSubmissions} warnings={dashboardWarnings} sites={dashboardSites} users={users} />
+            <div className="mt-8"><TrendsPanel store={store} department={checksDepartment} /></div>
           </motion.div>
         )}
 
