@@ -24,6 +24,7 @@ import { Thermometer, Droplets, ChevronRight } from 'lucide-react';
 import { PaperPrintButton, draftSubmission } from '../OpsLogs/print/PaperPrintButton';
 import { FoodSafetyDailyLogPrintSheet } from '../OpsLogs/print/FoodSafetyDailyLogPrintSheet';
 import { ChatTab, useChatTab, useOpenChatSignal } from '../Chat/ChatTab';
+import { SiteOptions } from '../SiteOptions';
 
 type DeepLinkStartAt = 'fridge' | 'core' | 'clean' | 'wellness';
 
@@ -342,7 +343,7 @@ export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob 
                       onChange={(e) => setWorkingSiteId(e.target.value)}
                       className="bg-white border border-psu-gray/10 rounded-lg px-1.5 py-1 outline-none focus:ring-2 focus:ring-psu-blue/20"
                     >
-                      {availableSites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      <SiteOptions sites={availableSites} />
                     </select>
                   </div>
                 ) : (

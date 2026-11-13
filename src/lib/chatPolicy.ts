@@ -22,6 +22,10 @@ const TIER: Partial<Record<UserRole, ChatTier>> = {
   HOUSEKEEPING_MANAGER: 'manager',
   FOOD_SAFETY_MANAGER: 'manager',
   GENERAL_MANAGER: 'manager',
+  // Leadhands chat as part of the supervisory team (same contacts, same
+  // Technician-location rule).
+  HOUSEKEEPING_LEADHAND: 'supervisor',
+  FOOD_SAFETY_LEADHAND: 'supervisor',
   HOUSEKEEPING_SUPERVISOR: 'supervisor',
   FOOD_SAFETY_SUPERVISOR: 'supervisor',
   HOUSEKEEPER: 'frontline',

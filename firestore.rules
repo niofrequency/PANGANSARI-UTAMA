@@ -313,14 +313,14 @@ service cloud.firestore {
       return r in ['HOUSEKEEPING_MANAGER', 'FOOD_SAFETY_MANAGER', 'GENERAL_MANAGER'];
     }
     function chatIsSupervisor(r) {
-      return r in ['HOUSEKEEPING_SUPERVISOR', 'FOOD_SAFETY_SUPERVISOR'];
+      return r in ['HOUSEKEEPING_SUPERVISOR', 'FOOD_SAFETY_SUPERVISOR', 'HOUSEKEEPING_LEADHAND', 'FOOD_SAFETY_LEADHAND'];
     }
     function chatIsFrontline(r) {
       return r in ['HOUSEKEEPER', 'HOUSEKEEPING_LAUNDRY', 'HOUSEKEEPING_JANITOR', 'FOOD_SAFETY_TECHNICIAN'];
     }
     function chatDept(r) {
       return r == 'GENERAL_MANAGER' ? 'ALL'
-        : (r in ['HOUSEKEEPER', 'HOUSEKEEPING_LAUNDRY', 'HOUSEKEEPING_JANITOR', 'HOUSEKEEPING_SUPERVISOR', 'HOUSEKEEPING_MANAGER'] ? 'HK' : 'FS');
+        : (r in ['HOUSEKEEPER', 'HOUSEKEEPING_LAUNDRY', 'HOUSEKEEPING_JANITOR', 'HOUSEKEEPING_LEADHAND', 'HOUSEKEEPING_SUPERVISOR', 'HOUSEKEEPING_MANAGER'] ? 'HK' : 'FS');
     }
     function chatSameDept(a, b) {
       return chatDept(a) == 'ALL' || chatDept(b) == 'ALL' || chatDept(a) == chatDept(b);

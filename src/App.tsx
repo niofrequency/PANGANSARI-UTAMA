@@ -164,6 +164,8 @@ export default function App() {
           />
         );
       }
+      case 'HOUSEKEEPING_LEADHAND':
+      case 'FOOD_SAFETY_LEADHAND':
       case 'HOUSEKEEPING_SUPERVISOR':
       case 'FOOD_SAFETY_SUPERVISOR': {
         // Only a Food Safety Supervisor's own action (ops_logs) ever

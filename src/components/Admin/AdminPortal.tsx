@@ -23,6 +23,7 @@ import { PrintQrPanel } from './PrintQrPanel';
 import { UserManagementPanel } from './UserManagementPanel';
 import { ChatTab, useChatTab, useOpenChatSignal } from '../Chat/ChatTab';
 import { titleKeyForChainType } from '../../data/opsLogsCatalog';
+import { SiteOptions } from '../SiteOptions';
 
 export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }) {
   const { t } = useTranslation();
@@ -113,7 +114,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
         className="flex-1 min-w-0 p-3 bg-white border border-psu-gray/5 rounded-2xl text-[10px] font-black uppercase tracking-tighter shadow-sm outline-none focus:ring-2 focus:ring-psu-gray/10"
       >
         <option value="ALL">{t('admin.filterAllSites')}</option>
-        {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+        <SiteOptions sites={sites} />
       </select>
       <select
         value={scopeDept}

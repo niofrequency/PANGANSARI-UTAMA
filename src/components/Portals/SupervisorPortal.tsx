@@ -34,7 +34,10 @@ interface SupervisorPortalProps {
 export function SupervisorPortal({ store, startTab, onDeepLinkHandled }: SupervisorPortalProps) {
   const { t } = useTranslation();
   const { currentUser, addWarning, users } = store;
-  const isFoodSafety = currentUser?.role === 'FOOD_SAFETY_SUPERVISOR';
+  const isFoodSafety = currentUser?.role === 'FOOD_SAFETY_SUPERVISOR' || currentUser?.role === 'FOOD_SAFETY_LEADHAND';
+  // Leadhands share this portal for the "Checked by" step but don't do
+  // inspections, action items or warnings — those stay with Supervisors.
+  const isLeadhand = currentUser?.role === 'HOUSEKEEPING_LEADHAND' || currentUser?.role === 'FOOD_SAFETY_LEADHAND';
   const [activeTab, setActiveTab] = useState<'OPS_LOGS' | 'HISTORY' | 'REPORTS' | 'ACTIONS' | 'INSPECTIONS' | 'CHAT'>(startTab ?? 'OPS_LOGS');
   const chatTab = useChatTab(store);
   useOpenChatSignal(() => setActiveTab('CHAT'));
@@ -73,10 +76,12 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled }: Supervi
     { id: 'OPS_LOGS' as const, icon: ListChecks, label: t('ops.tabTitle') },
     { id: 'HISTORY' as const, icon: History, label: t('ops.historySectionTitle') },
     { id: 'REPORTS' as const, icon: MessageSquareWarning, label: t('fieldReport.tabTitle') },
-    { id: 'ACTIONS' as const, icon: ListTodo, label: t('correctiveAction.tabTitle') },
-    // Housekeeping Supervisor gets this too now, restricted to Gemba
-    // Walk's Section A only — see InspectionsTab.tsx.
-    { id: 'INSPECTIONS' as const, icon: ClipboardCheck, label: t('inspection.tabTitle') },
+    ...(isLeadhand ? [] : [
+      { id: 'ACTIONS' as const, icon: ListTodo, label: t('correctiveAction.tabTitle') },
+      // Housekeeping Supervisor gets this too now, restricted to Gemba
+      // Walk's Section A only — see InspectionsTab.tsx.
+      { id: 'INSPECTIONS' as const, icon: ClipboardCheck, label: t('inspection.tabTitle') },
+    ]),
     { id: 'CHAT' as const, icon: chatTab.icon, label: chatTab.label },
   ];
   const activeTabLabel = tabs.find(tab => tab.id === activeTab)?.label ?? '';
@@ -104,7 +109,7 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled }: Supervi
       </div>
 
       <DesktopShell navItems={tabs} activeId={activeTab} onNav={(id) => setActiveTab(id as any)} title={activeTabLabel}>
-      {activeTab === 'INSPECTIONS' && (
+      {activeTab === 'INSPECTIONS' && !isLeadhand && (
         <InspectionsTab store={store} department={isFoodSafety ? 'FOOD_SAFETY' : 'HOUSEKEEPING'} />
       )}
 
@@ -122,14 +127,14 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled }: Supervi
 
       {activeTab === 'CHAT' && <ChatTab store={store} />}
 
-      {activeTab === 'ACTIONS' && (
+      {activeTab === 'ACTIONS' && !isLeadhand && (
         <CorrectiveActionsTab store={store} department={isFoodSafety ? 'FOOD_SAFETY' : 'HOUSEKEEPING'} />
       )}
 
       {/* Not tied to any one tab — a Food Safety Supervisor can flag a
           Technician's pattern of bad behavior any time, independent of
           reviewing today's submissions. */}
-      {isFoodSafety && (
+      {isFoodSafety && !isLeadhand && (
         <button
           onClick={() => setShowWarningDialog(true)}
           className="w-full flex items-center justify-center gap-3 py-4 border-2 border-dashed border-psu-warning/30 text-psu-warning rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-psu-warning/5 transition-all"
