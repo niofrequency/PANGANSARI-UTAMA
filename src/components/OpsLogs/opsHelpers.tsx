@@ -5,6 +5,7 @@ import { useTranslation } from '../../i18n/LanguageContext';
 import { useAppStore } from '../../store/useAppStore';
 import { Submission } from '../../types';
 import { SignoffStep, SIGNOFF_CHAINS, SignoffChainType } from '../../data/opsLogsCatalog';
+import { SiteOptions } from '../SiteOptions';
 
 // Every ops-log fill form (the 7 forms in OpsLogsTab's FORM_COMPONENTS)
 // and, since the Escalations/Ops Logs merge, TechnicianPortal's daily
@@ -65,7 +66,7 @@ export function OpsHeaderChip({
             onChange={(e) => onSiteChange!(e.target.value)}
             className="bg-psu-bg border border-psu-gray/10 rounded-md px-1.5 py-0.5 outline-none focus:ring-2 focus:ring-psu-blue/20 normal-case font-bold"
           >
-            {siteOptions!.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+            <SiteOptions sites={siteOptions!} />
           </select>
         ) : siteName}
       </span>

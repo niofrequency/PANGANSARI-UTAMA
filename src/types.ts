@@ -6,9 +6,14 @@ export type UserRole =
   // unchanged — room cleaning (UN.00.65) only.
   | 'HOUSEKEEPING_LAUNDRY'
   | 'HOUSEKEEPING_JANITOR'
+  // Leadhand (L/H, Sr. L/H in the HR list) — the team lead between frontline
+  // staff and Supervisor. Does the "Checked by" sign-off step, same as a
+  // Supervisor, but not inspections, action items or warnings.
+  | 'HOUSEKEEPING_LEADHAND'
   | 'HOUSEKEEPING_SUPERVISOR'
   | 'HOUSEKEEPING_MANAGER'
   | 'FOOD_SAFETY_TECHNICIAN'
+  | 'FOOD_SAFETY_LEADHAND'
   | 'FOOD_SAFETY_SUPERVISOR'
   | 'FOOD_SAFETY_MANAGER'
   // Site-wide leadership (GM, Deputy GM, HR & GA, COC, SPCS, etc.) that
@@ -47,10 +52,16 @@ export interface User {
   staffCode?: string;
 }
 
+export type SiteKind = 'kitchen' | 'camp' | 'laundry' | 'cleaning' | 'hotel' | 'sport' | 'warehouse' | 'maintenance' | 'library' | 'office' | 'other';
+
 export interface Site {
   id: string;
   name: string;
   location: string;
+  // Township area the location belongs to ('68', '72', 'PS', 'KK'…) —
+  // used to group long site lists. See SITES in data/mockData.ts.
+  area?: string;
+  kind?: SiteKind;
 }
 
 export type SubmissionStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'WARNING';

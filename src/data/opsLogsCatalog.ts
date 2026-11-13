@@ -61,44 +61,44 @@ export interface OpsLogDef {
   descKey: string;  // i18n key, ops.<form>.desc
   // Who can open the fill screen for this form, on top of it appearing in
   // the right department's portal at all.
-  fillerRoles: Array<'FOOD_SAFETY_TECHNICIAN' | 'FOOD_SAFETY_SUPERVISOR' | 'HOUSEKEEPING_LAUNDRY' | 'HOUSEKEEPING_JANITOR'>;
+  fillerRoles: Array<'FOOD_SAFETY_TECHNICIAN' | 'FOOD_SAFETY_LEADHAND' | 'FOOD_SAFETY_SUPERVISOR' | 'HOUSEKEEPING_LAUNDRY' | 'HOUSEKEEPING_JANITOR'>;
 }
 
 export const OPS_LOG_DEFS: OpsLogDef[] = [
   {
     type: 'TEMP_CONTROL', formId: 'UF.10000', department: 'FOOD_SAFETY',
     titleKey: 'ops.tempControl.title', descKey: 'ops.tempControl.desc',
-    fillerRoles: ['FOOD_SAFETY_TECHNICIAN', 'FOOD_SAFETY_SUPERVISOR'],
+    fillerRoles: ['FOOD_SAFETY_TECHNICIAN', 'FOOD_SAFETY_LEADHAND', 'FOOD_SAFETY_SUPERVISOR'],
   },
   {
     type: 'DISHWASH_TEMP', formId: 'UN.00.51', department: 'FOOD_SAFETY',
     titleKey: 'ops.dishwash.title', descKey: 'ops.dishwash.desc',
-    fillerRoles: ['FOOD_SAFETY_TECHNICIAN', 'FOOD_SAFETY_SUPERVISOR'],
+    fillerRoles: ['FOOD_SAFETY_TECHNICIAN', 'FOOD_SAFETY_LEADHAND', 'FOOD_SAFETY_SUPERVISOR'],
   },
   {
     type: 'MESS_HALL_HYGIENE', formId: 'UWL10001', department: 'FOOD_SAFETY',
     titleKey: 'ops.messHall.title', descKey: 'ops.messHall.desc',
-    fillerRoles: ['FOOD_SAFETY_SUPERVISOR'],
+    fillerRoles: ['FOOD_SAFETY_LEADHAND', 'FOOD_SAFETY_SUPERVISOR'],
   },
   {
     type: 'COOKING_SERVICE', formId: 'UF.09001', department: 'FOOD_SAFETY',
     titleKey: 'ops.cookingService.title', descKey: 'ops.cookingService.desc',
-    fillerRoles: ['FOOD_SAFETY_SUPERVISOR'],
+    fillerRoles: ['FOOD_SAFETY_LEADHAND', 'FOOD_SAFETY_SUPERVISOR'],
   },
   {
     type: 'HOT_PACKED_MEAL', formId: 'UF.09000', department: 'FOOD_SAFETY',
     titleKey: 'ops.hotPacked.title', descKey: 'ops.hotPacked.desc',
-    fillerRoles: ['FOOD_SAFETY_SUPERVISOR'],
+    fillerRoles: ['FOOD_SAFETY_LEADHAND', 'FOOD_SAFETY_SUPERVISOR'],
   },
   {
     type: 'THAWING', formId: 'UN.00.43', department: 'FOOD_SAFETY',
     titleKey: 'ops.thawing.title', descKey: 'ops.thawing.desc',
-    fillerRoles: ['FOOD_SAFETY_SUPERVISOR'],
+    fillerRoles: ['FOOD_SAFETY_LEADHAND', 'FOOD_SAFETY_SUPERVISOR'],
   },
   {
     type: 'STAFF_READY', formId: 'STAFF_READY', department: 'FOOD_SAFETY',
     titleKey: 'ops.staffReady.title', descKey: 'ops.staffReady.desc',
-    fillerRoles: ['FOOD_SAFETY_SUPERVISOR'],
+    fillerRoles: ['FOOD_SAFETY_LEADHAND', 'FOOD_SAFETY_SUPERVISOR'],
   },
   {
     // Filled only by the dedicated Laundry Staff portal now — not shown

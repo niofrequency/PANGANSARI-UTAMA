@@ -4,6 +4,7 @@ import { Printer, Thermometer, Flame, Sparkles, HeartPulse, DoorOpen, Toilet, Wa
 import { Site } from '../../types';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { buildSimpleJobUrl, buildRoomJobUrl, SimpleJobAction } from '../../lib/qrLinks';
+import { SiteOptions } from '../SiteOptions';
 
 // Renders a QR code to an <img> via the `qrcode` package. No canvas element
 // kept around after the data URL is generated — just an image, so it
@@ -115,9 +116,7 @@ export function PrintQrPanel({ sites }: { sites: Site[] }) {
             onChange={(e) => setSiteId(e.target.value)}
             className="w-full p-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-sm font-bold"
           >
-            {sites.map((s) => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
+            <SiteOptions sites={sites} />
           </select>
           <p className="text-[10px] text-psu-gray/40 font-medium mt-2">{t('admin.printRoomSiteNote')}</p>
         </div>

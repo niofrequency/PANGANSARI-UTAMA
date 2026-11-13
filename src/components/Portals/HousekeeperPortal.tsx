@@ -26,6 +26,7 @@ import { ConfirmDeleteModal } from '../ConfirmDeleteModal';
 import { PaperPrintButton, draftSubmission } from '../OpsLogs/print/PaperPrintButton';
 import { RoomCleaningPrintSheet } from '../OpsLogs/print/RoomCleaningPrintSheet';
 import { ChatTab, useChatTab, useOpenChatSignal } from '../Chat/ChatTab';
+import { SiteOptions } from '../SiteOptions';
 
 const GROUP_ICON: Record<RoomCleaningGroupKey, typeof Sparkles> = {
   '1': Sparkles,
@@ -290,7 +291,7 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
                       onChange={(e) => setWorkingSiteId(e.target.value)}
                       className="bg-white border border-psu-gray/10 rounded-lg px-1.5 py-1 outline-none focus:ring-2 focus:ring-psu-green/20"
                     >
-                      {availableSites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      <SiteOptions sites={availableSites} />
                     </select>
                   </div>
                 ) : (

@@ -12,6 +12,7 @@ import { isFirebaseConfigured } from '../../lib/firebase';
 import { Modal } from '../Modal';
 import { ListCard } from '../ListCard';
 import { isValidStaffCode } from '../../utils/staffCode';
+import { SiteOptions, groupSitesByArea } from '../SiteOptions';
 
 // Personnel management (add / remove / reset login / Staff ID / role /
 // site) — shared by the Admin Portal's Personnel tab and the Manager
@@ -26,9 +27,11 @@ const ALL_ROLES: UserRole[] = [
   'HOUSEKEEPER',
   'HOUSEKEEPING_LAUNDRY',
   'HOUSEKEEPING_JANITOR',
+  'HOUSEKEEPING_LEADHAND',
   'HOUSEKEEPING_SUPERVISOR',
   'HOUSEKEEPING_MANAGER',
   'FOOD_SAFETY_TECHNICIAN',
+  'FOOD_SAFETY_LEADHAND',
   'FOOD_SAFETY_SUPERVISOR',
   'FOOD_SAFETY_MANAGER',
   'GENERAL_MANAGER',
@@ -84,8 +87,12 @@ function SiteAccessPicker({
         <button type="button" onClick={() => onChange(mode === 'custom' ? customSites : [homeSite])} className={pillClass(mode === 'custom')}>{t('admin.siteAccessCustom')}</button>
       </div>
       {mode === 'custom' && (
-        <div className="grid grid-cols-2 gap-x-2 gap-y-1 mt-2 p-2 bg-psu-bg rounded-xl">
-          {sites.map(site => {
+        <div className="mt-2 p-2 bg-psu-bg rounded-xl max-h-64 overflow-y-auto space-y-2">
+          {groupSitesByArea(sites).map(g => (
+            <div key={g.area}>
+              <p className="text-[8px] font-black text-psu-gray/30 uppercase tracking-widest mb-1">{g.label}</p>
+              <div className="grid grid-cols-2 gap-x-2 gap-y-1">
+          {g.sites.map(site => {
             const checked = customSites.includes(site.id);
             return (
               <label key={site.id} className="flex items-center gap-1.5 text-[9px] font-bold text-psu-gray/60 cursor-pointer">
@@ -106,6 +113,9 @@ function SiteAccessPicker({
               </label>
             );
           })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -399,9 +409,7 @@ export function UserManagementPanel({
                       onChange={(e) => updateUserSite(user.id, e.target.value)}
                       className="w-full text-[9px] bg-psu-bg border border-psu-gray/10 rounded-md px-2 py-1.5 font-black uppercase tracking-tighter outline-none focus:ring-2 focus:ring-psu-blue/20 truncate"
                     >
-                      {sites.map(site => (
-                        <option key={site.id} value={site.id}>{site.name}</option>
-                      ))}
+                      <SiteOptions sites={sites} />
                     </select>
                   )}
 
@@ -569,7 +577,7 @@ export function UserManagementPanel({
                           onChange={(e) => setNewUser(p => ({ ...p, site: e.target.value }))}
                           className="w-full p-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-[10px] font-black uppercase tracking-tighter"
                         >
-                          {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                          <SiteOptions sites={sites} />
                         </select>
                       </div>
                     </div>
