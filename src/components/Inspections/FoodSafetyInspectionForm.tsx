@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from 'react';
+import { ReactNode, useMemo, useRef, useState } from 'react';
+import { PaperPrintButton } from '../OpsLogs/print/PaperPrintButton';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronDown, ClipboardCheck, Clock, XCircle } from 'lucide-react';
 import { cn } from '../../utils/cn';
@@ -16,8 +17,12 @@ const CONFORMITY_STYLE: Record<ConformityCode, string> = {
   NA: 'bg-psu-gray/10 text-psu-gray/60 border-psu-gray/10',
 };
 
+type Payload = Omit<Submission, 'id' | 'userId' | 'userName' | 'role' | 'siteId' | 'siteName' | 'timestamp' | 'status'>;
+
 interface Props {
-  onSubmit: (payload: Omit<Submission, 'id' | 'userId' | 'userName' | 'role' | 'siteId' | 'siteName' | 'timestamp' | 'status'>) => void;
+  onSubmit: (payload: Payload) => void;
+  // Paper-replica sheet for the form as currently filled in (Print form).
+  renderPrint?: (payload: Payload) => ReactNode;
   onCancel: () => void;
   inspectorName: string;
   // Who a 'C' (non-conforming) item's corrective action can be assigned
@@ -26,7 +31,7 @@ interface Props {
   assignableUsers: User[];
 }
 
-export function FoodSafetyInspectionForm({ onSubmit, onCancel, inspectorName, assignableUsers }: Props) {
+export function FoodSafetyInspectionForm({ onSubmit, renderPrint, onCancel, inspectorName, assignableUsers }: Props) {
   const { t, language } = useTranslation();
   const [areaAudited, setAreaAudited] = useState('');
   const [areaOwner, setAreaOwner] = useState('');
@@ -65,6 +70,38 @@ export function FoodSafetyInspectionForm({ onSubmit, onCancel, inspectorName, as
 
   const toggleSection = (key: string) => setExpanded(p => ({ ...p, [key]: !p[key] }));
 
+  // The payload this form submits — also what Print shows while the
+  // form is still being filled in (renderPrint below).
+  const buildPayload = (): Payload => {
+    const items = allItems.map(item => ({
+      id: item.id,
+      question: `${item.no ? item.no + ' — ' : ''}${item.labelEn || item.descEn}`,
+      answer: answers[item.id],
+      remarks: remarks[item.id]?.trim() || undefined,
+      correctiveAction: correctiveActions[item.id]?.trim() || undefined,
+      assignedToId: assignees[item.id] || undefined,
+      assignedToName: assignees[item.id] ? assignableUsers.find(u => u.id === assignees[item.id])?.name : undefined,
+      dueDate: dueDates[item.id] || undefined,
+    }));
+
+    return {
+      type: 'FOOD_SAFETY_INSPECTION',
+      items,
+      score: Math.round(overall.scorePct),
+      meta: {
+        areaAudited,
+        areaOwner: areaOwner.trim() || undefined,
+        inspectorName,
+        category: category.category,
+        categoryStatus: category.status,
+        sectionScores: sectionStats.map(s => {
+          const section = INSPECTION_SECTIONS.find(sec => sec.key === s.key)!;
+          return { key: s.key, titleId: section.titleId, titleEn: section.titleEn, scorePct: Math.round(s.scorePct) };
+        }),
+      },
+    };
+  };
+
   const handleSubmit = async () => {
     if (!canSubmit) {
       setShowValidation(true);
@@ -85,33 +122,7 @@ export function FoodSafetyInspectionForm({ onSubmit, onCancel, inspectorName, as
     setIsSubmitting(true);
     await new Promise(r => setTimeout(r, 400));
 
-    const items = allItems.map(item => ({
-      id: item.id,
-      question: `${item.no ? item.no + ' — ' : ''}${item.labelEn || item.descEn}`,
-      answer: answers[item.id],
-      remarks: remarks[item.id]?.trim() || undefined,
-      correctiveAction: correctiveActions[item.id]?.trim() || undefined,
-      assignedToId: assignees[item.id] || undefined,
-      assignedToName: assignees[item.id] ? assignableUsers.find(u => u.id === assignees[item.id])?.name : undefined,
-      dueDate: dueDates[item.id] || undefined,
-    }));
-
-    onSubmit({
-      type: 'FOOD_SAFETY_INSPECTION',
-      items,
-      score: Math.round(overall.scorePct),
-      meta: {
-        areaAudited,
-        areaOwner: areaOwner.trim() || undefined,
-        inspectorName,
-        category: category.category,
-        categoryStatus: category.status,
-        sectionScores: sectionStats.map(s => {
-          const section = INSPECTION_SECTIONS.find(sec => sec.key === s.key)!;
-          return { key: s.key, titleId: section.titleId, titleEn: section.titleEn, scorePct: Math.round(s.scorePct) };
-        }),
-      },
-    });
+    onSubmit(buildPayload());
     setIsSubmitting(false);
   };
 
@@ -121,6 +132,7 @@ export function FoodSafetyInspectionForm({ onSubmit, onCancel, inspectorName, as
         <h2 className="text-lg font-black text-psu-gray">{t('inspection.formTitle')}</h2>
         <p className="text-xs text-psu-gray/50 font-medium">{t('inspection.formSubtitle')}</p>
         <p className="text-[10px] text-psu-gray/30 font-black uppercase tracking-widest pt-1">{t('inspection.docRef')}</p>
+        {renderPrint && <div className="flex justify-end pt-2"><PaperPrintButton renderSheet={() => renderPrint(buildPayload())} /></div>}
       </div>
 
       <div className="card space-y-4">

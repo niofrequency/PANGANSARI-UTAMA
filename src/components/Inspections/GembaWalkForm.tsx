@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from 'react';
+import { ReactNode, useMemo, useRef, useState } from 'react';
+import { PaperPrintButton } from '../OpsLogs/print/PaperPrintButton';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronDown, ClipboardCheck, Clock, XCircle } from 'lucide-react';
 import { cn } from '../../utils/cn';
@@ -30,8 +31,12 @@ const EVAL_STYLE: Record<GembaEvaluation, string> = {
   'N/A': 'bg-psu-gray/10 text-psu-gray/60 border-psu-gray/10',
 };
 
+type Payload = Omit<Submission, 'id' | 'userId' | 'userName' | 'role' | 'siteId' | 'siteName' | 'timestamp' | 'status'>;
+
 interface Props {
-  onSubmit: (payload: Omit<Submission, 'id' | 'userId' | 'userName' | 'role' | 'siteId' | 'siteName' | 'timestamp' | 'status'>) => void;
+  onSubmit: (payload: Payload) => void;
+  // Paper-replica sheet for the form as currently filled in (Print form).
+  renderPrint?: (payload: Payload) => ReactNode;
   onCancel: () => void;
   inspectorName: string;
   // Which sections this walk covers — Food Safety Supervisor does both A
@@ -51,7 +56,7 @@ interface Props {
   assignableUsers: User[];
 }
 
-export function GembaWalkForm({ onSubmit, onCancel, inspectorName, sections, editingSubmission, assignableUsers }: Props) {
+export function GembaWalkForm({ onSubmit, renderPrint, onCancel, inspectorName, sections, editingSubmission, assignableUsers }: Props) {
   const { t, language } = useTranslation();
   const [project, setProject] = useState(editingSubmission?.meta?.project || '');
   const [unit, setUnit] = useState(editingSubmission?.meta?.unit || '');
@@ -121,6 +126,44 @@ export function GembaWalkForm({ onSubmit, onCancel, inspectorName, sections, edi
 
   const toggleCategory = (key: string) => setExpanded(p => ({ ...p, [key]: !p[key] }));
 
+  // The payload this form submits — also what Print shows while the
+  // form is still being filled in (renderPrint below).
+  const buildPayload = (): Payload => {
+    const items = allItems.map(item => ({
+      id: item.id,
+      question: item.descEn,
+      answer: answers[item.id],
+      remarks: observations[item.id]?.trim() || undefined,
+      correctiveAction: correctiveActions[item.id]?.trim() || undefined,
+      comment: comments[item.id]?.trim() || undefined,
+      assignedToId: assignees[item.id] || undefined,
+      assignedToName: assignees[item.id] ? assignableUsers.find(u => u.id === assignees[item.id])?.name : undefined,
+      dueDate: dueDates[item.id] || undefined,
+    }));
+
+    return {
+      type: 'GEMBA_WALK',
+      items,
+      score: overall.compliancePct !== null ? Math.round(overall.compliancePct) : undefined,
+      meta: {
+        areaAudited,
+        inspectorName: auditors,
+        project: project.trim() || undefined,
+        unit: unit.trim() || undefined,
+        evaluationCounts: {
+          conform: overall.conform,
+          notConform: overall.notConform,
+          nonObserved: overall.nonObserved,
+          na: overall.na,
+        },
+        threeInARowNotes: {
+          positives: positives.trim() || undefined,
+          improvements: improvements.trim() || undefined,
+        },
+      },
+    };
+  };
+
   const handleSubmit = async () => {
     if (!canSubmit) {
       setShowValidation(true);
@@ -141,39 +184,7 @@ export function GembaWalkForm({ onSubmit, onCancel, inspectorName, sections, edi
     setIsSubmitting(true);
     await new Promise(r => setTimeout(r, 400));
 
-    const items = allItems.map(item => ({
-      id: item.id,
-      question: item.descEn,
-      answer: answers[item.id],
-      remarks: observations[item.id]?.trim() || undefined,
-      correctiveAction: correctiveActions[item.id]?.trim() || undefined,
-      comment: comments[item.id]?.trim() || undefined,
-      assignedToId: assignees[item.id] || undefined,
-      assignedToName: assignees[item.id] ? assignableUsers.find(u => u.id === assignees[item.id])?.name : undefined,
-      dueDate: dueDates[item.id] || undefined,
-    }));
-
-    onSubmit({
-      type: 'GEMBA_WALK',
-      items,
-      score: overall.compliancePct !== null ? Math.round(overall.compliancePct) : undefined,
-      meta: {
-        areaAudited,
-        inspectorName: auditors,
-        project: project.trim() || undefined,
-        unit: unit.trim() || undefined,
-        evaluationCounts: {
-          conform: overall.conform,
-          notConform: overall.notConform,
-          nonObserved: overall.nonObserved,
-          na: overall.na,
-        },
-        threeInARowNotes: {
-          positives: positives.trim() || undefined,
-          improvements: improvements.trim() || undefined,
-        },
-      },
-    });
+    onSubmit(buildPayload());
     setIsSubmitting(false);
   };
 
@@ -184,6 +195,7 @@ export function GembaWalkForm({ onSubmit, onCancel, inspectorName, sections, edi
         <h2 className="text-lg font-black text-psu-gray">{t('gemba.formTitle')}</h2>
         <p className="text-xs text-psu-gray/50 font-medium">{t('gemba.formSubtitle')}</p>
         <p className="text-[10px] text-psu-gray/30 font-black uppercase tracking-widest pt-1">{t('gemba.docRef')}</p>
+        {renderPrint && <div className="flex justify-end pt-2"><PaperPrintButton renderSheet={() => renderPrint(buildPayload())} /></div>}
       </div>
 
       <div className="card space-y-4">

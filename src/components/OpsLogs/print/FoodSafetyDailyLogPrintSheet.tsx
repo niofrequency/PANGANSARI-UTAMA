@@ -25,7 +25,12 @@ export function FoodSafetyDailyLogPrintSheet({ submission }: { submission: Submi
           </tr>
           <tr>
             <td className={CELL + ' font-bold'}>{itemsById.get('3')?.question}</td>
-            <td className={CELL} colSpan={3}>{String(itemsById.get('3')?.answer ?? '')}</td>
+            <td className={CELL} colSpan={3}>
+              {/* Area clean is a yes/no toggle: Yes when ticked; on a saved
+                  log an unticked toggle is a real "No", on a form still
+                  being filled in it's just not answered yet. */}
+              {itemsById.get('3')?.answer === true ? 'Ya / Yes' : itemsById.get('3')?.answer === false && submission.id !== 'draft' ? 'Tidak / No' : ''}
+            </td>
           </tr>
         </tbody>
       </table>

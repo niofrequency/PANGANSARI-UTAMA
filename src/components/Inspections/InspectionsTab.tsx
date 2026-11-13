@@ -14,6 +14,10 @@ import { userCanSeeSite } from '../../lib/siteScope';
 import { HOUSEKEEPING_GEMBA_ROLES } from '../../data/opsLogsCatalog';
 import { SubmissionHistoryList } from '../SubmissionHistoryList';
 import { ConfirmDeleteModal } from '../ConfirmDeleteModal';
+import { draftSubmission } from '../OpsLogs/print/PaperPrintButton';
+import { InspectionPrintSheet } from './print/InspectionPrintSheet';
+import { GembaWalkPrintSheet } from './print/GembaWalkPrintSheet';
+import { DailyFoodHandlerPrintSheet } from './print/DailyFoodHandlerPrintSheet';
 
 type AuditType = 'FOOD_SAFETY_INSPECTION' | 'GEMBA_WALK' | 'DAILY_FOOD_HANDLER';
 
@@ -143,6 +147,16 @@ export function InspectionsTab({ store, department }: { store: ReturnType<typeof
     status: type === 'GEMBA_WALK' ? 'PENDING' as const : 'APPROVED' as const,
   });
 
+  // Print while filling in: the form's current answers as a draft
+  // submission, rendered on the same paper sheet as a submitted report.
+  const draftFor = (type: AuditType, payload: Pick<Submission, 'items' | 'score' | 'meta'>, base?: Submission): Submission => ({
+    ...draftSubmission({
+      user: currentUser, type, siteId: currentUser?.site || '', siteName: currentSiteName,
+      items: payload.items, meta: payload.meta, base,
+    }),
+    score: payload.score,
+  });
+
   if (selected) {
     if (selected.type === 'GEMBA_WALK') return <GembaWalkReportView submission={selected} onBack={() => setSelected(null)} />;
     if (selected.type === 'DAILY_FOOD_HANDLER') return <DailyFoodHandlerReportView submission={selected} onBack={() => setSelected(null)} />;
@@ -155,6 +169,7 @@ export function InspectionsTab({ store, department }: { store: ReturnType<typeof
         inspectorName={currentUser?.name || ''}
         assignableUsers={assignableUsers}
         onCancel={() => setView('LIST')}
+        renderPrint={(payload) => <InspectionPrintSheet submission={draftFor('FOOD_SAFETY_INSPECTION', payload)} />}
         onSubmit={(payload) => {
           addSubmission({ ...payload, ...commonSubmissionFields('FOOD_SAFETY_INSPECTION') });
           createCorrectiveActionsForFlaggedItems(payload.items);
@@ -172,6 +187,7 @@ export function InspectionsTab({ store, department }: { store: ReturnType<typeof
         editingSubmission={editingSubmission}
         assignableUsers={assignableUsers}
         onCancel={() => { setView('LIST'); setEditingId(null); }}
+        renderPrint={(payload) => <GembaWalkPrintSheet submission={draftFor('GEMBA_WALK', payload, editingSubmission)} />}
         onSubmit={(payload) => {
           if (editingSubmission) {
             resubmitAfterRejection(editingSubmission.id, payload);
@@ -191,6 +207,7 @@ export function InspectionsTab({ store, department }: { store: ReturnType<typeof
       <DailyFoodHandlerForm
         siteName={currentSiteName}
         onCancel={() => setView('LIST')}
+        renderPrint={(payload) => <DailyFoodHandlerPrintSheet submission={draftFor('DAILY_FOOD_HANDLER', payload)} />}
         onSubmit={(payload) => {
           addSubmission({ ...payload, ...commonSubmissionFields('DAILY_FOOD_HANDLER') });
           setView('LIST');

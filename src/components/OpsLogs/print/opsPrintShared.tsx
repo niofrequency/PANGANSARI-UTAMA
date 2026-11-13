@@ -148,7 +148,7 @@ export function OpsItemsTable({ submission, ids }: { submission: Submission; ids
           <tr key={item.id}>
             <td className={CELL + ' text-center'}>{idx + 1}</td>
             <td className={CELL}>{item.question}</td>
-            <td className={CELL}>{item.answer === true ? 'OK' : item.answer === false ? 'X' : String(item.answer)}</td>
+            <td className={CELL}>{item.answer === true ? 'OK' : item.answer === false ? 'X' : String(item.answer ?? '')}</td>
             <td className={CELL}>{item.remarks || ''}</td>
           </tr>
         ))}
