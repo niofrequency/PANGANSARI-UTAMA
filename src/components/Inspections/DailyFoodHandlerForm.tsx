@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from 'react';
+import { ReactNode, useMemo, useRef, useState } from 'react';
+import { PaperPrintButton } from '../OpsLogs/print/PaperPrintButton';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronDown, ClipboardCheck, Clock, Plus, Trash2, XCircle, User, Check, X } from 'lucide-react';
 import { cn } from '../../utils/cn';
@@ -21,13 +22,17 @@ function newRow(key: string): RowState {
   return { key, name: '', position: '', marks: {}, remark: '' };
 }
 
+type Payload = Omit<Submission, 'id' | 'userId' | 'userName' | 'role' | 'siteId' | 'siteName' | 'timestamp' | 'status'>;
+
 interface Props {
-  onSubmit: (payload: Omit<Submission, 'id' | 'userId' | 'userName' | 'role' | 'siteId' | 'siteName' | 'timestamp' | 'status'>) => void;
+  onSubmit: (payload: Payload) => void;
+  // Paper-replica sheet for the form as currently filled in (Print form).
+  renderPrint?: (payload: Payload) => ReactNode;
   onCancel: () => void;
   siteName: string;
 }
 
-export function DailyFoodHandlerForm({ onSubmit, onCancel, siteName }: Props) {
+export function DailyFoodHandlerForm({ onSubmit, renderPrint, onCancel, siteName }: Props) {
   const { t, language } = useTranslation();
   const rowCounter = useRef(1);
   const [rows, setRows] = useState<RowState[]>([newRow('row-0')]);
@@ -70,14 +75,9 @@ export function DailyFoodHandlerForm({ onSubmit, onCancel, siteName }: Props) {
 
   const toggleExpanded = (key: string) => setExpanded(p => ({ ...p, [key]: !p[key] }));
 
-  const handleSubmit = async () => {
-    if (!canSubmit) {
-      setShowValidation(true);
-      return;
-    }
-    setIsSubmitting(true);
-    await new Promise(r => setTimeout(r, 400));
-
+  // The payload this form submits — also what Print shows while the
+  // form is still being filled in (renderPrint below).
+  const buildPayload = (): Payload => {
     const roster: DailyFoodHandlerRosterEntry[] = rows.map((r, idx) => ({
       no: idx + 1,
       name: r.name.trim(),
@@ -87,7 +87,7 @@ export function DailyFoodHandlerForm({ onSubmit, onCancel, siteName }: Props) {
       remark: r.remark.trim() || undefined,
     }));
 
-    onSubmit({
+    return {
       type: 'DAILY_FOOD_HANDLER',
       items: [],
       score: scoreRoster(roster.map(r => r.readyToWork)),
@@ -98,7 +98,18 @@ export function DailyFoodHandlerForm({ onSubmit, onCancel, siteName }: Props) {
         acknowledgedBy: acknowledgedBy.trim() || undefined,
         verifiedBy: verifiedBy.trim() || undefined,
       },
-    });
+    };
+  };
+
+  const handleSubmit = async () => {
+    if (!canSubmit) {
+      setShowValidation(true);
+      return;
+    }
+    setIsSubmitting(true);
+    await new Promise(r => setTimeout(r, 400));
+
+    onSubmit(buildPayload());
     setIsSubmitting(false);
   };
 
@@ -107,6 +118,7 @@ export function DailyFoodHandlerForm({ onSubmit, onCancel, siteName }: Props) {
       <div className="card space-y-1">
         <h2 className="text-lg font-black text-psu-gray">{t('dfh.formTitle')}</h2>
         <p className="text-xs text-psu-gray/50 font-medium">{t('dfh.formSubtitle')}</p>
+        {renderPrint && <div className="flex justify-end pt-2"><PaperPrintButton renderSheet={() => renderPrint(buildPayload())} /></div>}
       </div>
 
       <div className="card space-y-4">

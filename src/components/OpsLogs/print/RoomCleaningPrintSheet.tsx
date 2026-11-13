@@ -66,7 +66,12 @@ export function RoomCleaningPrintSheet({ submission }: { submission: Submission 
                       {it.labelId}<div className="italic">{it.labelEn}</div>
                       {it.cadence !== 'daily' && <div style={{ fontSize: '6.5px' }}>({it.cadence})</div>}
                     </td>
-                    <td className={CELL + ' text-center font-black'}>{subm?.answer ? 'Y' : 'T'}</td>
+                    <td className={CELL + ' text-center font-black'}>
+                      {/* Ticked = Y. Not done WITH a reason (occupied, no
+                          linen…) = T. Not ticked yet = blank, so a form
+                          printed half-way doesn't look like "not done". */}
+                      {subm?.answer ? 'Y' : subm?.remarks ? 'T' : ''}
+                    </td>
                     <td className={CELL}>{subm?.remarks || ''}</td>
                   </tr>
                 );
