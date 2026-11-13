@@ -366,11 +366,34 @@ service cloud.firestore {
           get(/databases/$(database)/documents/users/$(request.resource.data.toEmail)).data
         );
 
-      // Only the recipient, and only to mark it read.
-      allow update: if isSignedIn()
-        && request.auth.uid == resource.data.toId
-        && onlyChanged(['read'])
-        && request.resource.data.read == true;
+      allow update: if isSignedIn() && (
+        // 1. The recipient marks it read.
+        (request.auth.uid == resource.data.toId
+          && onlyChanged(['read'])
+          && request.resource.data.read == true)
+        ||
+        // 2. The sender edits the text of a message they haven't deleted.
+        (request.auth.uid == resource.data.fromId
+          && resource.data.get('deleted', false) != true
+          && onlyChanged(['text', 'editedAt'])
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 2000)
+        ||
+        // 3. The sender deletes it for everyone — text blanked, doc kept so
+        //    the thread shows "This message was deleted".
+        (request.auth.uid == resource.data.fromId
+          && onlyChanged(['deleted', 'text', 'deletedAt'])
+          && request.resource.data.deleted == true
+          && request.resource.data.text == '')
+        ||
+        // 4. Either participant hides it for themselves only ("Delete for
+        //    me" / "Clear chat") — may only ADD their own uid to hiddenFor.
+        (request.auth.uid in resource.data.participants
+          && onlyChanged(['hiddenFor'])
+          && request.resource.data.hiddenFor.toSet().hasAll(resource.data.get('hiddenFor', []).toSet())
+          && request.resource.data.hiddenFor.toSet().difference(resource.data.get('hiddenFor', []).toSet()) == [request.auth.uid].toSet())
+      );
 
       allow delete: if false;
     }

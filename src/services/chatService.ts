@@ -1,4 +1,4 @@
-import { collection, doc, addDoc, updateDoc, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, doc, addDoc, updateDoc, onSnapshot, query, where, arrayUnion } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { ChatMessage } from '../types';
 
@@ -20,6 +20,21 @@ export function subscribeMyMessages(uid: string, onChange: (messages: ChatMessag
 export async function addMessageDoc(message: Omit<ChatMessage, 'id'>): Promise<void> {
   if (!db) return;
   await addDoc(collection(db, 'messages'), message);
+}
+
+export async function editMessageDoc(id: string, text: string): Promise<void> {
+  if (!db) return;
+  await updateDoc(doc(db, 'messages', id), { text, editedAt: new Date().toISOString() });
+}
+
+export async function deleteMessageForEveryoneDoc(id: string): Promise<void> {
+  if (!db) return;
+  await updateDoc(doc(db, 'messages', id), { deleted: true, text: '', deletedAt: new Date().toISOString() });
+}
+
+export async function hideMessageForMeDoc(id: string, uid: string): Promise<void> {
+  if (!db) return;
+  await updateDoc(doc(db, 'messages', id), { hiddenFor: arrayUnion(uid) });
 }
 
 export async function markMessageReadDoc(id: string): Promise<void> {

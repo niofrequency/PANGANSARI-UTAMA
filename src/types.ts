@@ -385,6 +385,10 @@ export interface ChatMessage {
   text: string;
   createdAt: string; // ISO
   read: boolean; // set by the recipient
+  editedAt?: string; // set when the sender edits the text
+  deleted?: boolean; // "delete for everyone" by the sender — text is blanked
+  deletedAt?: string;
+  hiddenFor?: string[]; // uids who cleared / deleted this message for themselves only
 }
 
 export interface FieldReport {

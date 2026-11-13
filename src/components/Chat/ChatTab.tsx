@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bell, BellOff, ChevronLeft, LucideIcon, MessageCircle, Search, Send } from 'lucide-react';
+import { Bell, BellOff, Check, ChevronLeft, LucideIcon, MessageCircle, Pencil, Search, Send, Trash2, X } from 'lucide-react';
+import { Modal } from '../Modal';
 import { pushState, registerPush, PushState } from '../../lib/pushNotifications';
 import { useAppStore } from '../../store/useAppStore';
 import { useTranslation } from '../../i18n/LanguageContext';
@@ -13,8 +14,7 @@ type Store = ReturnType<typeof useAppStore>;
 // Unread messages addressed to the signed-in user — drives the Chat tab's
 // badge in every portal.
 export function useUnreadChatCount(store: Store): number {
-  const me = store.currentUser?.id;
-  return me ? store.messages.filter(m => m.toId === me && !m.read).length : 0;
+  return store.unreadChatCount;
 }
 
 function timeLabel(iso: string): string {
@@ -30,7 +30,7 @@ function timeLabel(iso: string): string {
 // Housekeepers, Janitors, Laundry), frontline only with Supervisors.
 export function ChatTab({ store }: { store: Store }) {
   const { t } = useTranslation();
-  const { currentUser, users, messages, sendChatMessage, markConversationRead } = store;
+  const { currentUser, users, messages, sendChatMessage, markConversationRead, editChatMessage, deleteChatMessageForEveryone, hideChatMessagesForMe } = store;
   const [activeId, setActiveId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [draft, setDraft] = useState('');
@@ -56,7 +56,7 @@ export function ChatTab({ store }: { store: Store }) {
       const other = m.fromId === currentUser.id ? m.toId : m.fromId;
       const entry = map.get(other) || { unread: 0 };
       if (!entry.last || m.createdAt > entry.last.createdAt) entry.last = m;
-      if (m.toId === currentUser.id && !m.read) entry.unread++;
+      if (m.toId === currentUser.id && !m.read && !m.deleted) entry.unread++;
       map.set(other, entry);
     }
     return map;
@@ -88,8 +88,29 @@ export function ChatTab({ store }: { store: Store }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active?.id, thread.length]);
 
+  // Tap a message to show its actions; editingId puts the composer into
+  // "edit this message" mode.
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [confirmClear, setConfirmClear] = useState(false);
+  useEffect(() => { setMenuFor(null); setEditingId(null); }, [active?.id]);
+
+  const startEdit = (id: string, text: string) => {
+    setEditingId(id);
+    setDraft(text);
+    setMenuFor(null);
+  };
+  const cancelEdit = () => {
+    setEditingId(null);
+    setDraft('');
+  };
+
   const send = () => {
     if (!active || !draft.trim()) return;
+    if (editingId) {
+      if (editChatMessage(editingId, draft)) cancelEdit();
+      return;
+    }
     if (sendChatMessage(active, draft)) setDraft('');
   };
 
@@ -133,7 +154,7 @@ export function ChatTab({ store }: { store: Store }) {
                 </div>
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[11px] text-psu-gray/50 truncate">
-                    {info?.last ? `${info.last.fromId === currentUser.id ? t('chat.you') + ': ' : ''}${info.last.text}` : t(`rolesShort.${u.role}`)}
+                    {info?.last ? `${info.last.fromId === currentUser.id ? t('chat.you') + ': ' : ''}${info.last.deleted ? t('chat.deletedMessage') : info.last.text}` : t(`rolesShort.${u.role}`)}
                   </span>
                   {!!info?.unread && (
                     <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-psu-rejected text-white text-[10px] font-black flex items-center justify-center shrink-0">{info.unread}</span>
@@ -153,31 +174,70 @@ export function ChatTab({ store }: { store: Store }) {
         <button onClick={() => setActiveId(null)} className="md:hidden text-psu-gray/40" aria-label={t('chat.back')}>
           <ChevronLeft size={20} />
         </button>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-sm font-bold text-psu-gray truncate">{active.name}</p>
           <p className="text-[10px] font-black text-psu-gray/40 uppercase tracking-widest truncate">{t(`roles.${active.role}`)}</p>
         </div>
+        {thread.length > 0 && (
+          <button
+            onClick={() => setConfirmClear(true)}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest text-psu-gray/40 hover:text-psu-rejected hover:bg-psu-rejected/5 transition-colors"
+          >
+            <Trash2 size={14} /> {t('chat.clearChat')}
+          </button>
+        )}
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-psu-bg/50">
         {thread.length === 0 && <p className="text-center text-xs text-psu-gray/40 font-medium py-8">{t('chat.noMessages')}</p>}
         {thread.map(m => {
           const mine = m.fromId === currentUser.id;
+          const open = menuFor === m.id;
           return (
-            <div key={m.id} className={cn('flex', mine ? 'justify-end' : 'justify-start')}>
-              <div className={cn(
-                'max-w-[80%] rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap break-words',
-                mine ? 'bg-psu-blue text-white rounded-br-md' : 'bg-white text-psu-gray border border-psu-gray/10 rounded-bl-md',
-              )}>
-                {m.text}
-                <div className={cn('text-[9px] mt-0.5 text-right', mine ? 'text-white/70' : 'text-psu-gray/40')}>
-                  {timeLabel(m.createdAt)}{mine && m.read ? ' · ✓✓' : ''}
+            <div key={m.id} className={cn('flex flex-col', mine ? 'items-end' : 'items-start')}>
+              <button
+                type="button"
+                onClick={() => setMenuFor(open ? null : m.id)}
+                className={cn(
+                  'max-w-[80%] rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap break-words text-left',
+                  m.deleted
+                    ? 'bg-transparent border border-dashed border-psu-gray/20 text-psu-gray/40 italic'
+                    : mine ? 'bg-psu-blue text-white rounded-br-md' : 'bg-white text-psu-gray border border-psu-gray/10 rounded-bl-md',
+                  editingId === m.id && 'ring-2 ring-psu-warning',
+                )}
+              >
+                {m.deleted ? t('chat.deletedMessage') : m.text}
+                <div className={cn('text-[9px] mt-0.5 text-right not-italic', mine && !m.deleted ? 'text-white/70' : 'text-psu-gray/40')}>
+                  {m.editedAt && !m.deleted ? `${t('chat.edited')} · ` : ''}{timeLabel(m.createdAt)}{mine && m.read && !m.deleted ? ' · ✓✓' : ''}
                 </div>
-              </div>
+              </button>
+              {open && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {mine && !m.deleted && (
+                    <>
+                      <button onClick={() => startEdit(m.id, m.text)} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white border border-psu-gray/10 text-[10px] font-bold text-psu-gray hover:bg-psu-bg">
+                        <Pencil size={12} /> {t('chat.edit')}
+                      </button>
+                      <button onClick={() => { deleteChatMessageForEveryone(m.id); setMenuFor(null); if (editingId === m.id) cancelEdit(); }} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white border border-psu-rejected/20 text-[10px] font-bold text-psu-rejected hover:bg-psu-rejected/5">
+                        <Trash2 size={12} /> {t('chat.deleteForEveryone')}
+                      </button>
+                    </>
+                  )}
+                  <button onClick={() => { hideChatMessagesForMe([m.id]); setMenuFor(null); if (editingId === m.id) cancelEdit(); }} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white border border-psu-gray/10 text-[10px] font-bold text-psu-gray/60 hover:bg-psu-bg">
+                    <X size={12} /> {t('chat.deleteForMe')}
+                  </button>
+                </div>
+              )}
             </div>
           );
         })}
         <div ref={bottomRef} />
       </div>
+      {editingId && (
+        <div className="flex items-center justify-between gap-2 px-4 py-2 bg-psu-warning/10 text-psu-warning text-[11px] font-bold border-t border-psu-warning/20">
+          <span className="flex items-center gap-1.5"><Pencil size={12} /> {t('chat.editingMessage')}</span>
+          <button onClick={cancelEdit} className="flex items-center gap-1 uppercase tracking-widest text-[10px]"><X size={12} /> {t('common.cancel')}</button>
+        </div>
+      )}
       <form
         onSubmit={(e) => { e.preventDefault(); send(); }}
         className="flex items-end gap-2 p-3 border-t border-psu-gray/5"
@@ -194,9 +254,9 @@ export function ChatTab({ store }: { store: Store }) {
           type="submit"
           disabled={!draft.trim()}
           className="w-11 h-11 rounded-xl bg-psu-blue text-white flex items-center justify-center disabled:opacity-40 active:scale-95 transition-all"
-          aria-label={t('chat.send')}
+          aria-label={editingId ? t('chat.saveEdit') : t('chat.send')}
         >
-          <Send size={18} />
+          {editingId ? <Check size={18} /> : <Send size={18} />}
         </button>
       </form>
     </div>
@@ -222,8 +282,28 @@ export function ChatTab({ store }: { store: Store }) {
     </p>
   ) : null;
 
+  const clearModal = confirmClear && active ? (
+    <Modal size="sm" boxClassName="rounded-[32px] p-8">
+      <div className="text-center space-y-2 mb-6">
+        <div className="w-14 h-14 mx-auto bg-psu-rejected/10 rounded-2xl flex items-center justify-center text-psu-rejected"><Trash2 size={24} /></div>
+        <h3 className="text-lg font-bold text-psu-gray">{t('chat.clearChatTitle')}</h3>
+        <p className="text-xs text-psu-gray/60 font-medium">{t('chat.clearChatBody', { name: active.name })}</p>
+      </div>
+      <div className="flex gap-3">
+        <button onClick={() => setConfirmClear(false)} className="flex-1 py-3 text-psu-gray/40 font-black text-[10px] uppercase tracking-widest">{t('common.cancel')}</button>
+        <button
+          onClick={() => { hideChatMessagesForMe(thread.map(m => m.id)); setConfirmClear(false); cancelEdit(); }}
+          className="flex-[2] py-3 bg-psu-rejected text-white rounded-2xl font-black text-[10px] uppercase tracking-widest"
+        >
+          {t('chat.clearChat')}
+        </button>
+      </div>
+    </Modal>
+  ) : null;
+
   return (
     <div className="space-y-4">
+      {clearModal}
       {pushBanner}
       <div className="md:flex md:gap-4 space-y-4 md:space-y-0">
         {contactList}

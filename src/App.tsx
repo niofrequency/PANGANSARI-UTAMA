@@ -295,7 +295,7 @@ export default function App() {
             exit={{ opacity: 0, y: -10 }}
             className="pb-20"
           >
-            <Layout user={currentUser} onLogout={logout} storageError={storageError} rejectedNotices={rejectedNotices} offlinePendingCount={outboxPendingCount} unreadChatCount={store.messages.filter(m => m.toId === currentUser.id && !m.read).length}>
+            <Layout user={currentUser} onLogout={logout} storageError={storageError} rejectedNotices={rejectedNotices} offlinePendingCount={outboxPendingCount} unreadChatCount={store.unreadChatCount}>
               {renderPortal()}
             </Layout>
           </motion.div>
