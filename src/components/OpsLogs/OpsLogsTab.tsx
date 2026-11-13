@@ -32,6 +32,9 @@ import { LaundryShopPrintSheet } from './print/LaundryShopPrintSheet';
 import { RestroomPrintSheet } from './print/RestroomPrintSheet';
 import { RoomCleaningPrintSheet } from './print/RoomCleaningPrintSheet';
 import { FoodSafetyDailyLogPrintSheet } from './print/FoodSafetyDailyLogPrintSheet';
+import { TempControlPrintSheet } from './print/TempControlPrintSheet';
+import { DishwashPrintSheet } from './print/DishwashPrintSheet';
+import { PrintSheetProps } from './print/paperShared';
 
 // One print sheet per type this tab's shared detail modal can show —
 // every Ops Log type, plus the 2 review-only types (HOUSEKEEPING/
@@ -41,7 +44,9 @@ import { FoodSafetyDailyLogPrintSheet } from './print/FoodSafetyDailyLogPrintShe
 // reasoning as InspectionsTab.tsx's report views. Gemba Walk (the third
 // review-only type) already has its own Print button on
 // GembaWalkReportView.tsx and isn't duplicated here.
-const OPS_PRINT_COMPONENTS: Partial<Record<Submission['type'], ComponentType<{ submission: Submission }>>> = {
+const OPS_PRINT_COMPONENTS: Partial<Record<Submission['type'], ComponentType<PrintSheetProps>>> = {
+  TEMP_CONTROL: TempControlPrintSheet,
+  DISHWASH_TEMP: DishwashPrintSheet,
   MESS_HALL_HYGIENE: MessHallHygienePrintSheet,
   COOKING_SERVICE: CookingServicePrintSheet,
   HOT_PACKED_MEAL: HotPackedMealPrintSheet,
@@ -201,7 +206,7 @@ export function OpsLogsTab({
           its own Print button on GembaWalkReportView.tsx. */}
       {OPS_PRINT_COMPONENTS[selected.type] && (() => {
         const PrintSheet = OPS_PRINT_COMPONENTS[selected.type]!;
-        return <div className="hidden print:block"><PrintSheet submission={selected} /></div>;
+        return <div className="hidden print:block"><PrintSheet submission={selected} allSubmissions={submissions.filter(x => !x.deletedAt)} /></div>;
       })()}
       <div className="p-8 overflow-y-auto print:hidden">
         <div className="flex justify-between items-start mb-6">
@@ -325,7 +330,7 @@ export function OpsLogsTab({
 
         {OPS_PRINT_COMPONENTS[selected.type] && (() => {
           const PrintSheet = OPS_PRINT_COMPONENTS[selected.type]!;
-          return <div className="hidden print:block"><PrintSheet submission={selected} /></div>;
+          return <div className="hidden print:block"><PrintSheet submission={selected} allSubmissions={submissions.filter(x => !x.deletedAt)} /></div>;
         })()}
 
         {/* Single column, full width — Stamp/Reject/Edit used to live in

@@ -182,7 +182,7 @@ export function Layout({ user, onLogout, children, storageError, rejectedNotices
 
       {/* Print-only letterhead: PSU logo + who printed it and when. Hidden
           on screen; shown at the top of every printed page/form. */}
-      <div className="hidden print:flex items-center justify-between gap-4 border-b-2 border-black pb-3 mb-4">
+      <div className="psu-print-letterhead hidden print:flex items-center justify-between gap-4 border-b-2 border-black pb-3 mb-4">
         <img src="/icons/psu-logo-full.png" alt="PSU" className="h-14 w-auto" />
         <div className="text-right text-[11px] leading-snug text-black">
           <div className="font-bold">PSU Field Ops</div>

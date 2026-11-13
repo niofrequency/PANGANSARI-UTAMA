@@ -28,7 +28,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install function dependencies
         working-directory: functions
@@ -48,4 +48,4 @@ jobs:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
       - name: Deploy to Firebase
-        run: npx firebase-tools@13 deploy --only functions --project "$FIREBASE_PROJECT_ID" --non-interactive
+        run: npx firebase-tools@14 deploy --only functions --project "$FIREBASE_PROJECT_ID" --non-interactive

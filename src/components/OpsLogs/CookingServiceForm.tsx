@@ -117,6 +117,7 @@ export function CookingServiceForm({ store, onCancel, onSubmitted }: {
       meta: {
         formId: 'UF.09001',
         mealPeriods: selectedMeals,
+        cookingRows: Object.fromEntries(selectedMeals.map(m => [m, rowsByMeal[m] || {}])),
         outOfRange: anyBelowMin,
         signoff: { draftedBy: { userId: currentUser.id, name: currentUser.name, staffCode: currentUser.staffCode, at: new Date().toISOString() } },
       },
