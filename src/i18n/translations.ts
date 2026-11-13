@@ -187,6 +187,8 @@ export const translations = {
       back: 'Back',
       you: 'You',
       pickContact: 'Pick someone to start chatting',
+      enableNotifications: 'Turn on message notifications',
+      notificationsBlocked: 'Notifications are blocked — allow them in your browser or phone settings.',
     },
     manager: {
       tabAnalytics: 'Analytics',
@@ -971,6 +973,8 @@ export const translations = {
       back: 'Kembali',
       you: 'Anda',
       pickContact: 'Pilih orang untuk mulai chat',
+      enableNotifications: 'Aktifkan notifikasi pesan',
+      notificationsBlocked: 'Notifikasi diblokir — izinkan di pengaturan browser atau HP.',
     },
     manager: {
       tabAnalytics: 'Analitik',

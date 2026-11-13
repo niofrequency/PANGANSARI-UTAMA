@@ -12,7 +12,7 @@ import { userCanSeeSite } from '../../lib/siteScope';
 import { DesktopShell } from '../DesktopShell';
 import { UserManagementPanel } from '../Admin/UserManagementPanel';
 import { FieldReportsTab } from '../FieldReports/FieldReportsTab';
-import { ChatTab, useChatTabLabel } from '../Chat/ChatTab';
+import { ChatTab, useChatTab, useOpenChatSignal } from '../Chat/ChatTab';
 
 // The daily Housekeeping/Food Safety Escalations queue used to live here
 // as its own tab with a single Approve/Deny action, separate from Ops
@@ -33,7 +33,8 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
   const isGeneralManager = currentUser?.role === 'GENERAL_MANAGER';
   const isFoodSafety = currentUser?.role === 'FOOD_SAFETY_MANAGER' || isGeneralManager;
   const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'OPS_LOGS' | 'HISTORY' | 'ACTIONS' | 'INSPECTIONS' | 'USERS' | 'ISSUES' | 'CHAT'>('DASHBOARD');
-  const chatLabel = useChatTabLabel(store);
+  const chatTab = useChatTab(store);
+  useOpenChatSignal(() => setActiveTab('CHAT'));
 
   // The Dashboard tab used to get the raw, unfiltered store data — every
   // site's submissions, blended together, regardless of who was looking at
@@ -58,7 +59,7 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
     // Issues reported from the wrench icon (ReportIssueButton) — the same
     // queue Supervisors work, so Managers see every reported problem too.
     { id: 'ISSUES' as const, icon: MessageSquareWarning, label: t('fieldReport.tabTitle') },
-    { id: 'CHAT' as const, icon: MessageCircle, label: chatLabel },
+    { id: 'CHAT' as const, icon: chatTab.icon, label: chatTab.label },
     ...(isFoodSafety ? [{ id: 'INSPECTIONS' as const, icon: ClipboardCheck, label: t('inspection.tabTitle') }] : []),
     // Personnel management — same tool as the Admin Portal's Personnel
     // tab, minus anything touching ADMIN accounts (see

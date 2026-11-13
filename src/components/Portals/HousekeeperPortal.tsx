@@ -25,7 +25,7 @@ import { SubmissionHistoryList } from '../SubmissionHistoryList';
 import { ConfirmDeleteModal } from '../ConfirmDeleteModal';
 import { PaperPrintButton, draftSubmission } from '../OpsLogs/print/PaperPrintButton';
 import { RoomCleaningPrintSheet } from '../OpsLogs/print/RoomCleaningPrintSheet';
-import { ChatTab, useChatTabLabel } from '../Chat/ChatTab';
+import { ChatTab, useChatTab, useOpenChatSignal } from '../Chat/ChatTab';
 
 const GROUP_ICON: Record<RoomCleaningGroupKey, typeof Sparkles> = {
   '1': Sparkles,
@@ -58,7 +58,8 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
   const { t, language } = useTranslation();
   const { currentUser, submissions, addSubmission, trainings, completeTraining, sites } = store;
   const [activeTab, setActiveTab] = useState<'TASKS' | 'HISTORY' | 'CHAT' | 'TRAINING'>('TASKS');
-  const chatLabel = useChatTabLabel(store);
+  const chatTab = useChatTab(store);
+  useOpenChatSignal(() => setActiveTab('CHAT'));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showValidation, setShowValidation] = useState(false);
   // Which site this room-cleaning submission is for — see
@@ -246,7 +247,7 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
         {[
           { id: 'TASKS', icon: ClipboardList, label: t('housekeeper.tabTasks') },
           { id: 'HISTORY', icon: History, label: t('housekeeper.tabHistory') },
-          { id: 'CHAT', icon: MessageCircle, label: chatLabel },
+          { id: 'CHAT', icon: chatTab.icon, label: chatTab.label },
           { id: 'TRAINING', icon: GraduationCap, label: t('housekeeper.tabTraining') },
         ].map(tab => (
           <button

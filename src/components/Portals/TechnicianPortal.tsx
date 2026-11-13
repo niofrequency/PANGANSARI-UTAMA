@@ -23,7 +23,7 @@ import { titleKeyForChainType } from '../../data/opsLogsCatalog';
 import { Thermometer, Droplets, ChevronRight } from 'lucide-react';
 import { PaperPrintButton, draftSubmission } from '../OpsLogs/print/PaperPrintButton';
 import { FoodSafetyDailyLogPrintSheet } from '../OpsLogs/print/FoodSafetyDailyLogPrintSheet';
-import { ChatTab, useChatTabLabel } from '../Chat/ChatTab';
+import { ChatTab, useChatTab, useOpenChatSignal } from '../Chat/ChatTab';
 
 type DeepLinkStartAt = 'fridge' | 'core' | 'clean' | 'wellness';
 
@@ -64,7 +64,8 @@ export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob 
   const { t } = useTranslation();
   const { currentUser, submissions, addSubmission, trainings, completeTraining, warnings, sites } = store;
   const [activeTab, setActiveTab] = useState<'TASKS' | 'HISTORY' | 'CHAT' | 'TRAINING'>('TASKS');
-  const chatLabel = useChatTabLabel(store);
+  const chatTab = useChatTab(store);
+  useOpenChatSignal(() => setActiveTab('CHAT'));
   // Additional Checks (PSU_Paper_Speed_Forms_PRD.md) — UF.10000/UN.00.51
   // were restored as their own month-sheet forms, not folded into the
   // daily fridge/core log above. Same tile-then-form pattern OpsLogsTab
@@ -255,7 +256,7 @@ export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob 
         {[
           { id: 'TASKS', icon: ClipboardCheck, label: t('technician.tabChecks') },
           { id: 'HISTORY', icon: History, label: t('technician.tabHistory') },
-          { id: 'CHAT', icon: MessageCircle, label: chatLabel },
+          { id: 'CHAT', icon: chatTab.icon, label: chatTab.label },
           { id: 'TRAINING', icon: GraduationCap, label: t('technician.tabTraining') },
         ].map(tab => (
           <button

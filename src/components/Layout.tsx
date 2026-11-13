@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Toaster } from 'sonner';
 import { User } from '../types';
-import { LogOut, MapPin, Download, AlertTriangle, Bell, XCircle } from 'lucide-react';
+import { LogOut, MapPin, Download, AlertTriangle, Bell, XCircle, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTranslation } from '../i18n/LanguageContext';
 import { InstallGuide } from './InstallGuide';
@@ -36,9 +36,12 @@ interface LayoutProps {
   // offline, same "don't nag about a queue that's about to flush anyway"
   // reasoning as not showing it the instant one write is mid-flight.
   offlinePendingCount?: number;
+  // Unread chat messages for the signed-in user — shown as a count on the
+  // header chat icon, which opens the portal's Chat tab when tapped.
+  unreadChatCount?: number;
 }
 
-export function Layout({ user, onLogout, children, storageError, rejectedNotices = [], offlinePendingCount = 0 }: LayoutProps) {
+export function Layout({ user, onLogout, children, storageError, rejectedNotices = [], offlinePendingCount = 0, unreadChatCount = 0 }: LayoutProps) {
   const { t, language, toggleLanguage } = useTranslation();
   const [showInstallGuide, setShowInstallGuide] = useState(false);
   const [showNotices, setShowNotices] = useState(false);
@@ -89,6 +92,20 @@ export function Layout({ user, onLogout, children, storageError, rejectedNotices
             aria-label={t('layout.installApp')}
           >
             <Download size={16} />
+          </button>
+
+          <button
+            onClick={() => window.dispatchEvent(new Event('psu-open-chat'))}
+            className="relative w-9 h-9 rounded-full bg-psu-blue/10 text-psu-blue flex items-center justify-center hover:bg-psu-blue/20 transition-colors"
+            aria-label={t('chat.tabTitle')}
+            title={t('chat.tabTitle')}
+          >
+            <MessageCircle size={16} />
+            {unreadChatCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-psu-rejected text-white text-[9px] font-black flex items-center justify-center">
+                {unreadChatCount > 99 ? '99+' : unreadChatCount}
+              </span>
+            )}
           </button>
 
           <button

@@ -7,7 +7,7 @@ import { useTranslation } from '../../i18n/LanguageContext';
 import { InspectionsTab } from '../Inspections/InspectionsTab';
 import { OpsLogsTab } from '../OpsLogs/OpsLogsTab';
 import { FieldReportsTab } from '../FieldReports/FieldReportsTab';
-import { ChatTab, useChatTabLabel } from '../Chat/ChatTab';
+import { ChatTab, useChatTab, useOpenChatSignal } from '../Chat/ChatTab';
 import { CorrectiveActionsTab } from '../CorrectiveActions/CorrectiveActionsTab';
 import { Modal } from '../Modal';
 import { DesktopShell } from '../DesktopShell';
@@ -36,7 +36,8 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled }: Supervi
   const { currentUser, addWarning, users } = store;
   const isFoodSafety = currentUser?.role === 'FOOD_SAFETY_SUPERVISOR';
   const [activeTab, setActiveTab] = useState<'OPS_LOGS' | 'HISTORY' | 'REPORTS' | 'ACTIONS' | 'INSPECTIONS' | 'CHAT'>(startTab ?? 'OPS_LOGS');
-  const chatLabel = useChatTabLabel(store);
+  const chatTab = useChatTab(store);
+  useOpenChatSignal(() => setActiveTab('CHAT'));
   const [showWarningDialog, setShowWarningDialog] = useState(false);
   const [warningData, setWarningData] = useState({ userId: '', reason: '', severity: 'LOW' as any });
 
@@ -76,7 +77,7 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled }: Supervi
     // Housekeeping Supervisor gets this too now, restricted to Gemba
     // Walk's Section A only — see InspectionsTab.tsx.
     { id: 'INSPECTIONS' as const, icon: ClipboardCheck, label: t('inspection.tabTitle') },
-    { id: 'CHAT' as const, icon: MessageCircle, label: chatLabel },
+    { id: 'CHAT' as const, icon: chatTab.icon, label: chatTab.label },
   ];
   const activeTabLabel = tabs.find(tab => tab.id === activeTab)?.label ?? '';
 

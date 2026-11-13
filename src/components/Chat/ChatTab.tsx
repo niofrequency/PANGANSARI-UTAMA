@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, MessageCircle, Search, Send } from 'lucide-react';
+import { Bell, BellOff, ChevronLeft, LucideIcon, MessageCircle, Search, Send } from 'lucide-react';
+import { pushState, registerPush, PushState } from '../../lib/pushNotifications';
 import { useAppStore } from '../../store/useAppStore';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { chatContacts } from '../../lib/chatPolicy';
@@ -34,6 +35,12 @@ export function ChatTab({ store }: { store: Store }) {
   const [search, setSearch] = useState('');
   const [draft, setDraft] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
+  const [push, setPush] = useState<PushState | null>(null);
+  useEffect(() => { pushState().then(setPush).catch(() => setPush('unsupported')); }, []);
+  const enablePush = async () => {
+    if (!currentUser) return;
+    setPush(await registerPush(currentUser.id, currentUser.email, true));
+  };
 
   // Firebase mode: an invited account that never logged in has no real
   // uid yet (its id is still its email) — it can't receive messages.
@@ -202,18 +209,71 @@ export function ChatTab({ store }: { store: Store }) {
     </div>
   );
 
+  const pushBanner = push === 'default' ? (
+    <button
+      onClick={enablePush}
+      className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-psu-blue/10 text-psu-blue text-[11px] font-black uppercase tracking-widest hover:bg-psu-blue/20 transition-colors"
+    >
+      <Bell size={16} /> {t('chat.enableNotifications')}
+    </button>
+  ) : push === 'denied' ? (
+    <p className="flex items-center justify-center gap-2 text-[11px] text-psu-gray/50 font-medium">
+      <BellOff size={14} /> {t('chat.notificationsBlocked')}
+    </p>
+  ) : null;
+
   return (
-    <div className="md:flex md:gap-4 space-y-4 md:space-y-0">
-      {contactList}
-      {conversation}
+    <div className="space-y-4">
+      {pushBanner}
+      <div className="md:flex md:gap-4 space-y-4 md:space-y-0">
+        {contactList}
+        {conversation}
+      </div>
     </div>
   );
 }
 
-// "Chat" or "Chat (3)" — the portals' tab bars and desktop sidebar take
-// plain-text labels.
-export function useChatTabLabel(store: Store): string {
+// Chat tab entry for a portal's tab bar / desktop sidebar: the chat icon
+// with a red unread-count bubble on it, and the plain "Chat" label.
+export function useChatTab(store: Store): { icon: LucideIcon; label: string } {
   const { t } = useTranslation();
-  const unread = useUnreadChatCount(store);
-  return unread > 0 ? `${t('chat.tabTitle')} (${unread})` : t('chat.tabTitle');
+  const count = useUnreadChatCount(store);
+  const icon = useMemo(() => {
+    const ChatIcon = (props: { size?: number; className?: string }) => (
+      <span className="relative inline-flex">
+        <MessageCircle {...props} />
+        {count > 0 && (
+          <span className="absolute -top-1.5 -right-2.5 min-w-[16px] h-4 px-1 rounded-full bg-psu-rejected text-white text-[9px] font-black leading-4 text-center shadow-sm">
+            {count > 99 ? '99+' : count}
+          </span>
+        )}
+      </span>
+    );
+    return ChatIcon as unknown as LucideIcon;
+  }, [count]);
+  return { icon, label: t('chat.tabTitle') };
+}
+
+// Jumps a portal to its Chat tab when the app was opened from a chat
+// notification (/?tab=chat), one is tapped while the app is open, or the
+// header's chat icon is tapped.
+export function useOpenChatSignal(open: () => void) {
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('tab') === 'chat') {
+      open();
+      params.delete('tab');
+      const q = params.toString();
+      window.history.replaceState(null, '', window.location.pathname + (q ? `?${q}` : ''));
+    }
+    const onMessage = (e: MessageEvent) => { if (e.data?.type === 'OPEN_CHAT') open(); };
+    navigator.serviceWorker?.addEventListener('message', onMessage);
+    // The header's chat icon (Layout.tsx).
+    window.addEventListener('psu-open-chat', open);
+    return () => {
+      navigator.serviceWorker?.removeEventListener('message', onMessage);
+      window.removeEventListener('psu-open-chat', open);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 }
