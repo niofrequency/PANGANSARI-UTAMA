@@ -156,6 +156,9 @@ interface FirestoreUserProfile {
   // watchAuthAndProfile and useAppStore.ts's loginByStaffCode below for
   // where it's actually read now.
   assignedSites?: string[] | 'ALL';
+  // Set on staff created by the bulk employee import: their Staff ID is
+  // their HR number (not secret), so they must also enter a password.
+  requirePassword?: boolean;
 }
 
 function userDocRef(email: string) {
@@ -433,7 +436,7 @@ export type StaffCodeLoginResult =
   // (pinSessionActive), same as it always has for a session that never
   // got a real Auth token.
   | { ok: true; profile: FirestoreUserProfile; authUpgraded: boolean }
-  | { ok: false; error: 'unknown-id' | 'inactive' };
+  | { ok: false; error: 'unknown-id' | 'inactive' | 'password-required' | 'wrong-password' };
 
 // Scan-to-Job login (StaffIdGate.tsx): a Staff ID instead of email/
 // password — no PIN, the code itself is the credential (only an Admin
@@ -471,7 +474,7 @@ export type StaffCodeLoginResult =
 // "not found"), an un-caught rejection here left StaffIdGate's Log In
 // button stuck on "Loading..." forever with no error shown, which is
 // worse than a wrong answer.
-export async function loginByStaffCode(staffCode: string): Promise<StaffCodeLoginResult> {
+export async function loginByStaffCode(staffCode: string, password?: string): Promise<StaffCodeLoginResult> {
   if (!db) return { ok: false, error: 'unknown-id' };
   const codeUpper = staffCode.trim().toUpperCase();
 
@@ -485,6 +488,19 @@ export async function loginByStaffCode(staffCode: string): Promise<StaffCodeLogi
     const data = snap.data() as FirestoreUserProfile;
 
     if (data.isActive === false) return { ok: false, error: 'inactive' };
+
+    // Imported staff: Staff ID + password, a normal email/password sign-in
+    // against their (hidden) login email. Never a local-only fallback.
+    if (data.requirePassword) {
+      if (!password) return { ok: false, error: 'password-required' };
+      if (!auth) return { ok: false, error: 'unknown-id' };
+      try {
+        await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
+        return { ok: true, profile: data, authUpgraded: true };
+      } catch {
+        return { ok: false, error: 'wrong-password' };
+      }
+    }
 
     let authUpgraded = false;
     if (functions && auth) {

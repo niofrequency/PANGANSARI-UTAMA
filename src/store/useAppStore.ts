@@ -436,12 +436,13 @@ export function useAppStore() {
   // subscription effects above, which skip live Firestore subscriptions
   // for exactly the sessions that have no real Auth token to back them.
   const loginByStaffCode = async (
-    staffCode: string
-  ): Promise<{ ok: boolean; error?: 'unknown-id' | 'inactive' }> => {
+    staffCode: string,
+    password?: string,
+  ): Promise<{ ok: boolean; error?: 'unknown-id' | 'inactive' | 'password-required' | 'wrong-password' }> => {
     const codeUpper = staffCode.trim().toUpperCase();
 
     if (isFirebaseConfigured) {
-      const result = await loginByStaffCodeService(codeUpper);
+      const result = await loginByStaffCodeService(codeUpper, password);
       if (!result.ok) return result;
       const p = result.profile;
       setPinSessionActive(!result.authUpgraded);
@@ -724,7 +725,7 @@ export function useAppStore() {
     }
     const newUser: User = {
       ...user,
-      id: `u-${Date.now()}`,
+      id: `u-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       isActive: true,
       ...(staffIdentity ? { staffCode: staffIdentity.staffCode } : {}),
     };

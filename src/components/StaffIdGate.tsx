@@ -12,7 +12,7 @@ interface StaffIdGateProps {
   // form either way, just no job badge and no job to route to afterwards.
   pendingJob: DeepLinkJob | null;
   sites: Site[];
-  loginByStaffCode: (staffCode: string) => Promise<{ ok: boolean; error?: string }>;
+  loginByStaffCode: (staffCode: string, password?: string) => Promise<{ ok: boolean; error?: string }>;
   onSuccess: () => void;
   onSwitchToEmailLogin: () => void;
   onScanJob: (job: DeepLinkJob) => void;
@@ -49,6 +49,10 @@ export function StaffIdGate({ pendingJob, sites, loginByStaffCode, onSuccess, on
   const [keypadMode, setKeypadMode] = useState<'digits' | 'letters'>('digits');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Imported staff (bulk employee import) must also enter a password —
+  // asked for only once the Staff ID turns out to need one.
+  const [needPassword, setNeedPassword] = useState(false);
+  const [password, setPassword] = useState('');
 
   // Every action but 'room' now carries no site (see deepLink.ts's file
   // header) — the badge below just shows the job for those, with no site
@@ -62,6 +66,8 @@ export function StaffIdGate({ pendingJob, sites, loginByStaffCode, onSuccess, on
     switch (code) {
       case 'unknown-id': return t('staffIdGate.errorUnknownId');
       case 'inactive': return t('staffIdGate.errorInactive');
+      case 'password-required': return t('staffIdGate.enterPassword');
+      case 'wrong-password': return t('staffIdGate.errorWrongPassword');
       default: return t('staffIdGate.errorGeneric');
     }
   };
@@ -76,9 +82,13 @@ export function StaffIdGate({ pendingJob, sites, loginByStaffCode, onSuccess, on
     }
     setIsSubmitting(true);
     setError('');
-    const result = await loginByStaffCode(staffCode);
+    const result = await loginByStaffCode(staffCode, needPassword ? password : undefined);
     setIsSubmitting(false);
     if (!result.ok) {
+      if (result.error === 'password-required') {
+        setNeedPassword(true);
+        if (!needPassword) return; // first time: just reveal the password box
+      }
       setError(errorMessage(result.error));
       return;
     }
@@ -88,11 +98,15 @@ export function StaffIdGate({ pendingJob, sites, loginByStaffCode, onSuccess, on
   const pressDigit = (d: string) => {
     if (isSubmitting) return;
     setError('');
+    setNeedPassword(false);
+    setPassword('');
     setStaffCode((p) => (p.length < MAX_STAFF_ID_LENGTH ? p + d : p));
   };
 
   const pressBackspace = () => {
     if (isSubmitting) return;
+    setNeedPassword(false);
+    setPassword('');
     setStaffCode((p) => p.slice(0, -1));
   };
 
@@ -223,6 +237,23 @@ export function StaffIdGate({ pendingJob, sites, loginByStaffCode, onSuccess, on
             >
               <Delete size={16} /> {t('staffIdGate.backspace')}
             </button>
+          </div>
+        )}
+
+        {needPassword && (
+          <div className="mb-4">
+            <label className="block text-[10px] font-black text-psu-gray/40 uppercase tracking-widest mb-2 text-center">
+              {t('staffIdGate.passwordLabel')}
+            </label>
+            <input
+              type="password"
+              autoFocus
+              value={password}
+              onChange={(e) => { setPassword(e.target.value); setError(''); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(); }}
+              autoComplete="current-password"
+              className="w-full p-4 bg-psu-bg border border-psu-gray/10 rounded-2xl text-center text-lg font-bold tracking-widest focus:outline-none focus:ring-2 focus:ring-psu-green/20"
+            />
           </div>
         )}
 
