@@ -14,6 +14,7 @@ on:
       - 'functions/**'
       - 'firestore.rules'
       - 'firestore.indexes.json'
+      - 'tests/rules/**'
       - 'storage.rules'
       - 'firebase.json'
       - '.github/workflows/deploy-functions.yml'
@@ -61,6 +62,18 @@ jobs:
       # but used to be deployed by hand, so the live rules drifted behind
       # what the app expects. Deploy them on every push that touches them.
       # Needs the service account to have the "Firebase Rules Admin" role.
+      # Security-rule tests (tests/rules) against the Firestore emulator.
+      # If any fails, the rules below are NOT deployed.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Test Firestore rules
+        run: |
+          npm ci --no-audit --no-fund
+          npm run test:rules
+
       # firestore.indexes.json: composite indexes the site-scoped submissions
       # queries need (src/services/submissionsService.ts). Without --force,
       # an index that exists live but not in the file is left alone, never
