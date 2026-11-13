@@ -21,6 +21,8 @@ import { TempControlForm } from '../OpsLogs/TempControlForm';
 import { DishwashForm } from '../OpsLogs/DishwashForm';
 import { titleKeyForChainType } from '../../data/opsLogsCatalog';
 import { Thermometer, Droplets, ChevronRight } from 'lucide-react';
+import { PaperPrintButton, draftSubmission } from '../OpsLogs/print/PaperPrintButton';
+import { FoodSafetyDailyLogPrintSheet } from '../OpsLogs/print/FoodSafetyDailyLogPrintSheet';
 
 type DeepLinkStartAt = 'fridge' | 'core' | 'clean' | 'wellness';
 
@@ -344,6 +346,17 @@ export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob 
                     <MapPin size={12} /> {currentSiteName}
                   </div>
                 )}
+                <PaperPrintButton renderSheet={() => (
+                  <FoodSafetyDailyLogPrintSheet submission={draftSubmission({
+                    user: currentUser, type: 'FOOD_SAFETY', siteId: workingSiteId, siteName: currentSiteName, base: editingSubmission,
+                    items: [
+                      { id: '1', question: t('technician.fridgeTemp'), answer: formData.fridgeTemp },
+                      { id: '2', question: t('technician.coreTemp'), answer: formData.cookingTemp },
+                      { id: '3', question: t('technician.areaClean'), answer: formData.areaClean },
+                      ...DAILY_FOOD_HANDLER_ALL_CRITERIA.filter(c => wellnessMarks[c.id]).map(c => ({ id: c.id, question: c.labelEn || c.labelId, answer: isGoodMark(wellnessMarks[c.id]) })),
+                    ],
+                  })} />
+                )} />
                 <ReportIssueButton
                   store={store}
                   siteId={workingSiteId}

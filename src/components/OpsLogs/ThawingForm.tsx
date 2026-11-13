@@ -7,6 +7,8 @@ import { THAWING_METHODS, ThawMethodId, THAW_PRODUCT_CATEGORIES, ThawProductCate
 import { Plus, Trash2 } from 'lucide-react';
 import { useWorkingSite } from '../../hooks/useWorkingSite';
 import { ConfirmDeleteModal } from '../ConfirmDeleteModal';
+import { PaperPrintButton, draftSubmission } from './print/PaperPrintButton';
+import { ThawingPrintSheet } from './print/ThawingPrintSheet';
 
 interface ThawRow {
   id: string;
@@ -89,6 +91,10 @@ export function ThawingForm({ store, onCancel, onSubmitted }: {
   return (
     <div className="space-y-6">
       <OpsHeaderChip siteName={currentSiteName} formId="UN.00.43" userName={currentUser?.name || ''} staffCode={currentUser?.staffCode} departmentLabel={t('roles.FOOD_SAFETY_SUPERVISOR')} siteOptions={availableSites} onSiteChange={setWorkingSiteId} />
+
+      <div className="flex justify-end">
+        <PaperPrintButton renderSheet={() => <ThawingPrintSheet submission={draftSubmission({ user: currentUser, type: 'THAWING', siteId: workingSiteId, siteName: currentSiteName, id: 'draft-thaw', meta: { formId: 'UN.00.43', thawMethod: method, thawRows: filledRows } })} allSubmissions={store.submissions.filter(x => !x.deletedAt)} />} />
+      </div>
 
       <div className="card space-y-3">
         <label className="block text-[10px] font-black text-psu-gray/40 uppercase tracking-widest">{t('ops.thawing.methodLabel')}</label>

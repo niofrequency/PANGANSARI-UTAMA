@@ -46,7 +46,9 @@
   .min-h-screen { min-height: 0 !important; }
   [data-sonner-toaster] { display: none !important; }
   /* A paper-replica form sheet carries its own PSU header — drop the
-     generic letterhead and page title so the logo isn't printed twice. */
-  body:has(.psu-paper-sheet) .psu-print-letterhead,
+     page title so it isn't printed above the sheet. */
   body:has(.psu-paper-sheet) .psu-print-pagetitle { display: none !important; }
+  /* A form's own Print button (PaperPrintButton) portals its paper sheet
+     outside the app root — print only that sheet, nothing else. */
+  body:has(> .psu-print-portal) > #root { display: none !important; }
 }

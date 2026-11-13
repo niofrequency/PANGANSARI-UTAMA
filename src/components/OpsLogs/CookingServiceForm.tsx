@@ -5,6 +5,8 @@ import { cn } from '../../utils/cn';
 import { OpsHeaderChip, OutOfRangeFlag } from './opsHelpers';
 import { MEAL_PERIODS, MealPeriodId, COOKING_SERVICE_ROWS, INSTALLATION_CODES, COOK_MIN_TEMP_C } from '../../data/cookingServiceData';
 import { useWorkingSite } from '../../hooks/useWorkingSite';
+import { PaperPrintButton, draftSubmission } from './print/PaperPrintButton';
+import { CookingServicePrintSheet } from './print/CookingServicePrintSheet';
 
 interface RowEntry {
   cookTime: string;
@@ -168,6 +170,10 @@ export function CookingServiceForm({ store, onCancel, onSubmitted }: {
   return (
     <div className="space-y-6">
       <OpsHeaderChip siteName={currentSiteName} formId="UF.09001" userName={currentUser?.name || ''} staffCode={currentUser?.staffCode} departmentLabel={t('roles.FOOD_SAFETY_SUPERVISOR')} siteOptions={availableSites} onSiteChange={setWorkingSiteId} />
+
+      <div className="flex justify-end">
+        <PaperPrintButton renderSheet={() => <CookingServicePrintSheet submission={draftSubmission({ user: currentUser, type: 'COOKING_SERVICE', siteId: workingSiteId, siteName: currentSiteName, meta: { formId: 'UF.09001', mealPeriods: selectedMeals, cookingRows: Object.fromEntries(selectedMeals.map(m => [m, rowsByMeal[m] || {}])) } })} />} />
+      </div>
 
       <div className="card space-y-3">
         <label className="block text-[10px] font-black text-psu-gray/40 uppercase tracking-widest">{t('ops.mealPeriodsLabel')}</label>

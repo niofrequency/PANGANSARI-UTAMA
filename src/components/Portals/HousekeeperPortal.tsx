@@ -24,6 +24,8 @@ import { MyActionItems } from '../CorrectiveActions/MyActionItems';
 import { ResubmitNotice, ChecklistRow, PortalHeaderRow } from '../OpsLogs/opsHelpers';
 import { SubmissionHistoryList } from '../SubmissionHistoryList';
 import { ConfirmDeleteModal } from '../ConfirmDeleteModal';
+import { PaperPrintButton, draftSubmission } from '../OpsLogs/print/PaperPrintButton';
+import { RoomCleaningPrintSheet } from '../OpsLogs/print/RoomCleaningPrintSheet';
 
 const GROUP_ICON: Record<RoomCleaningGroupKey, typeof Sparkles> = {
   '1': Sparkles,
@@ -293,6 +295,16 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
                     <MapPin size={12} /> {currentSiteName}
                   </div>
                 )}
+                <PaperPrintButton renderSheet={() => (
+                  <RoomCleaningPrintSheet submission={draftSubmission({
+                    user: currentUser, type: 'HOUSEKEEPING', siteId: workingSiteId, siteName: currentSiteName, base: editingSubmission,
+                    items: ROOM_CLEANING_ITEMS.map(item => ({
+                      id: item.id, question: `${item.labelId} (${item.labelEn})`, answer: Boolean(checklistState[item.id]?.checked),
+                      remarks: checklistState[item.id]?.reason ? t(`housekeeper.reason.${checklistState[item.id]!.reason}`) : undefined,
+                    })),
+                    meta: { formId: 'UN.00.65', barak: barak.trim(), roomId: roomId.trim(), checklistState },
+                  })} />
+                )} />
                 <ReportIssueButton
                   store={store}
                   siteId={workingSiteId}

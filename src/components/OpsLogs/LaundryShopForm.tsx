@@ -14,6 +14,8 @@ import { useWorkingSite } from '../../hooks/useWorkingSite';
 import { ConfirmDeleteModal } from '../ConfirmDeleteModal';
 import { Modal } from '../Modal';
 import { AnimatePresence } from 'motion/react';
+import { PaperPrintButton, draftSubmission } from './print/PaperPrintButton';
+import { LaundryShopPrintSheet } from './print/LaundryShopPrintSheet';
 
 // TanStack Table's own callback-props-via-meta pattern for editable
 // cells (its docs' own recommended shape for this exact case) — column
@@ -370,6 +372,15 @@ export function LaundryShopForm({ store, onCancel, onSubmitted, editingSubmissio
         siteOptions={availableSites}
         onSiteChange={setWorkingSiteId}
       />
+
+      <div className="flex justify-end">
+        <PaperPrintButton renderSheet={() => (
+          <LaundryShopPrintSheet submission={draftSubmission({
+            user: currentUser, type: 'LAUNDRY_SHOP', siteId: workingSiteId, siteName: currentSiteName, base: editingSubmission,
+            meta: { formId: 'UN.00-LAUNDRY', laundryDate: today, laundryRows: rows.filter(r => r.roomNumber.trim() || totalRoomCount(r) > 0) },
+          })} />
+        )} />
+      </div>
 
       <div className="card !py-3 text-center">
         <span className="text-[10px] font-black text-psu-gray/40 uppercase tracking-widest">{t('ops.laundryShop.dateLabel')}: {today}</span>

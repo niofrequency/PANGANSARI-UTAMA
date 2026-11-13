@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Toaster } from 'sonner';
 import { User } from '../types';
-import { LogOut, MapPin, Download, AlertTriangle, Bell, XCircle, Printer } from 'lucide-react';
+import { LogOut, MapPin, Download, AlertTriangle, Bell, XCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTranslation } from '../i18n/LanguageContext';
 import { InstallGuide } from './InstallGuide';
@@ -91,19 +91,6 @@ export function Layout({ user, onLogout, children, storageError, rejectedNotices
             <Download size={16} />
           </button>
 
-          {/* Print whatever screen/form is open right now — available to
-              every role. The print-only PSU header below is added on top
-              of the page automatically. */}
-          <button
-            onClick={() => window.print()}
-            className="flex items-center gap-1.5 h-9 px-3 rounded-full bg-psu-blue/10 text-psu-blue text-[10px] font-black uppercase tracking-wider hover:bg-psu-blue/20 transition-colors"
-            aria-label={t('layout.printPage')}
-            title={t('layout.printPage')}
-          >
-            <Printer size={15} />
-            <span className="hidden sm:inline">{t('layout.printPage')}</span>
-          </button>
-
           <button
             onClick={toggleLanguage}
             className="w-9 h-9 rounded-full bg-psu-gray/5 text-psu-gray text-[10px] font-black flex items-center justify-center uppercase hover:bg-psu-gray/10 transition-colors"
@@ -179,18 +166,6 @@ export function Layout({ user, onLogout, children, storageError, rejectedNotices
           </button>
         </div>
       </header>
-
-      {/* Print-only letterhead: PSU logo + who printed it and when. Hidden
-          on screen; shown at the top of every printed page/form. */}
-      <div className="psu-print-letterhead hidden print:flex items-center justify-between gap-4 border-b-2 border-black pb-3 mb-4">
-        <img src="/icons/psu-logo-full.png" alt="PSU" className="h-14 w-auto" />
-        <div className="text-right text-[11px] leading-snug text-black">
-          <div className="font-bold">PSU Field Ops</div>
-          <div>{t('layout.printedBy')}: {user.name} · {t(`roles.${user.role}`)}</div>
-          {user.site && <div>{user.site}</div>}
-          <div>{t('layout.printedOn')}: {new Date().toLocaleString()}</div>
-        </div>
-      </div>
 
       {storageError && (
         <div className="print:hidden bg-psu-warning/10 border-b border-psu-warning/20 text-psu-warning px-4 sm:px-6 py-3 flex items-start gap-2.5 text-xs font-medium">

@@ -1,4 +1,4 @@
-import { Key, useState } from 'react';
+import { Key, ReactNode, useState } from 'react';
 import { toast } from 'sonner';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { cn } from '../../utils/cn';
@@ -8,6 +8,8 @@ import { tempControlReadingsSchema } from '../../lib/validators/tempControl';
 import { Thermometer } from 'lucide-react';
 import { useWorkingSite } from '../../hooks/useWorkingSite';
 import { Submission } from '../../types';
+import { PaperPrintButton, draftSubmission } from './print/PaperPrintButton';
+import { TempControlPrintSheet } from './print/TempControlPrintSheet';
 
 // UF.10000 Temperature Control Checklist. The paper is one sheet per
 // cabinet for the whole month, 5 daily slots each with a temp + paraf.
@@ -99,6 +101,14 @@ export function TempControlForm({ store, onCancel, onSubmitted }: OpsFormProps) 
           onSubmitted();
         }}
         onCancel={onCancel}
+        renderPrint={(readings, remarks) => {
+          const stamped = Object.fromEntries(Object.entries(readings).map(([k, v]) => [k, { ...v, by: v.by || (v.temp ? currentUser?.name || '' : '') }]));
+          const draft = draftSubmission({
+            user: currentUser, type: 'TEMP_CONTROL', siteId: workingSiteId, siteName: currentSiteName, base: todaysSubmission, id: 'draft-temp',
+            meta: { formId: 'UF.10000', assetId: asset.id, assetName: asset.name, storeKind: asset.kind, date: today, tempReadings: stamped, dayRemarks: remarks },
+          });
+          return <TempControlPrintSheet submission={draft} allSubmissions={submissions.filter(x => !x.deletedAt && x.id !== draft.id)} />;
+        }}
       />
 
       <TempControlMonthGrid asset={asset} submissions={submissions} today={today} />
@@ -110,7 +120,7 @@ export function TempControlForm({ store, onCancel, onSubmitted }: OpsFormProps) 
 // use for actually entering a reading; the desktop month grid below is
 // read-only review, not a second editor.
 function TempControlDayEditor({
-  asset, date, existing, currentUserName, onSave, onCancel,
+  asset, date, existing, currentUserName, onSave, onCancel, renderPrint,
 }: {
   // Declared (never read) purely so key={...} type-checks — see
   // GarmentCounter's identical comment in LaundryShopForm.tsx.
@@ -121,6 +131,7 @@ function TempControlDayEditor({
   currentUserName: string;
   onSave: (readings: Record<string, { temp: string; at: string; by: string }>, remarks: string) => void;
   onCancel?: () => void;
+  renderPrint?: (readings: Record<string, { temp: string; at: string; by: string }>, remarks: string) => ReactNode;
 }) {
   const { t } = useTranslation();
   const [readings, setReadings] = useState<Record<string, { temp: string; at: string; by: string }>>(() => existing?.meta?.tempReadings || {});
@@ -155,6 +166,7 @@ function TempControlDayEditor({
     <div className="card space-y-4">
       <div className="flex items-center justify-between">
         <h4 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em]">{date === new Date().toISOString().slice(0, 10) ? t('ops.tempControl.todayFor', { asset: asset.name }) : date}</h4>
+        {renderPrint && <PaperPrintButton renderSheet={() => renderPrint(readings, remarks)} />}
       </div>
       <div className="grid grid-cols-5 gap-2">
         {TEMP_CONTROL_SLOTS.map(s => {

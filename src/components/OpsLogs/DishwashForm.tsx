@@ -1,4 +1,4 @@
-import { Fragment, Key, useState } from 'react';
+import { Fragment, Key, ReactNode, useState } from 'react';
 import { toast } from 'sonner';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { cn } from '../../utils/cn';
@@ -7,6 +7,8 @@ import { dishwashLocationsForSite, currentDishwashRound, DISHWASH_ROUNDS, Dishwa
 import { dishwashReadingsSchema } from '../../lib/validators/dishwash';
 import { useWorkingSite } from '../../hooks/useWorkingSite';
 import { Submission } from '../../types';
+import { PaperPrintButton, draftSubmission } from './print/PaperPrintButton';
+import { DishwashPrintSheet } from './print/DishwashPrintSheet';
 
 // UN.00.51 Monitoring Suhu Dishwashing Mesin. The paper is one sheet per
 // month x 3 daily rounds (Pagi/Siang/Malam), each round recording Cuci
@@ -84,6 +86,14 @@ export function DishwashForm({ store, onCancel, onSubmitted }: OpsFormProps) {
           onSubmitted();
         }}
         onCancel={onCancel}
+        renderPrint={(readings, remarks) => {
+          const stamped = Object.fromEntries(Object.entries(readings).map(([k, v]) => [k, { ...v, by: v.by || ((v.cuci || v.bilas) ? currentUser?.name || '' : '') }]));
+          const draft = draftSubmission({
+            user: currentUser, type: 'DISHWASH_TEMP', siteId: workingSiteId, siteName: currentSiteName, base: todaysSubmission, id: 'draft-dish',
+            meta: { formId: 'UN.00.51', assetId: location.id, assetName: location.name, date: today, dishwashReadings: stamped, dayRemarks: remarks },
+          });
+          return <DishwashPrintSheet submission={draft} allSubmissions={submissions.filter(x => !x.deletedAt && x.id !== draft.id)} />;
+        }}
       />
 
       <DishwashMonthGrid location={location} submissions={submissions} today={today} />
@@ -92,7 +102,7 @@ export function DishwashForm({ store, onCancel, onSubmitted }: OpsFormProps) {
 }
 
 function DishwashDayEditor({
-  location, date, existing, currentUserName, onSave, onCancel,
+  location, date, existing, currentUserName, onSave, onCancel, renderPrint,
 }: {
   // Declared (never read) purely so key={...} type-checks — see
   // GarmentCounter's identical comment in LaundryShopForm.tsx.
@@ -103,6 +113,7 @@ function DishwashDayEditor({
   currentUserName: string;
   onSave: (readings: Record<string, { cuci: string; bilas: string; at: string; by: string }>, remarks: string) => void;
   onCancel?: () => void;
+  renderPrint?: (readings: Record<string, { cuci: string; bilas: string; at: string; by: string }>, remarks: string) => ReactNode;
 }) {
   const { t } = useTranslation();
   const [readings, setReadings] = useState<Record<string, { cuci: string; bilas: string; at: string; by: string }>>(() => existing?.meta?.dishwashReadings || {});
@@ -136,7 +147,10 @@ function DishwashDayEditor({
 
   return (
     <div className="card space-y-4">
-      <h4 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em]">{date === new Date().toISOString().slice(0, 10) ? t('ops.dishwash.todayFor', { location: location.name }) : date}</h4>
+      <div className="flex items-center justify-between gap-2">
+        <h4 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em]">{date === new Date().toISOString().slice(0, 10) ? t('ops.dishwash.todayFor', { location: location.name }) : date}</h4>
+        {renderPrint && <PaperPrintButton renderSheet={() => renderPrint(readings, remarks)} />}
+      </div>
       <div className="space-y-3">
         {DISHWASH_ROUNDS.map(r => {
           const cuci = readings[r]?.cuci || '';
