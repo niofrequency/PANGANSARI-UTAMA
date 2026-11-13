@@ -45,4 +45,8 @@
   }
   .min-h-screen { min-height: 0 !important; }
   [data-sonner-toaster] { display: none !important; }
+  /* A paper-replica form sheet carries its own PSU header — drop the
+     generic letterhead and page title so the logo isn't printed twice. */
+  body:has(.psu-paper-sheet) .psu-print-letterhead,
+  body:has(.psu-paper-sheet) .psu-print-pagetitle { display: none !important; }
 }

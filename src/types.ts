@@ -253,6 +253,15 @@ export interface Submission {
     mealPeriods?: string[]; // which of breakfast/lunch/dinner/supper were actually cooked that day
     packType?: string; // HOT_PACKED_MEAL only
 
+    // The raw per-cell readings behind the formatted `items` — what the
+    // paper-replica print sheets (components/OpsLogs/print/) read to fill
+    // the paper's separate Time / °C / Packing columns. Older submissions
+    // without these fall back to parsing `items`.
+    cookingRows?: Record<string, Record<string, { cookTime: string; cookTemp: string; installTime: string; installTemp: string; installCode: string; recipe: string }>>;
+    hotPackRows?: Record<string, Record<string, { cookTime: string; cookTemp: string; holdTime: string; holdTemp: string; packStart: string; packFinish: string; packOk: boolean | null }>>;
+    thawRows?: { id: string; category: string; qty: string; startTime: string; endTime: string; endTempC: string; usedFor: string[] }[];
+    staffReadyRows?: { id: string; name: string; gender?: string; position: string; marks: Record<string, string>; fhCardValid: boolean; bodyTempC: string; remark?: string }[];
+
     // THAWING (UN.00.43)
     thawMethod?: '1' | '2' | '3' | '4';
 

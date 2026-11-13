@@ -99,6 +99,7 @@ export function StaffReadyForm({ store, onCancel, onSubmitted }: {
       })),
       meta: {
         formId: 'STAFF_READY', shift,
+        staffReadyRows: filledRows.map(({ userId, ...r }) => r),
         signoff: { draftedBy: { userId: currentUser.id, name: currentUser.name, staffCode: currentUser.staffCode, at: new Date().toISOString() } },
       },
     });

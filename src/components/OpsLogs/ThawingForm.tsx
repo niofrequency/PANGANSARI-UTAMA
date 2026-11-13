@@ -78,6 +78,7 @@ export function ThawingForm({ store, onCancel, onSubmitted }: {
       }),
       meta: {
         formId: 'UN.00.43', thawMethod: method, outOfRange: anyOverLimit,
+        thawRows: filledRows,
         signoff: { draftedBy: { userId: currentUser.id, name: currentUser.name, staffCode: currentUser.staffCode, at: new Date().toISOString() } },
       },
     });
