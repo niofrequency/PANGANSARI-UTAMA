@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { User, Submission, UserRole, Site, Warning, TrainingModule, FieldReport, FieldReportStatus, CorrectiveAction, CorrectiveActionStatus, ChatMessage } from '../types';
 import { subscribeMyMessages, addMessageDoc, markMessageReadDoc, editMessageDoc, deleteMessageForEveryoneDoc, hideMessageForMeDoc } from '../services/chatService';
-import { canChatUsers, conversationId } from '../lib/chatPolicy';
+import { canChatUsers, conversationId, canStillEdit } from '../lib/chatPolicy';
 import { registerPush, unregisterPush, setAppBadgeCount } from '../lib/pushNotifications';
 import { INITIAL_USERS, INITIAL_SUBMISSIONS, INITIAL_WARNINGS, INITIAL_FIELD_REPORTS, INITIAL_CORRECTIVE_ACTIONS, SITES, TRAINING_MODULES } from '../data/mockData';
 import { isFirebaseConfigured } from '../lib/firebase';
@@ -869,7 +869,7 @@ export function useAppStore() {
   const editChatMessage = (id: string, text: string): boolean => {
     const body = text.trim();
     const m = messages.find(x => x.id === id);
-    if (!currentUser || !m || m.fromId !== currentUser.id || m.deleted || !body) return false;
+    if (!currentUser || !m || m.fromId !== currentUser.id || m.deleted || !body || !canStillEdit(m.createdAt)) return false;
     if (isFirebaseConfigured) {
       editMessageDoc(id, body.slice(0, 2000)).catch((err) => console.error('editChatMessage failed:', err));
       return true;

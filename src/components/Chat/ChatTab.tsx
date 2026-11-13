@@ -4,7 +4,8 @@ import { Modal } from '../Modal';
 import { pushState, registerPush, PushState } from '../../lib/pushNotifications';
 import { useAppStore } from '../../store/useAppStore';
 import { useTranslation } from '../../i18n/LanguageContext';
-import { chatContacts } from '../../lib/chatPolicy';
+import { chatContacts, canStillEdit } from '../../lib/chatPolicy';
+import { toast } from 'sonner';
 import { isFirebaseConfigured } from '../../lib/firebase';
 import { cn } from '../../utils/cn';
 import { User } from '../../types';
@@ -108,6 +109,12 @@ export function ChatTab({ store }: { store: Store }) {
   const send = () => {
     if (!active || !draft.trim()) return;
     if (editingId) {
+      const m = thread.find(x => x.id === editingId);
+      if (m && !canStillEdit(m.createdAt)) {
+        toast.error(t('chat.editExpired'));
+        cancelEdit();
+        return;
+      }
       if (editChatMessage(editingId, draft)) cancelEdit();
       return;
     }
@@ -214,9 +221,9 @@ export function ChatTab({ store }: { store: Store }) {
                 <div className="flex flex-wrap gap-1 mt-1">
                   {mine && !m.deleted && (
                     <>
-                      <button onClick={() => startEdit(m.id, m.text)} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white border border-psu-gray/10 text-[10px] font-bold text-psu-gray hover:bg-psu-bg">
+                      {canStillEdit(m.createdAt) && <button onClick={() => startEdit(m.id, m.text)} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white border border-psu-gray/10 text-[10px] font-bold text-psu-gray hover:bg-psu-bg">
                         <Pencil size={12} /> {t('chat.edit')}
-                      </button>
+                      </button>}
                       <button onClick={() => { deleteChatMessageForEveryone(m.id); setMenuFor(null); if (editingId === m.id) cancelEdit(); }} className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white border border-psu-rejected/20 text-[10px] font-bold text-psu-rejected hover:bg-psu-rejected/5">
                         <Trash2 size={12} /> {t('chat.deleteForEveryone')}
                       </button>
