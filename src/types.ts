@@ -369,6 +369,24 @@ export interface CorrectiveAction {
   reopenedNote?: string;
 }
 
+// In-app chat (components/Chat/ChatTab.tsx) — one doc per message, two
+// participants. Who may message whom is lib/chatPolicy.ts (mirrored in
+// firestore.rules' canChat()).
+export interface ChatMessage {
+  id: string;
+  conversationId: string; // the two uids, sorted, joined by '__'
+  participants: [string, string];
+  fromId: string;
+  fromName: string;
+  fromEmail: string;
+  toId: string;
+  toName: string;
+  toEmail: string;
+  text: string;
+  createdAt: string; // ISO
+  read: boolean; // set by the recipient
+}
+
 export interface FieldReport {
   id: string;
   userId: string;

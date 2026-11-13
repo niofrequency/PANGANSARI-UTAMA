@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
-import { User, Submission, UserRole, Site, Warning, TrainingModule, FieldReport, FieldReportStatus, CorrectiveAction, CorrectiveActionStatus } from '../types';
+import { User, Submission, UserRole, Site, Warning, TrainingModule, FieldReport, FieldReportStatus, CorrectiveAction, CorrectiveActionStatus, ChatMessage } from '../types';
+import { subscribeMyMessages, addMessageDoc, markMessageReadDoc } from '../services/chatService';
+import { canChatRoles, conversationId } from '../lib/chatPolicy';
 import { INITIAL_USERS, INITIAL_SUBMISSIONS, INITIAL_WARNINGS, INITIAL_FIELD_REPORTS, INITIAL_CORRECTIVE_ACTIONS, SITES, TRAINING_MODULES } from '../data/mockData';
 import { isFirebaseConfigured } from '../lib/firebase';
 import {
@@ -132,6 +134,14 @@ export function useAppStore() {
     if (isFirebaseConfigured) return []; // populated by subscribeWarnings below
     const saved = localStorage.getItem('psu_warnings_v4');
     return saved ? JSON.parse(saved) : INITIAL_WARNINGS;
+  });
+
+  // In-app chat (components/Chat/ChatTab.tsx). Firebase mode: only the
+  // messages this user is a participant in (see subscribeMyMessages).
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    if (isFirebaseConfigured) return [];
+    const saved = localStorage.getItem('psu_messages_v1');
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [fieldReports, setFieldReports] = useState<FieldReport[]>(() => {
@@ -323,6 +333,22 @@ export function useAppStore() {
     if (isFirebaseConfigured) return;
     safeSetItem('psu_field_reports_v1', JSON.stringify(fieldReports));
   }, [fieldReports]);
+
+  useEffect(() => {
+    if (isFirebaseConfigured) return;
+    safeSetItem('psu_messages_v1', JSON.stringify(messages));
+  }, [messages]);
+
+  useEffect(() => {
+    if (!isFirebaseConfigured) return;
+    if (!currentUser || pinSessionActive) {
+      setMessages([]);
+      return;
+    }
+    const unsub = subscribeMyMessages(currentUser.id, setMessages);
+    return () => unsub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFirebaseConfigured, currentUser?.id, pinSessionActive]);
 
   useEffect(() => {
     if (isFirebaseConfigured) return;
@@ -802,6 +828,41 @@ export function useAppStore() {
     setWarnings(prev => [newWarning, ...prev]);
   };
 
+  // Chat — returns false if this pair isn't allowed to talk (see
+  // lib/chatPolicy.ts) or there's nothing to send.
+  const sendChatMessage = (to: User, text: string): boolean => {
+    const body = text.trim();
+    if (!currentUser || !body || !canChatRoles(currentUser.role, to.role)) return false;
+    const message: Omit<ChatMessage, 'id'> = {
+      conversationId: conversationId(currentUser.id, to.id),
+      participants: [currentUser.id, to.id],
+      fromId: currentUser.id, fromName: currentUser.name, fromEmail: currentUser.email.toLowerCase(),
+      toId: to.id, toName: to.name, toEmail: to.email.toLowerCase(),
+      text: body.slice(0, 2000),
+      createdAt: new Date().toISOString(),
+      read: false,
+    };
+    if (isFirebaseConfigured) {
+      addMessageDoc(message).catch((err) => console.error('sendChatMessage failed:', err));
+      return true;
+    }
+    setMessages(prev => [...prev, { ...message, id: `m-${Date.now()}` }]);
+    return true;
+  };
+
+  // Marks every unread message from `otherId` to me as read.
+  const markConversationRead = (otherId: string) => {
+    if (!currentUser) return;
+    const unread = messages.filter(m => m.fromId === otherId && m.toId === currentUser.id && !m.read);
+    if (unread.length === 0) return;
+    if (isFirebaseConfigured) {
+      unread.forEach(m => markMessageReadDoc(m.id).catch((err) => console.error('markConversationRead failed:', err)));
+      return;
+    }
+    const ids = new Set(unread.map(m => m.id));
+    setMessages(prev => prev.map(m => ids.has(m.id) ? { ...m, read: true } : m));
+  };
+
   const addFieldReport = (report: Omit<FieldReport, 'id' | 'status'>) => {
     if (isFirebaseConfigured) {
       addFieldReportDoc({ ...report, status: 'OPEN' }).catch((err) => console.error('addFieldReport failed:', err));
@@ -922,6 +983,9 @@ export function useAppStore() {
     submissions: visibleSubmissions,
     warnings,
     fieldReports,
+    messages,
+    sendChatMessage,
+    markConversationRead,
     correctiveActions,
     trainings,
     sites: SITES,

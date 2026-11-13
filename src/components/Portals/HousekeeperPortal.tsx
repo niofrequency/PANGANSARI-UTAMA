@@ -4,8 +4,7 @@ import { PhotoCapture } from '../PhotoCapture';
 import { TrainingsTab } from '../TrainingsTab';
 import {
   ClipboardList, History, GraduationCap, CheckCircle2, Clock, XCircle, MapPin, MapPinOff,
-  Check, Sparkles, BedDouble, Bath, Sofa, UtensilsCrossed, Shirt, Pencil, Trash2,
-} from 'lucide-react';
+  Check, Sparkles, BedDouble, Bath, Sofa, UtensilsCrossed, Shirt, Pencil, Trash2, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
@@ -26,6 +25,7 @@ import { SubmissionHistoryList } from '../SubmissionHistoryList';
 import { ConfirmDeleteModal } from '../ConfirmDeleteModal';
 import { PaperPrintButton, draftSubmission } from '../OpsLogs/print/PaperPrintButton';
 import { RoomCleaningPrintSheet } from '../OpsLogs/print/RoomCleaningPrintSheet';
+import { ChatTab, useChatTabLabel } from '../Chat/ChatTab';
 
 const GROUP_ICON: Record<RoomCleaningGroupKey, typeof Sparkles> = {
   '1': Sparkles,
@@ -57,7 +57,8 @@ interface HousekeeperPortalProps {
 export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, onDeepLinkHandled, onScanJob }: HousekeeperPortalProps) {
   const { t, language } = useTranslation();
   const { currentUser, submissions, addSubmission, trainings, completeTraining, sites } = store;
-  const [activeTab, setActiveTab] = useState<'TASKS' | 'HISTORY' | 'TRAINING'>('TASKS');
+  const [activeTab, setActiveTab] = useState<'TASKS' | 'HISTORY' | 'CHAT' | 'TRAINING'>('TASKS');
+  const chatLabel = useChatTabLabel(store);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showValidation, setShowValidation] = useState(false);
   // Which site this room-cleaning submission is for — see
@@ -245,6 +246,7 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
         {[
           { id: 'TASKS', icon: ClipboardList, label: t('housekeeper.tabTasks') },
           { id: 'HISTORY', icon: History, label: t('housekeeper.tabHistory') },
+          { id: 'CHAT', icon: MessageCircle, label: chatLabel },
           { id: 'TRAINING', icon: GraduationCap, label: t('housekeeper.tabTraining') },
         ].map(tab => (
           <button
@@ -533,6 +535,17 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
             <MyActionItems store={store} />
           </motion.div>
         )}
+
+        {activeTab === 'CHAT' && (
+
+          <motion.div key="chat" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="md:max-w-3xl md:mx-auto">
+
+            <ChatTab store={store} />
+
+          </motion.div>
+
+        )}
+
 
         {activeTab === 'TRAINING' && (
           <motion.div

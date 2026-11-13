@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { TrainingsTab } from '../TrainingsTab';
-import { ClipboardList, History, GraduationCap, CheckCircle2, Clock, XCircle, Pencil, Trash2 } from 'lucide-react';
+import { ClipboardList, History, GraduationCap, CheckCircle2, Clock, XCircle, Pencil, Trash2, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
@@ -14,6 +14,7 @@ import { MyActionItems } from '../CorrectiveActions/MyActionItems';
 import { PortalHeaderRow } from '../OpsLogs/opsHelpers';
 import { SubmissionHistoryList } from '../SubmissionHistoryList';
 import { ConfirmDeleteModal } from '../ConfirmDeleteModal';
+import { ChatTab, useChatTabLabel } from '../Chat/ChatTab';
 
 interface LaundryStaffPortalProps {
   store: ReturnType<typeof useAppStore>;
@@ -35,7 +36,8 @@ interface LaundryStaffPortalProps {
 export function LaundryStaffPortal({ store, fromQr, onDeepLinkHandled, onScanJob }: LaundryStaffPortalProps) {
   const { t } = useTranslation();
   const { currentUser, submissions, trainings, completeTraining, sites } = store;
-  const [activeTab, setActiveTab] = useState<'TASKS' | 'HISTORY' | 'TRAINING'>('TASKS');
+  const [activeTab, setActiveTab] = useState<'TASKS' | 'HISTORY' | 'CHAT' | 'TRAINING'>('TASKS');
+  const chatLabel = useChatTabLabel(store);
   const myHistory = submissions.filter(s => s.userId === currentUser?.id);
   const cameFromQr = Boolean(fromQr);
   // Reopening one of this Laundry Staff's own History entries to edit and
@@ -67,6 +69,7 @@ export function LaundryStaffPortal({ store, fromQr, onDeepLinkHandled, onScanJob
         {[
           { id: 'TASKS' as const, icon: ClipboardList, label: t('housekeeper.tabTasks') },
           { id: 'HISTORY' as const, icon: History, label: t('housekeeper.tabHistory') },
+          { id: 'CHAT' as const, icon: MessageCircle, label: chatLabel },
           { id: 'TRAINING' as const, icon: GraduationCap, label: t('housekeeper.tabTraining') },
         ].map(tab => (
           <button
@@ -173,6 +176,17 @@ export function LaundryStaffPortal({ store, fromQr, onDeepLinkHandled, onScanJob
             <MyActionItems store={store} />
           </motion.div>
         )}
+
+        {activeTab === 'CHAT' && (
+
+          <motion.div key="chat" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="md:max-w-3xl md:mx-auto">
+
+            <ChatTab store={store} />
+
+          </motion.div>
+
+        )}
+
 
         {activeTab === 'TRAINING' && (
           <motion.div key="training" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="md:max-w-3xl md:mx-auto">
