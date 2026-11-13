@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import {
   Users, UserPlus, Trash2, Search, AlertTriangle, Copy, Check, Eye, EyeOff, RefreshCw, KeyRound, Hash,
@@ -10,7 +10,6 @@ import { useTranslation } from '../../i18n/LanguageContext';
 import { SUPER_ADMIN_EMAIL } from '../../services/authService';
 import { isFirebaseConfigured } from '../../lib/firebase';
 import { Modal } from '../Modal';
-import { ListCard } from '../ListCard';
 import { isValidStaffCode } from '../../utils/staffCode';
 import { SiteOptions, groupSitesByArea } from '../SiteOptions';
 
@@ -22,6 +21,8 @@ import { SiteOptions, groupSitesByArea } from '../SiteOptions';
 // never sees the ADMIN role option and can't touch an ADMIN account.
 // firestore.rules (isManager) and functions/src/index.ts
 // (adminResetCredentials) enforce the same limit server-side.
+
+const PAGE_SIZE = 60;
 
 const ALL_ROLES: UserRole[] = [
   'HOUSEKEEPER',
@@ -172,10 +173,55 @@ export function UserManagementPanel({
   const [staffIdError, setStaffIdError] = useState('');
   const [staffIdSuccess, setStaffIdSuccess] = useState(false);
 
-  const filteredUsers = users.filter(u =>
-    u.name.toLowerCase().includes(search.toLowerCase()) ||
-    u.email.toLowerCase().includes(search.toLowerCase())
-  );
+  // Personnel filters — location, role, sort, possible duplicates — and a
+  // "show more" page size so 1,000+ staff cards don't all render at once.
+  const [siteFilter, setSiteFilter] = useState('ALL');
+  const [roleFilter, setRoleFilter] = useState<'ALL' | UserRole>('ALL');
+  const [sortBy, setSortBy] = useState<'name' | 'name-desc' | 'site' | 'role'>('name');
+  const [dupesOnly, setDupesOnly] = useState(false);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
+  useEffect(() => { setPageSize(PAGE_SIZE); }, [search, siteFilter, roleFilter, sortBy, dupesOnly]);
+
+  const siteNameOf = (id: string) => sites.find(s => s.id === id)?.name || id || '';
+  const roleIndex = (r: UserRole) => { const i = ALL_ROLES.indexOf(r); return i < 0 ? 99 : i; };
+
+  // "Possible duplicates": an imported account (…@staff.psu.local) whose
+  // name matches an account added by hand (all the shorter name's words
+  // appear in the longer one, e.g. "Dyno Simanjuntak" / "DYNO J.I.
+  // SIMANJUNTAK").
+  const duplicateIds = useMemo(() => {
+    const words = (n: string) => n.toUpperCase().replace(/[^A-Z ]/g, ' ').split(/\s+/).filter(w => w.length > 1);
+    const imported = users.filter(u => u.email.endsWith('@staff.psu.local'));
+    const manual = users.filter(u => !u.email.endsWith('@staff.psu.local'));
+    const ids = new Set<string>();
+    for (const m of manual) {
+      const mw = words(m.name);
+      if (mw.length === 0) continue;
+      for (const im of imported) {
+        const iw = words(im.name);
+        const [short, long] = mw.length <= iw.length ? [mw, iw] : [iw, mw];
+        if (short.length >= (mw.length === 1 && iw.length === 1 ? 1 : 2) && short.every(w => long.includes(w))) { ids.add(m.id); ids.add(im.id); }
+      }
+    }
+    return ids;
+  }, [users]);
+
+  const filteredUsers = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const list = users.filter(u =>
+      (!q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q) || (u.staffCode || '').toLowerCase().includes(q))
+      && (siteFilter === 'ALL' || u.site === siteFilter)
+      && (roleFilter === 'ALL' || u.role === roleFilter)
+      && (!dupesOnly || duplicateIds.has(u.id))
+    );
+    const byName = (a: User, b: User) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+    return list.sort((a, b) =>
+      sortBy === 'name-desc' ? byName(b, a)
+      : sortBy === 'site' ? siteNameOf(a.site).localeCompare(siteNameOf(b.site)) || byName(a, b)
+      : sortBy === 'role' ? roleIndex(a.role) - roleIndex(b.role) || byName(a, b)
+      : byName(a, b));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [users, search, siteFilter, roleFilter, sortBy, dupesOnly, duplicateIds, sites]);
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -346,11 +392,47 @@ export function UserManagementPanel({
               </button>
             </div>
 
-            <ListCard
-              items={filteredUsers}
-              emptyIcon={<Users size={48} className="mx-auto" />}
-              emptyLabel={t('common.noData')}
-              renderRow={(user: User) => (
+            <div className="flex flex-col md:flex-row gap-2">
+              <select value={siteFilter} onChange={(e) => setSiteFilter(e.target.value)} className="flex-1 min-w-0 p-3 bg-white border border-psu-gray/5 rounded-2xl text-[10px] font-black uppercase tracking-tighter shadow-sm outline-none">
+                <option value="ALL">{t('admin.filterAllSites')}</option>
+                <SiteOptions sites={sites} />
+              </select>
+              <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as 'ALL' | UserRole)} className="flex-1 min-w-0 p-3 bg-white border border-psu-gray/5 rounded-2xl text-[10px] font-black uppercase tracking-tighter shadow-sm outline-none">
+                <option value="ALL">{t('admin.filterAllRoles')}</option>
+                {ALL_ROLES.map(r => <option key={r} value={r}>{t(`rolesShort.${r}`)}</option>)}
+              </select>
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)} className="flex-1 min-w-0 p-3 bg-white border border-psu-gray/5 rounded-2xl text-[10px] font-black uppercase tracking-tighter shadow-sm outline-none">
+                <option value="name">{t('admin.sortNameAsc')}</option>
+                <option value="name-desc">{t('admin.sortNameDesc')}</option>
+                <option value="site">{t('admin.sortSite')}</option>
+                <option value="role">{t('admin.sortRole')}</option>
+              </select>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 px-1">
+              <p className="text-[10px] font-black text-psu-gray/40 uppercase tracking-widest">
+                {t('admin.showingCount', { shown: Math.min(pageSize, filteredUsers.length), total: filteredUsers.length })}
+                {filteredUsers.length !== users.length ? ` · ${t('admin.ofTotal', { total: users.length })}` : ''}
+              </p>
+              {duplicateIds.size > 0 && (
+                <button
+                  onClick={() => setDupesOnly(d => !d)}
+                  className={cn('px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-colors', dupesOnly ? 'bg-psu-warning text-white' : 'bg-psu-warning/10 text-psu-warning hover:bg-psu-warning/20')}
+                >
+                  {t('admin.possibleDuplicates', { count: duplicateIds.size })}
+                </button>
+              )}
+            </div>
+
+            {filteredUsers.length === 0 ? (
+              <div className="card text-center py-12 text-psu-gray/20">
+                <Users size={48} className="mx-auto" />
+                <p className="text-xs font-bold mt-3 text-psu-gray/40">{t('common.noData')}</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                {filteredUsers.slice(0, pageSize).map((user: User) => (
+                  <div key={user.id} className={cn('card !p-5', duplicateIds.has(user.id) && 'ring-2 ring-psu-warning/30')}>
                 <div className="flex flex-col gap-4">
                   <div className="flex items-center gap-4 min-w-0">
                     <div className="w-12 h-12 bg-psu-bg rounded-2xl flex items-center justify-center text-psu-gray/20 shrink-0">
@@ -429,8 +511,19 @@ export function UserManagementPanel({
                     />
                   )}
                 </div>
-              )}
-            />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {filteredUsers.length > pageSize && (
+              <button
+                onClick={() => setPageSize(n => n + PAGE_SIZE)}
+                className="w-full py-3 rounded-2xl bg-white border border-psu-gray/10 text-[10px] font-black uppercase tracking-widest text-psu-gray/60 hover:bg-psu-bg"
+              >
+                {t('admin.showMore', { count: Math.min(PAGE_SIZE, filteredUsers.length - pageSize) })}
+              </button>
+            )}
       </div>
 
       {/* Add User Modal */}
