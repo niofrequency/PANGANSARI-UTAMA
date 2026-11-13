@@ -356,6 +356,9 @@ service cloud.firestore {
         && request.resource.data.fromEmail == email()
         && request.resource.data.participants == [request.auth.uid, request.resource.data.toId]
         && request.resource.data.read == false
+        // sentAt (server time, used for the 15-minute edit window) can't be
+        // faked; it may be missing only from not-yet-updated app versions.
+        && (!('sentAt' in request.resource.data) || request.resource.data.sentAt == request.time)
         && request.resource.data.text is string
         && request.resource.data.text.size() > 0
         && request.resource.data.text.size() <= 2000
@@ -372,9 +375,12 @@ service cloud.firestore {
           && onlyChanged(['read'])
           && request.resource.data.read == true)
         ||
-        // 2. The sender edits the text of a message they haven't deleted.
+        // 2. The sender edits the text of a message they haven't deleted,
+        //    within 15 minutes of sending (server time).
         (request.auth.uid == resource.data.fromId
           && resource.data.get('deleted', false) != true
+          && resource.data.get('sentAt', null) != null
+          && request.time < resource.data.sentAt + duration.value(15, 'm')
           && onlyChanged(['text', 'editedAt'])
           && request.resource.data.text is string
           && request.resource.data.text.size() > 0

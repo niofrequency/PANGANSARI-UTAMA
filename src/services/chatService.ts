@@ -1,4 +1,4 @@
-import { collection, doc, addDoc, updateDoc, onSnapshot, query, where, arrayUnion } from 'firebase/firestore';
+import { collection, doc, addDoc, updateDoc, onSnapshot, query, where, arrayUnion, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { ChatMessage } from '../types';
 
@@ -19,7 +19,9 @@ export function subscribeMyMessages(uid: string, onChange: (messages: ChatMessag
 
 export async function addMessageDoc(message: Omit<ChatMessage, 'id'>): Promise<void> {
   if (!db) return;
-  await addDoc(collection(db, 'messages'), message);
+  // sentAt is the server's clock — firestore.rules uses it for the
+  // 15-minute edit window (a phone's own clock can't be trusted).
+  await addDoc(collection(db, 'messages'), { ...message, sentAt: serverTimestamp() });
 }
 
 export async function editMessageDoc(id: string, text: string): Promise<void> {

@@ -86,6 +86,14 @@ export function chatContacts(me: User, users: User[]): User[] {
   });
 }
 
+// Senders can edit a message for this long after sending it (enforced
+// again in firestore.rules against the server-set sentAt).
+export const CHAT_EDIT_WINDOW_MS = 15 * 60 * 1000;
+
+export function canStillEdit(createdAt: string, now = Date.now()): boolean {
+  return now - new Date(createdAt).getTime() < CHAT_EDIT_WINDOW_MS;
+}
+
 export function conversationId(a: string, b: string): string {
   return [a, b].sort().join('__');
 }
