@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { User, Submission, UserRole, Site, Warning, TrainingModule, FieldReport, FieldReportStatus, CorrectiveAction, CorrectiveActionStatus, ChatMessage } from '../types';
-import { subscribeMyMessages, addMessageDoc, markMessageReadDoc } from '../services/chatService';
+import { subscribeMyMessages, addMessageDoc, markMessageReadDoc, editMessageDoc, deleteMessageForEveryoneDoc, hideMessageForMeDoc } from '../services/chatService';
 import { canChatUsers, conversationId } from '../lib/chatPolicy';
 import { registerPush, unregisterPush, setAppBadgeCount } from '../lib/pushNotifications';
 import { INITIAL_USERS, INITIAL_SUBMISSIONS, INITIAL_WARNINGS, INITIAL_FIELD_REPORTS, INITIAL_CORRECTIVE_ACTIONS, SITES, TRAINING_MODULES } from '../data/mockData';
@@ -355,7 +355,9 @@ export function useAppStore() {
   }, [isFirebaseConfigured, currentUser?.id, pinSessionActive]);
 
   // Unread chat count on the installed app's icon.
-  const unreadChatCount = currentUser ? messages.filter(m => m.toId === currentUser.id && !m.read).length : 0;
+  // Messages this user cleared / deleted "for me" never reach the UI.
+  const visibleMessages = currentUser ? messages.filter(m => !m.hiddenFor?.includes(currentUser.id)) : messages;
+  const unreadChatCount = currentUser ? visibleMessages.filter(m => m.toId === currentUser.id && !m.read && !m.deleted).length : 0;
   useEffect(() => {
     setAppBadgeCount(unreadChatCount);
   }, [unreadChatCount]);
@@ -863,6 +865,43 @@ export function useAppStore() {
     return true;
   };
 
+  // Sender edits their own message's text.
+  const editChatMessage = (id: string, text: string): boolean => {
+    const body = text.trim();
+    const m = messages.find(x => x.id === id);
+    if (!currentUser || !m || m.fromId !== currentUser.id || m.deleted || !body) return false;
+    if (isFirebaseConfigured) {
+      editMessageDoc(id, body.slice(0, 2000)).catch((err) => console.error('editChatMessage failed:', err));
+      return true;
+    }
+    setMessages(prev => prev.map(x => x.id === id ? { ...x, text: body.slice(0, 2000), editedAt: new Date().toISOString() } : x));
+    return true;
+  };
+
+  // Sender removes their own message for both people ("This message was
+  // deleted" stays in place so the conversation still reads correctly).
+  const deleteChatMessageForEveryone = (id: string) => {
+    const m = messages.find(x => x.id === id);
+    if (!currentUser || !m || m.fromId !== currentUser.id) return;
+    if (isFirebaseConfigured) {
+      deleteMessageForEveryoneDoc(id).catch((err) => console.error('deleteChatMessageForEveryone failed:', err));
+      return;
+    }
+    setMessages(prev => prev.map(x => x.id === id ? { ...x, deleted: true, text: '', deletedAt: new Date().toISOString() } : x));
+  };
+
+  // "Delete for me" / "Clear chat" — hides messages from this user only;
+  // the other person still has them.
+  const hideChatMessagesForMe = (ids: string[]) => {
+    if (!currentUser || ids.length === 0) return;
+    if (isFirebaseConfigured) {
+      ids.forEach(id => hideMessageForMeDoc(id, currentUser.id).catch((err) => console.error('hideChatMessagesForMe failed:', err)));
+      return;
+    }
+    const set = new Set(ids);
+    setMessages(prev => prev.map(x => set.has(x.id) ? { ...x, hiddenFor: [...(x.hiddenFor || []), currentUser.id] } : x));
+  };
+
   // Marks every unread message from `otherId` to me as read.
   const markConversationRead = (otherId: string) => {
     if (!currentUser) return;
@@ -996,8 +1035,12 @@ export function useAppStore() {
     submissions: visibleSubmissions,
     warnings,
     fieldReports,
-    messages,
+    messages: visibleMessages,
+    unreadChatCount,
     sendChatMessage,
+    editChatMessage,
+    deleteChatMessageForEveryone,
+    hideChatMessagesForMe,
     markConversationRead,
     correctiveActions,
     trainings,

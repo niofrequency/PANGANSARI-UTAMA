@@ -48,7 +48,7 @@ export function useTranslation() {
     if (typeof value !== 'string') return value as unknown as string;
     if (vars) {
       return Object.entries(vars).reduce(
-        (str, [k, v]) => str.replace(`{${k}}`, String(v)),
+        (str, [k, v]) => str.split(`{${k}}`).join(String(v)),
         value
       );
     }
