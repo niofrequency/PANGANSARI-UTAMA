@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useAppStore } from '../../store/useAppStore';
-import { AlertTriangle, ClipboardCheck, History, ListChecks, ListTodo, MessageSquareWarning } from 'lucide-react';
+import { AlertTriangle, ClipboardCheck, History, ListChecks, ListTodo, MessageSquareWarning, MessageCircle } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { InspectionsTab } from '../Inspections/InspectionsTab';
 import { OpsLogsTab } from '../OpsLogs/OpsLogsTab';
 import { FieldReportsTab } from '../FieldReports/FieldReportsTab';
+import { ChatTab, useChatTabLabel } from '../Chat/ChatTab';
 import { CorrectiveActionsTab } from '../CorrectiveActions/CorrectiveActionsTab';
 import { Modal } from '../Modal';
 import { DesktopShell } from '../DesktopShell';
@@ -34,7 +35,8 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled }: Supervi
   const { t } = useTranslation();
   const { currentUser, addWarning, users } = store;
   const isFoodSafety = currentUser?.role === 'FOOD_SAFETY_SUPERVISOR';
-  const [activeTab, setActiveTab] = useState<'OPS_LOGS' | 'HISTORY' | 'REPORTS' | 'ACTIONS' | 'INSPECTIONS'>(startTab ?? 'OPS_LOGS');
+  const [activeTab, setActiveTab] = useState<'OPS_LOGS' | 'HISTORY' | 'REPORTS' | 'ACTIONS' | 'INSPECTIONS' | 'CHAT'>(startTab ?? 'OPS_LOGS');
+  const chatLabel = useChatTabLabel(store);
   const [showWarningDialog, setShowWarningDialog] = useState(false);
   const [warningData, setWarningData] = useState({ userId: '', reason: '', severity: 'LOW' as any });
 
@@ -74,6 +76,7 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled }: Supervi
     // Housekeeping Supervisor gets this too now, restricted to Gemba
     // Walk's Section A only — see InspectionsTab.tsx.
     { id: 'INSPECTIONS' as const, icon: ClipboardCheck, label: t('inspection.tabTitle') },
+    { id: 'CHAT' as const, icon: MessageCircle, label: chatLabel },
   ];
   const activeTabLabel = tabs.find(tab => tab.id === activeTab)?.label ?? '';
 
@@ -81,13 +84,13 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled }: Supervi
     <div className="space-y-6">
       {/* Mobile pill tab bar — unchanged, just hidden once the sidebar
           below takes over at md+. */}
-      <div className="flex md:hidden print:hidden bg-white rounded-2xl p-1.5 shadow-sm border border-psu-gray/5">
+      <div className="flex md:hidden print:hidden bg-white rounded-2xl p-1.5 shadow-sm border border-psu-gray/5 overflow-x-auto">
         {tabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={cn(
-              "flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+              "flex-1 min-w-[72px] shrink-0 flex flex-col items-center justify-center gap-1 py-3 px-1 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
               activeTab === tab.id
                 ? "bg-psu-blue text-white shadow-md shadow-psu-blue/20"
                 : "text-psu-gray/40 hover:text-psu-gray"
@@ -115,6 +118,8 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled }: Supervi
       {activeTab === 'REPORTS' && (
         <FieldReportsTab store={store} department={isFoodSafety ? 'FOOD_SAFETY' : 'HOUSEKEEPING'} />
       )}
+
+      {activeTab === 'CHAT' && <ChatTab store={store} />}
 
       {activeTab === 'ACTIONS' && (
         <CorrectiveActionsTab store={store} department={isFoodSafety ? 'FOOD_SAFETY' : 'HOUSEKEEPING'} />

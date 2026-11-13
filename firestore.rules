@@ -10,6 +10,7 @@ rules_version = '2';
 //   fieldReports — "something's broken" reports
 //   correctiveActions — CAPA-style assigned action items (two-step close)
 //   trainings    — training module completion
+//   messages     — in-app chat between two people
 //
 // NOTE: as of this version, all five collections above are actually
 // read/written from Firestore by the client (authService.ts/
@@ -295,6 +296,66 @@ service cloud.firestore {
           && request.resource.data.status == 'OPEN'
           && onlyChanged(['status', 'reopenedAt', 'reopenedNote']))
       );
+
+      allow delete: if false;
+    }
+
+    // ── messages ────────────────────────────────────────────────────
+    // In-app chat (components/Chat/ChatTab.tsx) — one doc per message
+    // between exactly two people. Mirrors src/lib/chatPolicy.ts:
+    //   Manager <-> Supervisor, Manager; Supervisor <-> Supervisor and
+    //   frontline staff; frontline staff <-> Supervisor only. Same
+    //   department, except the General Manager who spans both.
+    function chatIsManager(r) {
+      return r in ['HOUSEKEEPING_MANAGER', 'FOOD_SAFETY_MANAGER', 'GENERAL_MANAGER'];
+    }
+    function chatIsSupervisor(r) {
+      return r in ['HOUSEKEEPING_SUPERVISOR', 'FOOD_SAFETY_SUPERVISOR'];
+    }
+    function chatIsFrontline(r) {
+      return r in ['HOUSEKEEPER', 'HOUSEKEEPING_LAUNDRY', 'HOUSEKEEPING_JANITOR', 'FOOD_SAFETY_TECHNICIAN'];
+    }
+    function chatDept(r) {
+      return r == 'GENERAL_MANAGER' ? 'ALL'
+        : (r in ['HOUSEKEEPER', 'HOUSEKEEPING_LAUNDRY', 'HOUSEKEEPING_JANITOR', 'HOUSEKEEPING_SUPERVISOR', 'HOUSEKEEPING_MANAGER'] ? 'HK' : 'FS');
+    }
+    function chatSameDept(a, b) {
+      return chatDept(a) == 'ALL' || chatDept(b) == 'ALL' || chatDept(a) == chatDept(b);
+    }
+    function canChat(a, b) {
+      return (chatIsManager(a) && chatIsManager(b))
+        || (chatSameDept(a, b) && (
+          (chatIsManager(a) && chatIsSupervisor(b))
+          || (chatIsSupervisor(a) && chatIsManager(b))
+          || (chatIsSupervisor(a) && chatIsSupervisor(b))
+          || (chatIsSupervisor(a) && chatIsFrontline(b))
+          || (chatIsFrontline(a) && chatIsSupervisor(b))
+        ));
+    }
+
+    match /messages/{messageId} {
+      allow read: if isSignedIn() && request.auth.uid in resource.data.participants;
+
+      allow create: if isSignedIn()
+        && request.resource.data.fromId == request.auth.uid
+        && request.resource.data.fromEmail == email()
+        && request.resource.data.participants == [request.auth.uid, request.resource.data.toId]
+        && request.resource.data.read == false
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0
+        && request.resource.data.text.size() <= 2000
+        && get(/databases/$(database)/documents/users/$(email())).data.isActive != false
+        && get(/databases/$(database)/documents/users/$(request.resource.data.toEmail)).data.uid == request.resource.data.toId
+        && canChat(
+          get(/databases/$(database)/documents/users/$(email())).data.role,
+          get(/databases/$(database)/documents/users/$(request.resource.data.toEmail)).data.role
+        );
+
+      // Only the recipient, and only to mark it read.
+      allow update: if isSignedIn()
+        && request.auth.uid == resource.data.toId
+        && onlyChanged(['read'])
+        && request.resource.data.read == true;
 
       allow delete: if false;
     }

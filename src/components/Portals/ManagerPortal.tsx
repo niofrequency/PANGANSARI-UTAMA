@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { AnalyticsDashboard } from '../Dashboard/AnalyticsDashboard';
-import { LayoutDashboard, ClipboardCheck, ClipboardList, History, ListTodo, Users } from 'lucide-react';
+import { LayoutDashboard, ClipboardCheck, ClipboardList, History, ListTodo, Users, MessageCircle, MessageSquareWarning } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
@@ -11,6 +11,8 @@ import { CorrectiveActionsTab } from '../CorrectiveActions/CorrectiveActionsTab'
 import { userCanSeeSite } from '../../lib/siteScope';
 import { DesktopShell } from '../DesktopShell';
 import { UserManagementPanel } from '../Admin/UserManagementPanel';
+import { FieldReportsTab } from '../FieldReports/FieldReportsTab';
+import { ChatTab, useChatTabLabel } from '../Chat/ChatTab';
 
 // The daily Housekeeping/Food Safety Escalations queue used to live here
 // as its own tab with a single Approve/Deny action, separate from Ops
@@ -30,7 +32,8 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
   // departments' Ops Logs queue, below.
   const isGeneralManager = currentUser?.role === 'GENERAL_MANAGER';
   const isFoodSafety = currentUser?.role === 'FOOD_SAFETY_MANAGER' || isGeneralManager;
-  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'OPS_LOGS' | 'HISTORY' | 'ACTIONS' | 'INSPECTIONS' | 'USERS'>('DASHBOARD');
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'OPS_LOGS' | 'HISTORY' | 'ACTIONS' | 'INSPECTIONS' | 'USERS' | 'ISSUES' | 'CHAT'>('DASHBOARD');
+  const chatLabel = useChatTabLabel(store);
 
   // The Dashboard tab used to get the raw, unfiltered store data — every
   // site's submissions, blended together, regardless of who was looking at
@@ -52,6 +55,10 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
     { id: 'OPS_LOGS' as const, icon: ClipboardList, label: t('ops.tabTitle') },
     { id: 'HISTORY' as const, icon: History, label: t('ops.historySectionTitle') },
     { id: 'ACTIONS' as const, icon: ListTodo, label: t('correctiveAction.tabTitle') },
+    // Issues reported from the wrench icon (ReportIssueButton) — the same
+    // queue Supervisors work, so Managers see every reported problem too.
+    { id: 'ISSUES' as const, icon: MessageSquareWarning, label: t('fieldReport.tabTitle') },
+    { id: 'CHAT' as const, icon: MessageCircle, label: chatLabel },
     ...(isFoodSafety ? [{ id: 'INSPECTIONS' as const, icon: ClipboardCheck, label: t('inspection.tabTitle') }] : []),
     // Personnel management — same tool as the Admin Portal's Personnel
     // tab, minus anything touching ADMIN accounts (see
@@ -65,13 +72,13 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
     <div className="space-y-6">
       {/* Mobile pill tab bar — unchanged, just hidden once the sidebar
           below takes over at md+. */}
-      <div className="flex md:hidden print:hidden bg-white rounded-2xl p-1.5 shadow-sm border border-psu-gray/5">
+      <div className="flex md:hidden print:hidden bg-white rounded-2xl p-1.5 shadow-sm border border-psu-gray/5 overflow-x-auto">
         {tabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
             className={cn(
-              "flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+              "flex-1 min-w-[72px] shrink-0 flex flex-col items-center justify-center gap-1 py-3 px-1 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
               activeTab === tab.id 
                 ? "bg-psu-gray text-white shadow-md shadow-psu-gray/20" 
                 : "text-psu-gray/40 hover:text-psu-gray"
@@ -181,6 +188,35 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
             exit={{ opacity: 0, scale: 0.98 }}
           >
             <CorrectiveActionsTab store={store} department={isFoodSafety ? 'FOOD_SAFETY' : 'HOUSEKEEPING'} isGeneralManager={isGeneralManager} />
+          </motion.div>
+        )}
+
+        {activeTab === 'ISSUES' && (
+          <motion.div
+            key="issues"
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            className="space-y-8"
+          >
+            {(isGeneralManager || !isFoodSafety) && (
+              <div className="space-y-3">
+                {isGeneralManager && <h3 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em] px-2">{t('roles.HOUSEKEEPING_MANAGER')}</h3>}
+                <FieldReportsTab store={store} department="HOUSEKEEPING" />
+              </div>
+            )}
+            {isFoodSafety && (
+              <div className="space-y-3">
+                {isGeneralManager && <h3 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em] px-2">{t('roles.FOOD_SAFETY_MANAGER')}</h3>}
+                <FieldReportsTab store={store} department="FOOD_SAFETY" />
+              </div>
+            )}
+          </motion.div>
+        )}
+
+        {activeTab === 'CHAT' && (
+          <motion.div key="chat" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }}>
+            <ChatTab store={store} />
           </motion.div>
         )}
 

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { PhotoCapture } from '../PhotoCapture';
 import { TrainingsTab } from '../TrainingsTab';
-import { ClipboardCheck, History, GraduationCap, CheckCircle2, Clock, XCircle, AlertTriangle, MapPin, Check, X, Pencil, Trash2 } from 'lucide-react';
+import { ClipboardCheck, History, GraduationCap, CheckCircle2, Clock, XCircle, AlertTriangle, MapPin, Check, X, Pencil, Trash2, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
@@ -23,6 +23,7 @@ import { titleKeyForChainType } from '../../data/opsLogsCatalog';
 import { Thermometer, Droplets, ChevronRight } from 'lucide-react';
 import { PaperPrintButton, draftSubmission } from '../OpsLogs/print/PaperPrintButton';
 import { FoodSafetyDailyLogPrintSheet } from '../OpsLogs/print/FoodSafetyDailyLogPrintSheet';
+import { ChatTab, useChatTabLabel } from '../Chat/ChatTab';
 
 type DeepLinkStartAt = 'fridge' | 'core' | 'clean' | 'wellness';
 
@@ -62,7 +63,8 @@ interface TechnicianPortalProps {
 export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob }: TechnicianPortalProps) {
   const { t } = useTranslation();
   const { currentUser, submissions, addSubmission, trainings, completeTraining, warnings, sites } = store;
-  const [activeTab, setActiveTab] = useState<'TASKS' | 'HISTORY' | 'TRAINING'>('TASKS');
+  const [activeTab, setActiveTab] = useState<'TASKS' | 'HISTORY' | 'CHAT' | 'TRAINING'>('TASKS');
+  const chatLabel = useChatTabLabel(store);
   // Additional Checks (PSU_Paper_Speed_Forms_PRD.md) — UF.10000/UN.00.51
   // were restored as their own month-sheet forms, not folded into the
   // daily fridge/core log above. Same tile-then-form pattern OpsLogsTab
@@ -253,6 +255,7 @@ export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob 
         {[
           { id: 'TASKS', icon: ClipboardCheck, label: t('technician.tabChecks') },
           { id: 'HISTORY', icon: History, label: t('technician.tabHistory') },
+          { id: 'CHAT', icon: MessageCircle, label: chatLabel },
           { id: 'TRAINING', icon: GraduationCap, label: t('technician.tabTraining') },
         ].map(tab => (
           <button
@@ -598,6 +601,17 @@ export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob 
             <MyActionItems store={store} />
           </motion.div>
         )}
+
+        {activeTab === 'CHAT' && (
+
+          <motion.div key="chat" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="md:max-w-3xl md:mx-auto">
+
+            <ChatTab store={store} />
+
+          </motion.div>
+
+        )}
+
 
         {activeTab === 'TRAINING' && (
           <motion.div
