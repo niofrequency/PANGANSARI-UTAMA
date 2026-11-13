@@ -8,6 +8,9 @@ import { InspectionsTab } from '../Inspections/InspectionsTab';
 import { OpsLogsTab } from '../OpsLogs/OpsLogsTab';
 import { FieldReportsTab } from '../FieldReports/FieldReportsTab';
 import { ChatTab, useChatTab, useOpenChatSignal } from '../Chat/ChatTab';
+import { ChecksTab, MissedChecksBanner, useOpenChecksSignal } from '../Checks/ChecksTab';
+import { ExportPanel } from '../Export/ExportPanel';
+import { AlarmClock } from 'lucide-react';
 import { CorrectiveActionsTab } from '../CorrectiveActions/CorrectiveActionsTab';
 import { Modal } from '../Modal';
 import { DesktopShell } from '../DesktopShell';
@@ -38,9 +41,11 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled }: Supervi
   // Leadhands share this portal for the "Checked by" step but don't do
   // inspections, action items or warnings — those stay with Supervisors.
   const isLeadhand = currentUser?.role === 'HOUSEKEEPING_LEADHAND' || currentUser?.role === 'FOOD_SAFETY_LEADHAND';
-  const [activeTab, setActiveTab] = useState<'OPS_LOGS' | 'HISTORY' | 'REPORTS' | 'ACTIONS' | 'INSPECTIONS' | 'CHAT'>(startTab ?? 'OPS_LOGS');
+  const [activeTab, setActiveTab] = useState<'OPS_LOGS' | 'HISTORY' | 'REPORTS' | 'ACTIONS' | 'INSPECTIONS' | 'CHAT' | 'CHECKS'>(startTab ?? 'OPS_LOGS');
   const chatTab = useChatTab(store);
   useOpenChatSignal(() => setActiveTab('CHAT'));
+  useOpenChecksSignal(() => setActiveTab('CHECKS'));
+  const department = isFoodSafety ? 'FOOD_SAFETY' as const : 'HOUSEKEEPING' as const;
   const [showWarningDialog, setShowWarningDialog] = useState(false);
   const [warningData, setWarningData] = useState({ userId: '', reason: '', severity: 'LOW' as any });
 
@@ -75,6 +80,7 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled }: Supervi
   const tabs = [
     { id: 'OPS_LOGS' as const, icon: ListChecks, label: t('ops.tabTitle') },
     { id: 'HISTORY' as const, icon: History, label: t('ops.historySectionTitle') },
+    { id: 'CHECKS' as const, icon: AlarmClock, label: t('checks.tabTitle') },
     { id: 'REPORTS' as const, icon: MessageSquareWarning, label: t('fieldReport.tabTitle') },
     ...(isLeadhand ? [] : [
       { id: 'ACTIONS' as const, icon: ListTodo, label: t('correctiveAction.tabTitle') },
@@ -114,11 +120,19 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled }: Supervi
       )}
 
       {activeTab === 'OPS_LOGS' && (
-        <OpsLogsTab store={store} department={isFoodSafety ? 'FOOD_SAFETY' : 'HOUSEKEEPING'} tier="supervisor" mode="queueOnly" />
+        <div className="space-y-6">
+          <MissedChecksBanner store={store} department={department} onOpen={() => setActiveTab('CHECKS')} />
+          <OpsLogsTab store={store} department={department} tier="supervisor" mode="queueOnly" />
+        </div>
       )}
 
+      {activeTab === 'CHECKS' && <ChecksTab store={store} department={department} canEdit={false} />}
+
       {activeTab === 'HISTORY' && (
-        <OpsLogsTab store={store} department={isFoodSafety ? 'FOOD_SAFETY' : 'HOUSEKEEPING'} tier="supervisor" mode="historyOnly" />
+        <div className="space-y-6">
+          <ExportPanel store={store} department={department} />
+          <OpsLogsTab store={store} department={department} tier="supervisor" mode="historyOnly" />
+        </div>
       )}
 
       {activeTab === 'REPORTS' && (

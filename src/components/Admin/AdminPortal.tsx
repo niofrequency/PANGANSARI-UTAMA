@@ -12,6 +12,11 @@ import { useTranslation } from '../../i18n/LanguageContext';
 import { SUPER_ADMIN_EMAIL } from '../../services/authService';
 import { isFirebaseConfigured } from '../../lib/firebase';
 import { Modal } from '../Modal';
+import { ChecksTab, useOpenChecksSignal } from '../Checks/ChecksTab';
+import { ExportPanel } from '../Export/ExportPanel';
+import { AppHealthPanel } from './AppHealthPanel';
+import { TrendsPanel } from '../Dashboard/TrendsPanel';
+import { AlarmClock } from 'lucide-react';
 import { Lightbox } from '../Lightbox';
 import { ListCard } from '../ListCard';
 import { DesktopShell } from '../DesktopShell';
@@ -30,9 +35,10 @@ import { SiteOptions } from '../SiteOptions';
 export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }) {
   const { t } = useTranslation();
   const { users, sites, submissions, warnings, correctiveActions } = store;
-  const [activeTab, setActiveTab] = useState<'USERS' | 'ACTIVITY' | 'ANALYTICS' | 'PRINT' | 'CHAT' | 'IMPORT'>('USERS');
+  const [activeTab, setActiveTab] = useState<'USERS' | 'ACTIVITY' | 'ANALYTICS' | 'PRINT' | 'CHAT' | 'IMPORT' | 'CHECKS'>('USERS');
   const chatTab = useChatTab(store);
   useOpenChatSignal(() => setActiveTab('CHAT'));
+  useOpenChecksSignal(() => setActiveTab('CHECKS'));
   // Activity tab state
   const [activitySegment, setActivitySegment] = useState<'SUBMISSIONS' | 'WARNINGS' | 'ACTIONS'>('SUBMISSIONS');
   const [activitySearch, setActivitySearch] = useState('');
@@ -144,6 +150,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
     { id: 'USERS', icon: Users, label: t('admin.tabPersonnel') },
     { id: 'ACTIVITY', icon: ActivityIcon, label: t('admin.tabActivity') },
     { id: 'ANALYTICS', icon: Shield, label: t('admin.tabAnalytics') },
+    { id: 'CHECKS', icon: AlarmClock, label: t('checks.tabTitle') },
     { id: 'IMPORT', icon: FileSpreadsheet, label: t('admin.tabImport') },
     { id: 'PRINT', icon: Printer, label: t('admin.tabPrint') },
     { id: 'CHAT', icon: chatTab.icon, label: chatTab.label },
@@ -154,13 +161,13 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
     <div className="space-y-6">
       {/* Mobile pill tab bar — unchanged, just hidden once the sidebar
           below takes over at md+. */}
-      <div className="flex md:hidden print:hidden bg-white rounded-2xl p-1.5 shadow-sm border border-psu-gray/5">
+      <div className="flex md:hidden print:hidden bg-white rounded-2xl p-1.5 shadow-sm border border-psu-gray/5 overflow-x-auto">
         {tabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
             className={cn(
-              "flex-1 flex flex-col items-center justify-center gap-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+              "flex-1 min-w-[72px] shrink-0 flex flex-col items-center justify-center gap-1 py-3 px-1 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
               activeTab === tab.id
                 ? "bg-psu-gray text-white shadow-md shadow-psu-gray/20"
                 : "text-psu-gray/40 hover:text-psu-gray"
@@ -227,6 +234,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
 
             {activitySegment === 'SUBMISSIONS' && (
               <>
+                <ExportPanel store={store} />
                 <div className="flex gap-2 flex-wrap">
                   {(['ALL', 'PENDING', 'APPROVED', 'REJECTED'] as const).map(status => (
                     <button
@@ -366,14 +374,22 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
             animate={{ opacity: 1, scale: 1 }}
           >
             <h2 className="text-xl font-bold tracking-tight text-psu-gray mb-6 px-2">{t('admin.tabAnalytics')}</h2>
+            <div className="mb-6"><AppHealthPanel /></div>
             <div className="mb-6">{renderScopeFilters()}</div>
             <AnalyticsDashboard submissions={scopedSubmissions} warnings={scopedWarnings} sites={scopedSites} users={scopedUsers} />
+            <div className="mt-8"><TrendsPanel store={store} /></div>
           </motion.div>
         )}
 
         {activeTab === 'IMPORT' && (
           <motion.div key="import" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}>
             <ImportStaffPanel store={store} />
+          </motion.div>
+        )}
+
+        {activeTab === 'CHECKS' && (
+          <motion.div key="checks" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}>
+            <ChecksTab store={store} canEdit />
           </motion.div>
         )}
 

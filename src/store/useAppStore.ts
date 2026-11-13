@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { User, Submission, UserRole, Site, Warning, TrainingModule, FieldReport, FieldReportStatus, CorrectiveAction, CorrectiveActionStatus, ChatMessage } from '../types';
+import { User, Submission, UserRole, Site, Warning, TrainingModule, FieldReport, FieldReportStatus, CorrectiveAction, CorrectiveActionStatus, ChatMessage, CheckSchedule, MissedCheck } from '../types';
 import { subscribeMyMessages, addMessageDoc, markMessageReadDoc, editMessageDoc, deleteMessageForEveryoneDoc, hideMessageForMeDoc } from '../services/chatService';
 import { canChatUsers, conversationId, canStillEdit } from '../lib/chatPolicy';
 import { registerPush, unregisterPush, setAppBadgeCount } from '../lib/pushNotifications';
@@ -18,6 +18,17 @@ import { createStaffAccountDirect } from '../services/adminCreateAccount';
 import { resetStaffCredentials } from '../services/adminResetCredentials';
 import { subscribeSubmissions, fetchOlderSubmissions, liveWindowStartISO, addSubmissionDoc, updateSubmissionDoc, CLEAR_FIELD, type SubmissionScope } from '../services/submissionsService';
 import { sitesForScope } from '../lib/siteScope';
+import { subscribeCheckSchedules, subscribeMissedChecks, addCheckScheduleDoc, updateCheckScheduleDoc, deleteCheckScheduleDoc } from '../services/checksService';
+import { localDateISO } from '../utils/localDate';
+import { setErrorReporterRole } from '../lib/errorReporter';
+
+// Roles that see missed-check alerts and can open the check schedule.
+export const CHECK_VIEWER_ROLES: UserRole[] = [
+  'ADMIN', 'GENERAL_MANAGER',
+  'HOUSEKEEPING_MANAGER', 'FOOD_SAFETY_MANAGER',
+  'HOUSEKEEPING_SUPERVISOR', 'FOOD_SAFETY_SUPERVISOR',
+  'HOUSEKEEPING_LEADHAND', 'FOOD_SAFETY_LEADHAND',
+];
 import { subscribeWarnings, addWarningDoc } from '../services/warningsService';
 import { subscribeFieldReports, addFieldReportDoc, updateFieldReportDoc } from '../services/fieldReportsService';
 import { subscribeCorrectiveActions, addCorrectiveActionDoc, updateCorrectiveActionDoc } from '../services/correctiveActionsService';
@@ -342,6 +353,66 @@ export function useAppStore() {
     return () => unsubTrainings();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isFirebaseConfigured, currentUser?.id, pinSessionActive]);
+
+  // Missed-check alerts (functions/src/missedChecks.ts) — only people who
+  // review or manage sites need them; frontline phones skip both
+  // listeners entirely. Demo mode keeps schedules in localStorage so the
+  // editor still works, but nothing checks them (that runs on the server).
+  useEffect(() => { setErrorReporterRole(currentUser?.role); }, [currentUser?.role]);
+
+  const canSeeChecks = !!currentUser && CHECK_VIEWER_ROLES.includes(currentUser.role);
+  const [checkSchedules, setCheckSchedules] = useState<CheckSchedule[]>(() => {
+    if (isFirebaseConfigured) return [];
+    const saved = localStorage.getItem('psu_check_schedules_v1');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [missedChecks, setMissedChecks] = useState<MissedCheck[]>([]);
+
+  useEffect(() => {
+    if (!isFirebaseConfigured) return;
+    if (!currentUser || pinSessionActive || !canSeeChecks) {
+      setCheckSchedules([]);
+      setMissedChecks([]);
+      return;
+    }
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const unsubSchedules = subscribeCheckSchedules(setCheckSchedules);
+    const unsubMissed = subscribeMissedChecks(localDateISO(weekAgo), setMissedChecks);
+    return () => { unsubSchedules(); unsubMissed(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFirebaseConfigured, currentUser?.id, pinSessionActive, canSeeChecks]);
+
+  useEffect(() => {
+    if (isFirebaseConfigured) return;
+    safeSetItem('psu_check_schedules_v1', JSON.stringify(checkSchedules));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkSchedules]);
+
+  const addCheckSchedule = (sched: Omit<CheckSchedule, 'id' | 'createdAt' | 'createdBy'>) => {
+    const full = { ...sched, createdAt: new Date().toISOString(), createdBy: currentUser?.id };
+    if (isFirebaseConfigured) {
+      addCheckScheduleDoc(full).catch((err) => console.error('addCheckSchedule failed:', err));
+      return;
+    }
+    setCheckSchedules((prev) => [...prev, { ...full, id: `cs-${Date.now()}` }]);
+  };
+
+  const updateCheckSchedule = (id: string, patch: Partial<Omit<CheckSchedule, 'id'>>) => {
+    if (isFirebaseConfigured) {
+      updateCheckScheduleDoc(id, patch).catch((err) => console.error('updateCheckSchedule failed:', err));
+      return;
+    }
+    setCheckSchedules((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+  };
+
+  const deleteCheckSchedule = (id: string) => {
+    if (isFirebaseConfigured) {
+      deleteCheckScheduleDoc(id).catch((err) => console.error('deleteCheckSchedule failed:', err));
+      return;
+    }
+    setCheckSchedules((prev) => prev.filter((c) => c.id !== id));
+  };
 
   // Set (and cleared) whenever a localStorage write below fails — almost
   // always QuotaExceededError once the browser's per-origin storage limit
@@ -1095,6 +1166,11 @@ export function useAppStore() {
     users,
     submissions: visibleSubmissions,
     olderHistory,
+    checkSchedules,
+    missedChecks,
+    addCheckSchedule,
+    updateCheckSchedule,
+    deleteCheckSchedule,
     warnings,
     fieldReports,
     messages: visibleMessages,

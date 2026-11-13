@@ -10,6 +10,7 @@ import { useWorkingSite } from '../../hooks/useWorkingSite';
 import { Submission } from '../../types';
 import { PaperPrintButton, draftSubmission } from './print/PaperPrintButton';
 import { TempControlPrintSheet } from './print/TempControlPrintSheet';
+import { localDateISO } from '../../utils/localDate';
 
 // UF.10000 Temperature Control Checklist. The paper is one sheet per
 // cabinet for the whole month, 5 daily slots each with a temp + paraf.
@@ -24,7 +25,7 @@ export function TempControlForm({ store, onCancel, onSubmitted }: OpsFormProps) 
   const { t } = useTranslation();
   const { currentUser, sites, submissions, addSubmission, resubmitAfterRejection } = store;
   const { workingSiteId, workingSiteName: currentSiteName, availableSites, setWorkingSiteId } = useWorkingSite(currentUser, sites);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateISO();
   const assets = assetsForSite(workingSiteId);
 
   const [assetId, setAssetId] = useState(assets[0]?.id || '');
@@ -165,7 +166,7 @@ function TempControlDayEditor({
   return (
     <div className="card space-y-4">
       <div className="flex items-center justify-between">
-        <h4 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em]">{date === new Date().toISOString().slice(0, 10) ? t('ops.tempControl.todayFor', { asset: asset.name }) : date}</h4>
+        <h4 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em]">{date === localDateISO() ? t('ops.tempControl.todayFor', { asset: asset.name }) : date}</h4>
         {renderPrint && <PaperPrintButton renderSheet={() => renderPrint(readings, remarks)} />}
       </div>
       <div className="grid grid-cols-5 gap-2">

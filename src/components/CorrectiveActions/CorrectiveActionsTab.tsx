@@ -18,6 +18,7 @@ import { CorrectiveAction, UserRole } from '../../types';
 import { MyActionItems } from './MyActionItems';
 import { Modal } from '../Modal';
 import { ListCard } from '../ListCard';
+import { localDateISO } from '../../utils/localDate';
 
 interface CorrectiveActionsTabProps {
   store: ReturnType<typeof useAppStore>;
@@ -49,7 +50,7 @@ function isOverdue(action: CorrectiveAction): boolean {
 }
 
 function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  return localDateISO();
 }
 
 export function CorrectiveActionsTab({ store, department, isGeneralManager }: CorrectiveActionsTabProps) {

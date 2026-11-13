@@ -6,6 +6,11 @@ import {defineConfig} from 'vite';
 export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss()],
+    // Which build an error report came from (src/lib/errorReporter.ts).
+    // Vercel sets VERCEL_GIT_COMMIT_SHA at build time.
+    define: {
+      __APP_VERSION__: JSON.stringify((process.env.VERCEL_GIT_COMMIT_SHA || 'dev').slice(0, 7)),
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

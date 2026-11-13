@@ -8,6 +8,7 @@ import { useWorkingSite } from '../../hooks/useWorkingSite';
 import { Submission } from '../../types';
 import { PaperPrintButton, draftSubmission } from './print/PaperPrintButton';
 import { MessHallHygienePrintSheet } from './print/MessHallHygienePrintSheet';
+import { localDateISO } from '../../utils/localDate';
 
 // UWL10001 Checklist Kebersihan dan Perawatan Area Mess Hall — the paper
 // is one sheet per area for the whole month, one column per day, every
@@ -20,7 +21,7 @@ export function MessHallHygieneForm({ store, onCancel, onSubmitted }: OpsFormPro
   const { t, language } = useTranslation();
   const { currentUser, sites, submissions, addSubmission, resubmitAfterRejection } = store;
   const { workingSiteId, workingSiteName: currentSiteName, availableSites, setWorkingSiteId } = useWorkingSite(currentUser, sites);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateISO();
 
   const [areaKey, setAreaKey] = useState(MESS_HALL_AREAS[0]?.key || 'D');
   const area = MESS_HALL_AREAS.find(a => a.key === areaKey)!;

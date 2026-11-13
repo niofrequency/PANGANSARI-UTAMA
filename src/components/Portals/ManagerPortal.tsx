@@ -13,6 +13,10 @@ import { DesktopShell } from '../DesktopShell';
 import { UserManagementPanel } from '../Admin/UserManagementPanel';
 import { FieldReportsTab } from '../FieldReports/FieldReportsTab';
 import { ChatTab, useChatTab, useOpenChatSignal } from '../Chat/ChatTab';
+import { ChecksTab, MissedChecksBanner, useOpenChecksSignal } from '../Checks/ChecksTab';
+import { ExportPanel } from '../Export/ExportPanel';
+import { TrendsPanel } from '../Dashboard/TrendsPanel';
+import { AlarmClock } from 'lucide-react';
 
 // The daily Housekeeping/Food Safety Escalations queue used to live here
 // as its own tab with a single Approve/Deny action, separate from Ops
@@ -32,9 +36,12 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
   // departments' Ops Logs queue, below.
   const isGeneralManager = currentUser?.role === 'GENERAL_MANAGER';
   const isFoodSafety = currentUser?.role === 'FOOD_SAFETY_MANAGER' || isGeneralManager;
-  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'OPS_LOGS' | 'HISTORY' | 'ACTIONS' | 'INSPECTIONS' | 'USERS' | 'ISSUES' | 'CHAT'>('DASHBOARD');
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'OPS_LOGS' | 'HISTORY' | 'ACTIONS' | 'INSPECTIONS' | 'USERS' | 'ISSUES' | 'CHAT' | 'CHECKS'>('DASHBOARD');
   const chatTab = useChatTab(store);
   useOpenChatSignal(() => setActiveTab('CHAT'));
+  useOpenChecksSignal(() => setActiveTab('CHECKS'));
+  // GM covers both departments; the department Managers only see their own.
+  const checksDepartment = isGeneralManager ? undefined : currentUser?.role === 'FOOD_SAFETY_MANAGER' ? 'FOOD_SAFETY' as const : 'HOUSEKEEPING' as const;
 
   // The Dashboard tab used to get the raw, unfiltered store data — every
   // site's submissions, blended together, regardless of who was looking at
@@ -54,6 +61,7 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
   const tabs = [
     { id: 'DASHBOARD' as const, icon: LayoutDashboard, label: t('manager.tabAnalytics') },
     { id: 'OPS_LOGS' as const, icon: ClipboardList, label: t('ops.tabTitle') },
+    { id: 'CHECKS' as const, icon: AlarmClock, label: t('checks.tabTitle') },
     { id: 'HISTORY' as const, icon: History, label: t('ops.historySectionTitle') },
     { id: 'ACTIONS' as const, icon: ListTodo, label: t('correctiveAction.tabTitle') },
     // Issues reported from the wrench icon (ReportIssueButton) — the same
@@ -113,7 +121,15 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
             <div className="mb-6 px-2 md:hidden">
               <h2 className="text-xl font-bold tracking-tight text-psu-gray">{t('manager.dashboardTitle')}</h2>
             </div>
+            <div className="mb-6"><MissedChecksBanner store={store} department={checksDepartment} onOpen={() => setActiveTab('CHECKS')} /></div>
             <AnalyticsDashboard submissions={dashboardSubmissions} warnings={dashboardWarnings} sites={dashboardSites} users={users} />
+            <div className="mt-8"><TrendsPanel store={store} department={checksDepartment} /></div>
+          </motion.div>
+        )}
+
+        {activeTab === 'CHECKS' && (
+          <motion.div key="checks" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}>
+            <ChecksTab store={store} department={checksDepartment} canEdit />
           </motion.div>
         )}
 
@@ -163,6 +179,7 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
             exit={{ opacity: 0, scale: 0.98 }}
             className="space-y-8"
           >
+            <ExportPanel store={store} department={checksDepartment} />
             {/* Same department split as Ops Logs above — a General
                 Manager gets both departments' History, one below the
                 other; a department Manager only gets their own. */}

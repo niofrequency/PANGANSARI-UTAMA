@@ -423,3 +423,41 @@ export interface FieldReport {
   // with no explanation.
   resolutionNote?: string;
 }
+
+// Missed-check alerts (functions/src/missedChecks.ts). A schedule says
+// "this form, at this site (optionally this asset / restroom section), is
+// due at these times"; the server checks it every 30 minutes and writes a
+// MissedCheck for any slot that's past due + grace with nothing filed.
+// `slots` are the form's own slot keys for slotted forms ('08', '12', …,
+// '24' = end of day) or 'HH:MM' due times for once-or-more-a-day forms.
+export interface CheckSchedule {
+  id: string;
+  siteId: string;
+  siteName: string;
+  type: Submission['type'];
+  department: 'HOUSEKEEPING' | 'FOOD_SAFETY';
+  label: string;
+  assetId?: string;
+  section?: string;
+  slots: string[];
+  graceMinutes: number;
+  days?: number[]; // 0 = Sunday … 6 = Saturday; empty = every day
+  active: boolean;
+  createdAt: string;
+  createdBy?: string;
+}
+
+export interface MissedCheck {
+  id: string;
+  scheduleId: string;
+  siteId: string;
+  siteName: string;
+  department: 'HOUSEKEEPING' | 'FOOD_SAFETY';
+  type: Submission['type'];
+  label: string;
+  slot: string;
+  date: string;      // local 'YYYY-MM-DD'
+  dueAt: string;     // ISO
+  detectedAt: string;
+  resolvedAt?: string; // set if it was filled in late
+}
