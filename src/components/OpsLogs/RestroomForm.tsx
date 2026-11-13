@@ -5,6 +5,8 @@ import { OpsHeaderChip, OpsFormProps, ResubmitNotice, ChecklistRow } from './ops
 import { RESTROOM_GROUPS, RESTROOM_SLOTS, RestroomSlot, RESTROOM_EXAMPLE_SECTION } from '../../data/restroomData';
 import { Check, CheckCircle2, Clock } from 'lucide-react';
 import { useWorkingSite } from '../../hooks/useWorkingSite';
+import { PaperPrintButton, draftSubmission } from './print/PaperPrintButton';
+import { RestroomPrintSheet } from './print/RestroomPrintSheet';
 
 // Remembers the last section a janitor filed for, so reopening the form
 // tomorrow doesn't mean retyping the same section letter again — the
@@ -154,6 +156,24 @@ export function RestroomForm({ store, onCancel, onSubmitted, editingSubmission }
         siteOptions={availableSites}
         onSiteChange={setWorkingSiteId}
       />
+
+      <div className="flex justify-end">
+        <PaperPrintButton renderSheet={() => {
+          // Today's slots as currently marked on screen, on top of every
+          // earlier day already saved for this section.
+          const drafts = RESTROOM_SLOTS.filter(slot => Object.keys(marksBySlot[slot] || {}).length > 0 || todaysSlotSubmissions[slot]).map(slot =>
+            draftSubmission({
+              user: currentUser, type: 'RESTROOM', siteId: workingSiteId, siteName: currentSiteName, base: todaysSlotSubmissions[slot],
+              items: allItems.map(i => ({ id: i.id, question: i.labelId, answer: marksBySlot[slot]?.[i.id] ?? todaysSlotSubmissions[slot]?.items.find(x => x.id === i.id)?.answer ?? '' })),
+              meta: { formId: 'UN.00.45', section: trimmedSection, slot }, id: `draft-${slot}`,
+            }));
+          const draftIds = new Set(drafts.map(d => d.id));
+          const primary = drafts.find(d => d.meta?.slot === activeSlot) || drafts[0] || draftSubmission({
+            user: currentUser, type: 'RESTROOM', siteId: workingSiteId, siteName: currentSiteName, meta: { formId: 'UN.00.45', section: trimmedSection, slot: activeSlot },
+          });
+          return <RestroomPrintSheet submission={primary} allSubmissions={[...submissions.filter(x => !x.deletedAt && !draftIds.has(x.id)), ...drafts]} />;
+        }} />
+      </div>
 
       <div className="card space-y-5">
         <div className="grid grid-cols-2 gap-4">

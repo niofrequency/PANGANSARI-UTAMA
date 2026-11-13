@@ -6,6 +6,8 @@ import { OpsHeaderChip, OutOfRangeFlag } from './opsHelpers';
 import { HOT_PACK_TYPES, HotPackTypeId, HOT_PACK_MEAL_PERIODS, HotPackMealPeriodId, HOT_PACK_ROWS } from '../../data/hotPackedMealData';
 import { COOK_MIN_TEMP_C } from '../../data/cookingServiceData';
 import { useWorkingSite } from '../../hooks/useWorkingSite';
+import { PaperPrintButton, draftSubmission } from './print/PaperPrintButton';
+import { HotPackedMealPrintSheet } from './print/HotPackedMealPrintSheet';
 
 interface RowEntry {
   cookTime: string; cookTemp: string;
@@ -97,6 +99,10 @@ export function HotPackedMealForm({ store, onCancel, onSubmitted }: {
   return (
     <div className="space-y-6">
       <OpsHeaderChip siteName={currentSiteName} formId="UF.09000" userName={currentUser?.name || ''} staffCode={currentUser?.staffCode} departmentLabel={t('roles.FOOD_SAFETY_SUPERVISOR')} siteOptions={availableSites} onSiteChange={setWorkingSiteId} />
+
+      <div className="flex justify-end">
+        <PaperPrintButton renderSheet={() => <HotPackedMealPrintSheet submission={draftSubmission({ user: currentUser, type: 'HOT_PACKED_MEAL', siteId: workingSiteId, siteName: currentSiteName, meta: { formId: 'UF.09000', packType, mealPeriods: selectedMeals, hotPackRows: Object.fromEntries(selectedMeals.map(m => [m, rowsByMeal[m] || {}])) } })} />} />
+      </div>
 
       <div className="card space-y-3">
         <label className="block text-[10px] font-black text-psu-gray/40 uppercase tracking-widest">{t('ops.hotPacked.packTypeLabel')}</label>

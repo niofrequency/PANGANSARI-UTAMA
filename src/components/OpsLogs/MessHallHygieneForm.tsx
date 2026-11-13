@@ -1,4 +1,4 @@
-import { Key, useState } from 'react';
+import { Key, ReactNode, useState } from 'react';
 import { PhotoCapture } from '../PhotoCapture';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { cn } from '../../utils/cn';
@@ -6,6 +6,8 @@ import { OpsHeaderChip, OpsFormProps, ChecklistRow } from './opsHelpers';
 import { MESS_HALL_AREAS, MessHallArea, MessHallMark } from '../../data/messHallHygieneData';
 import { useWorkingSite } from '../../hooks/useWorkingSite';
 import { Submission } from '../../types';
+import { PaperPrintButton, draftSubmission } from './print/PaperPrintButton';
+import { MessHallHygienePrintSheet } from './print/MessHallHygienePrintSheet';
 
 // UWL10001 Checklist Kebersihan dan Perawatan Area Mess Hall — the paper
 // is one sheet per area for the whole month, one column per day, every
@@ -81,6 +83,14 @@ export function MessHallHygieneForm({ store, onCancel, onSubmitted }: OpsFormPro
           onSubmitted();
         }}
         onCancel={onCancel}
+        renderPrint={(marks) => {
+          const draft = draftSubmission({
+            user: currentUser, type: 'MESS_HALL_HYGIENE', siteId: workingSiteId, siteName: currentSiteName, base: todaysSubmission, id: 'draft-mess',
+            items: area.items.map(i => ({ id: i.id, question: i.labelId, answer: marks[i.id] || '' })),
+            meta: { formId: 'UWL10001', areaKey: area.key, date: today },
+          });
+          return <MessHallHygienePrintSheet submission={draft} allSubmissions={submissions.filter(x => !x.deletedAt && x.id !== draft.id)} />;
+        }}
       />
 
       <MessHallMonthGrid area={area} submissions={submissions} siteId={workingSiteId} language={language} today={today} />
@@ -93,7 +103,7 @@ export function MessHallHygieneForm({ store, onCancel, onSubmitted }: OpsFormPro
 // already-saved entry just hydrates from it (see `existing` below), a
 // blank day starts with every line unmarked.
 function MessHallDayEditor({
-  area, language, existing, currentUserId, onSave, onCancel,
+  area, language, existing, currentUserId, onSave, onCancel, renderPrint,
 }: {
   // Declared (never read) purely so key={...} type-checks — see
   // GarmentCounter's identical comment in LaundryShopForm.tsx.
@@ -104,6 +114,7 @@ function MessHallDayEditor({
   currentUserId?: string;
   onSave: (marks: Record<string, MessHallMark>, photos: Record<string, string>) => void;
   onCancel?: () => void;
+  renderPrint?: (marks: Record<string, MessHallMark>) => ReactNode;
 }) {
   const { t } = useTranslation();
   const [marks, setMarks] = useState<Record<string, MessHallMark>>(() => {
@@ -132,6 +143,7 @@ function MessHallDayEditor({
 
   return (
     <div className="card space-y-4">
+      {renderPrint && <div className="flex justify-end"><PaperPrintButton renderSheet={() => renderPrint(marks)} /></div>}
       <h4 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em] border-b border-psu-gray/5 pb-2">
         {area.key} — {language === 'id' ? area.titleId : area.titleEn}
       </h4>

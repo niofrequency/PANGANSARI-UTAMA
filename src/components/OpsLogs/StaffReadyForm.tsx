@@ -7,6 +7,8 @@ import { STAFF_READY_GROUPS, STAFF_READY_POSITIONS, StaffReadyRow, emptyStaffRea
 import { Check, ChevronDown, ChevronUp, Plus, Trash2, UserPlus } from 'lucide-react';
 import { useWorkingSite } from '../../hooks/useWorkingSite';
 import { ConfirmDeleteModal } from '../ConfirmDeleteModal';
+import { PaperPrintButton, draftSubmission } from './print/PaperPrintButton';
+import { StaffReadyPrintSheet } from './print/StaffReadyPrintSheet';
 
 // Checklist Persiapan Diri Karyawan — a shift roster, not the Daily Food
 // Handler self-check (Inspections tab). Starts prefilled with every
@@ -110,6 +112,10 @@ export function StaffReadyForm({ store, onCancel, onSubmitted }: {
   return (
     <div className="space-y-6">
       <OpsHeaderChip siteName={currentSiteName} formId="STAFF_READY" userName={currentUser?.name || ''} staffCode={currentUser?.staffCode} departmentLabel={t('roles.FOOD_SAFETY_SUPERVISOR')} siteOptions={availableSites} onSiteChange={setWorkingSiteId} />
+
+      <div className="flex justify-end">
+        <PaperPrintButton renderSheet={() => <StaffReadyPrintSheet submission={draftSubmission({ user: currentUser, type: 'STAFF_READY', siteId: workingSiteId, siteName: currentSiteName, meta: { formId: 'STAFF_READY', shift, staffReadyRows: filledRows.map(({ userId, ...r }) => r) } })} />} />
+      </div>
 
       <div className="card space-y-3">
         <label className="block text-[10px] font-black text-psu-gray/40 uppercase tracking-widest">{t('ops.staffReady.shiftLabel')}</label>
