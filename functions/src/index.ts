@@ -228,6 +228,13 @@ export const mintStaffCodeToken = onCall(
       throw new HttpsError('failed-precondition', 'not-activated');
     }
 
+    // Imported staff (bulkImportStaff) log in with Staff ID + password —
+    // their Staff ID is their HR number, which other people know, so the ID
+    // alone must never be enough to get a session.
+    if ((profile as { requirePassword?: boolean }).requirePassword) {
+      throw new HttpsError('failed-precondition', 'password-required');
+    }
+
     const token = await admin.auth().createCustomToken(profile.uid);
     return { token };
   }
@@ -560,3 +567,88 @@ export const notifyChatMessage = functionsV1.firestore
     });
     await Promise.all(dead);
   });
+
+
+// ── Bulk employee import ─────────────────────────────────────────────
+// Admin Portal → Import Staff (src/components/Admin/ImportStaffPanel.tsx)
+// sends rows already mapped to a site + role (src/lib/employeeImport.ts),
+// up to 100 per call. For each new Staff ID this creates the Firebase Auth
+// account with a random password, the users/{email} profile and the
+// staffCodes/{ID} index, and returns the password once so the Admin can
+// hand it out. The login email is synthetic (<id>@staff.psu.local) —
+// people log in with Staff ID + password, never the email. Re-running an
+// import is safe: existing Staff IDs are reported as "exists", untouched.
+const IMPORT_ROLES = new Set([
+  'HOUSEKEEPER', 'HOUSEKEEPING_LAUNDRY', 'HOUSEKEEPING_JANITOR', 'HOUSEKEEPING_LEADHAND', 'HOUSEKEEPING_SUPERVISOR', 'HOUSEKEEPING_MANAGER',
+  'FOOD_SAFETY_TECHNICIAN', 'FOOD_SAFETY_LEADHAND', 'FOOD_SAFETY_SUPERVISOR', 'FOOD_SAFETY_MANAGER', 'GENERAL_MANAGER',
+]);
+const PASSWORD_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+
+function randomPassword(length = 8): string {
+  const bytes = crypto.randomBytes(length);
+  let out = '';
+  for (let i = 0; i < length; i++) out += PASSWORD_CHARS[bytes[i] % PASSWORD_CHARS.length];
+  return out;
+}
+
+interface ImportRow { staffId: string; name: string; site: string; role: string }
+type ImportResult = { staffId: string; status: 'created' | 'exists' | 'error'; password?: string; message?: string };
+
+async function importOne(row: ImportRow): Promise<ImportResult> {
+  const staffId = String(row.staffId || '').trim().toUpperCase();
+  const name = String(row.name || '').trim().replace(/\s+/g, ' ');
+  const site = String(row.site || '').trim();
+  const role = String(row.role || '');
+  if (!/^[A-Z0-9]{3,12}$/.test(staffId) || !name || !site || !IMPORT_ROLES.has(role)) {
+    return { staffId, status: 'error', message: 'invalid-row' };
+  }
+  const db = admin.firestore();
+  const email = `${staffId.toLowerCase()}@staff.psu.local`;
+  const codeRef = db.collection('staffCodes').doc(staffId);
+  const userRef = db.collection('users').doc(email);
+  const [codeSnap, userSnap] = await Promise.all([codeRef.get(), userRef.get()]);
+  if (codeSnap.exists || userSnap.exists) return { staffId, status: 'exists' };
+
+  const uid = db.collection('_ids').doc().id;
+  const password = randomPassword();
+  const [firstName, ...rest] = name.split(' ');
+  // Profile first, so the createUserProfile auth trigger finds it already
+  // there and leaves it alone.
+  await db.batch()
+    .set(userRef, {
+      name, firstName, lastName: rest.join(' '), email, role, site,
+      isActive: true, uid, staffCode: staffId, requirePassword: true,
+      importedAt: new Date().toISOString(),
+    })
+    .set(codeRef, { email })
+    .commit();
+  try {
+    await admin.auth().createUser({ uid, email, password, displayName: name });
+  } catch (err: any) {
+    await Promise.all([userRef.delete(), codeRef.delete()]).catch(() => {});
+    return { staffId, status: 'error', message: err?.code || 'create-failed' };
+  }
+  return { staffId, status: 'created', password };
+}
+
+export const bulkImportStaff = onCall(
+  { region: 'us-central1', invoker: 'public', cors: true, timeoutSeconds: 540, memory: '512MiB' },
+  async (request) => {
+    const callerEmail = request.auth?.token?.email?.toLowerCase();
+    if (!request.auth || !callerEmail) throw new HttpsError('unauthenticated', 'You must be signed in.');
+    if (!(await isAdminCaller(callerEmail))) throw new HttpsError('permission-denied', 'Only an admin can import staff.');
+
+    const rows = (request.data?.rows || []) as ImportRow[];
+    if (!Array.isArray(rows) || rows.length === 0 || rows.length > 100) {
+      throw new HttpsError('invalid-argument', 'Send between 1 and 100 rows per call.');
+    }
+    const results: ImportResult[] = [];
+    // Small parallel batches — fast, but well inside Auth's rate limits.
+    for (let i = 0; i < rows.length; i += 10) {
+      results.push(...await Promise.all(rows.slice(i, i + 10).map(r => importOne(r).catch((err) => ({
+        staffId: String(r?.staffId || ''), status: 'error' as const, message: err?.message || 'failed',
+      })))));
+    }
+    return { results };
+  }
+);
