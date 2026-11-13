@@ -1,4 +1,4 @@
-name: Deploy Firebase Functions
+name: Deploy Firebase Functions and Rules
 
 # Cloud Functions have no auto-deploy path today (see functions/package.json's
 # own "deploy" script, meant to be run by hand) — the main app auto-deploys to
@@ -12,6 +12,9 @@ on:
     branches: [main]
     paths:
       - 'functions/**'
+      - 'firestore.rules'
+      - 'storage.rules'
+      - 'firebase.json'
       - '.github/workflows/deploy-functions.yml'
   workflow_dispatch: {}
 
@@ -52,3 +55,10 @@ jobs:
       # non-interactive deploy succeeds but still exits 1.
       - name: Deploy to Firebase
         run: npx firebase-tools@14 deploy --only functions --project "$FIREBASE_PROJECT_ID" --non-interactive --force
+
+      # Security rules live in this repo (firestore.rules / storage.rules)
+      # but used to be deployed by hand, so the live rules drifted behind
+      # what the app expects. Deploy them on every push that touches them.
+      # Needs the service account to have the "Firebase Rules Admin" role.
+      - name: Deploy Firestore and Storage rules
+        run: npx firebase-tools@14 deploy --only firestore:rules,storage --project "$FIREBASE_PROJECT_ID" --non-interactive
