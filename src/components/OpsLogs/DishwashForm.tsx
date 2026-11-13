@@ -9,6 +9,7 @@ import { useWorkingSite } from '../../hooks/useWorkingSite';
 import { Submission } from '../../types';
 import { PaperPrintButton, draftSubmission } from './print/PaperPrintButton';
 import { DishwashPrintSheet } from './print/DishwashPrintSheet';
+import { localDateISO } from '../../utils/localDate';
 
 // UN.00.51 Monitoring Suhu Dishwashing Mesin. The paper is one sheet per
 // month x 3 daily rounds (Pagi/Siang/Malam), each round recording Cuci
@@ -19,7 +20,7 @@ export function DishwashForm({ store, onCancel, onSubmitted }: OpsFormProps) {
   const { t } = useTranslation();
   const { currentUser, sites, submissions, addSubmission, resubmitAfterRejection } = store;
   const { workingSiteId, workingSiteName: currentSiteName, availableSites, setWorkingSiteId } = useWorkingSite(currentUser, sites);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateISO();
   const locations = dishwashLocationsForSite(workingSiteId);
 
   const [locationId, setLocationId] = useState(locations[0]?.id || '');
@@ -148,7 +149,7 @@ function DishwashDayEditor({
   return (
     <div className="card space-y-4">
       <div className="flex items-center justify-between gap-2">
-        <h4 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em]">{date === new Date().toISOString().slice(0, 10) ? t('ops.dishwash.todayFor', { location: location.name }) : date}</h4>
+        <h4 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em]">{date === localDateISO() ? t('ops.dishwash.todayFor', { location: location.name }) : date}</h4>
         {renderPrint && <PaperPrintButton renderSheet={() => renderPrint(readings, remarks)} />}
       </div>
       <div className="space-y-3">

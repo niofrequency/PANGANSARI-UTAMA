@@ -417,6 +417,21 @@ service cloud.firestore {
       allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
     }
 
+    // ── checkSchedules / missedChecks ───────────────────────────────
+    // Missed-check alerts (functions/src/missedChecks.ts). Admins and
+    // Managers set which forms are due when at each site; the server
+    // (Admin SDK, bypasses rules) writes missedChecks. Nobody writes a
+    // miss from the app.
+    match /checkSchedules/{scheduleId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin() || isManager();
+    }
+
+    match /missedChecks/{missId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
     // ── trainings ───────────────────────────────────────────────────
     match /trainings/{moduleId} {
       allow read: if isSignedIn();

@@ -10,6 +10,9 @@ import * as crypto from 'crypto';
 
 admin.initializeApp();
 
+// Missed-check alerts (scheduled every 30 minutes).
+export { checkMissedChecks } from './missedChecks';
+
 // Keep in sync with SUPER_ADMIN_EMAIL in src/services/authService.ts and
 // the matching constant in firestore.rules. This one account is
 // permanently an admin; see isAdminCaller() below for everyone else who

@@ -16,6 +16,7 @@ import { Modal } from '../Modal';
 import { AnimatePresence } from 'motion/react';
 import { PaperPrintButton, draftSubmission } from './print/PaperPrintButton';
 import { LaundryShopPrintSheet } from './print/LaundryShopPrintSheet';
+import { localDateISO } from '../../utils/localDate';
 
 // TanStack Table's own callback-props-via-meta pattern for editable
 // cells (its docs' own recommended shape for this exact case) — column
@@ -116,7 +117,7 @@ export function LaundryShopForm({ store, onCancel, onSubmitted, editingSubmissio
   // tap. Now it just opens the same type-DELETE-to-confirm fail-safe
   // AdminPortal.tsx uses for deleting a user profile.
   const [rowToDelete, setRowToDelete] = useState<string | null>(null);
-  const today = editingSubmission?.meta?.laundryDate || new Date().toISOString().slice(0, 10);
+  const today = editingSubmission?.meta?.laundryDate || localDateISO();
 
   // Desktop: which row's room-number cell to focus once it exists — set
   // by the Enter-adds-a-row handler and the bottom "+ Add row" control,

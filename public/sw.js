@@ -91,9 +91,12 @@ self.addEventListener('notificationclick', (event) => {
   const url = (event.notification.data && event.notification.data.url) || '/?tab=chat';
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      // Missed-check alerts (functions/src/missedChecks.ts) open the
+      // Checks view; everything else is chat.
+      const tab = new URL(url, self.location.origin).searchParams.get('tab');
       for (const c of clients) {
         if ('focus' in c) {
-          c.postMessage({ type: 'OPEN_CHAT' });
+          c.postMessage({ type: tab === 'checks' ? 'OPEN_CHECKS' : 'OPEN_CHAT' });
           return c.focus();
         }
       }

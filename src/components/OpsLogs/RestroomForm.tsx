@@ -7,6 +7,7 @@ import { Check, CheckCircle2, Clock } from 'lucide-react';
 import { useWorkingSite } from '../../hooks/useWorkingSite';
 import { PaperPrintButton, draftSubmission } from './print/PaperPrintButton';
 import { RestroomPrintSheet } from './print/RestroomPrintSheet';
+import { localDateISO } from '../../utils/localDate';
 
 // Remembers the last section a janitor filed for, so reopening the form
 // tomorrow doesn't mean retyping the same section letter again — the
@@ -32,7 +33,7 @@ export function RestroomForm({ store, onCancel, onSubmitted, editingSubmission }
   const { t, language } = useTranslation();
   const { currentUser, sites, submissions, addSubmission, resubmitAfterRejection } = store;
   const { workingSiteId, workingSiteName: currentSiteName, availableSites, setWorkingSiteId } = useWorkingSite(currentUser, sites);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateISO();
   const allItems = RESTROOM_GROUPS.flatMap(g => g.items);
 
   // --- Editing a past rejected entry: unchanged single-slot behavior ---
@@ -82,7 +83,7 @@ export function RestroomForm({ store, onCancel, onSubmitted, editingSubmission }
     for (const slot of RESTROOM_SLOTS) {
       const found = submissions.find(s =>
         s.type === 'RESTROOM' && s.userId === currentUser.id && s.siteId === workingSiteId &&
-        s.meta?.section === trimmedSection && s.meta?.slot === slot && s.timestamp.slice(0, 10) === today
+        s.meta?.section === trimmedSection && s.meta?.slot === slot && localDateISO(s.timestamp) === today
       );
       if (found) todaysSlotSubmissions[slot] = found;
     }

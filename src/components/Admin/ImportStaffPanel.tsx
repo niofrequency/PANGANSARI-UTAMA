@@ -8,6 +8,7 @@ import { readSpreadsheet } from '../../lib/spreadsheetReader';
 import { extractEmployees, planImport, credentialsCsv, PlannedRow, SkipReason } from '../../lib/employeeImport';
 import { User, UserRole } from '../../types';
 import { cn } from '../../utils/cn';
+import { localDateISO } from '../../utils/localDate';
 
 type Store = ReturnType<typeof useAppStore>;
 type Result = { staffId: string; status: 'created' | 'exists' | 'error'; password?: string; message?: string };
@@ -110,7 +111,7 @@ export function ImportStaffPanel({ store }: { store: Store }) {
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     const a = document.createElement('a');
     a.href = url;
-    a.download = `PSU_staff_logins_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `PSU_staff_logins_${localDateISO()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
