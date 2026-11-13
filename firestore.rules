@@ -303,9 +303,11 @@ service cloud.firestore {
     // ── messages ────────────────────────────────────────────────────
     // In-app chat (components/Chat/ChatTab.tsx) — one doc per message
     // between exactly two people. Mirrors src/lib/chatPolicy.ts:
-    //   Manager <-> Supervisor, Manager; Supervisor <-> Supervisor and
-    //   frontline staff; frontline staff <-> Supervisor only. Same
-    //   department, except the General Manager who spans both.
+    //   Admin <-> everyone; Manager <-> Supervisor, Manager; Supervisor
+    //   <-> Supervisor and frontline staff; frontline staff <-> Supervisor
+    //   only. Same department, except the General Manager who spans both.
+    //   Food Safety Technicians only with a Supervisor whose home site is
+    //   one of the Technician's own sites (their location supervisor).
     function chatIsManager(r) {
       return r in ['HOUSEKEEPING_MANAGER', 'FOOD_SAFETY_MANAGER', 'GENERAL_MANAGER'];
     }
@@ -321,6 +323,18 @@ service cloud.firestore {
     }
     function chatSameDept(a, b) {
       return chatDept(a) == 'ALL' || chatDept(b) == 'ALL' || chatDept(a) == chatDept(b);
+    }
+    function chatTechSites(t) {
+      return t.get('assignedSites', null) is list ? t.assignedSites.concat([t.site]) : [t.site];
+    }
+    // a and b are the two users' profile docs (data maps).
+    function chatTechSiteOk(a, b) {
+      return (a.role == 'FOOD_SAFETY_TECHNICIAN' && chatIsSupervisor(b.role)) ? b.site in chatTechSites(a)
+        : ((b.role == 'FOOD_SAFETY_TECHNICIAN' && chatIsSupervisor(a.role)) ? a.site in chatTechSites(b) : true);
+    }
+    function canChatUsers(a, b) {
+      return a.role == 'ADMIN' || b.role == 'ADMIN'
+        || (canChat(a.role, b.role) && chatTechSiteOk(a, b));
     }
     function canChat(a, b) {
       return (chatIsManager(a) && chatIsManager(b))
@@ -346,9 +360,9 @@ service cloud.firestore {
         && request.resource.data.text.size() <= 2000
         && get(/databases/$(database)/documents/users/$(email())).data.isActive != false
         && get(/databases/$(database)/documents/users/$(request.resource.data.toEmail)).data.uid == request.resource.data.toId
-        && canChat(
-          get(/databases/$(database)/documents/users/$(email())).data.role,
-          get(/databases/$(database)/documents/users/$(request.resource.data.toEmail)).data.role
+        && canChatUsers(
+          get(/databases/$(database)/documents/users/$(email())).data,
+          get(/databases/$(database)/documents/users/$(request.resource.data.toEmail)).data
         );
 
       // Only the recipient, and only to mark it read.

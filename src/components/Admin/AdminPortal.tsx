@@ -3,7 +3,7 @@ import { useAppStore } from '../../store/useAppStore';
 import { AnalyticsDashboard } from '../Dashboard/AnalyticsDashboard';
 import {
   Users, UserPlus, Shield, Trash2, XCircle, Search, Activity as ActivityIcon,
-  User as UserIcon, AlertTriangle, Copy, Check, Eye, EyeOff, RefreshCw, KeyRound, Hash, Printer, ListTodo, Pencil,
+  User as UserIcon, AlertTriangle, Copy, Check, Eye, EyeOff, RefreshCw, KeyRound, Hash, Printer, ListTodo, Pencil, MessageCircle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
@@ -21,12 +21,14 @@ import { isValidStaffCode } from '../../utils/staffCode';
 import { cloudinaryUrl } from '../../utils/cloudinaryUrl';
 import { PrintQrPanel } from './PrintQrPanel';
 import { UserManagementPanel } from './UserManagementPanel';
+import { ChatTab, useChatTabLabel } from '../Chat/ChatTab';
 import { titleKeyForChainType } from '../../data/opsLogsCatalog';
 
 export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }) {
   const { t } = useTranslation();
   const { users, sites, submissions, warnings, correctiveActions } = store;
-  const [activeTab, setActiveTab] = useState<'USERS' | 'ACTIVITY' | 'ANALYTICS' | 'PRINT'>('USERS');
+  const [activeTab, setActiveTab] = useState<'USERS' | 'ACTIVITY' | 'ANALYTICS' | 'PRINT' | 'CHAT'>('USERS');
+  const chatLabel = useChatTabLabel(store);
   // Activity tab state
   const [activitySegment, setActivitySegment] = useState<'SUBMISSIONS' | 'WARNINGS' | 'ACTIONS'>('SUBMISSIONS');
   const [activitySearch, setActivitySearch] = useState('');
@@ -139,6 +141,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
     { id: 'ACTIVITY', icon: ActivityIcon, label: t('admin.tabActivity') },
     { id: 'ANALYTICS', icon: Shield, label: t('admin.tabAnalytics') },
     { id: 'PRINT', icon: Printer, label: t('admin.tabPrint') },
+    { id: 'CHAT', icon: MessageCircle, label: chatLabel },
   ];
   const activeTabLabel = tabs.find(tab => tab.id === activeTab)?.label ?? '';
 
@@ -359,6 +362,12 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
             <h2 className="text-xl font-bold tracking-tight text-psu-gray mb-6 px-2">{t('admin.tabAnalytics')}</h2>
             <div className="mb-6">{renderScopeFilters()}</div>
             <AnalyticsDashboard submissions={scopedSubmissions} warnings={scopedWarnings} sites={scopedSites} users={scopedUsers} />
+          </motion.div>
+        )}
+
+        {activeTab === 'CHAT' && (
+          <motion.div key="chat" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}>
+            <ChatTab store={store} />
           </motion.div>
         )}
 
