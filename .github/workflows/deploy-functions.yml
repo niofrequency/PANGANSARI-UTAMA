@@ -13,6 +13,7 @@ on:
     paths:
       - 'functions/**'
       - 'firestore.rules'
+      - 'firestore.indexes.json'
       - 'storage.rules'
       - 'firebase.json'
       - '.github/workflows/deploy-functions.yml'
@@ -60,5 +61,34 @@ jobs:
       # but used to be deployed by hand, so the live rules drifted behind
       # what the app expects. Deploy them on every push that touches them.
       # Needs the service account to have the "Firebase Rules Admin" role.
-      - name: Deploy Firestore and Storage rules
-        run: npx firebase-tools@14 deploy --only firestore:rules,storage --project "$FIREBASE_PROJECT_ID" --non-interactive
+      # firestore.indexes.json: composite indexes the site-scoped submissions
+      # queries need (src/services/submissionsService.ts). Without --force,
+      # an index that exists live but not in the file is left alone, never
+      # deleted.
+      - name: Deploy Firestore rules + indexes and Storage rules
+        run: npx firebase-tools@14 deploy --only firestore:rules,firestore:indexes,storage --project "$FIREBASE_PROJECT_ID" --non-interactive
+
+      # Firestore backups: nothing restored the database before if a record
+      # was deleted by mistake or a bad rules change wiped data. These
+      # managed schedules keep a daily backup for 7 days and a weekly one
+      # (Sunday) for 14 weeks; restore with
+      #   gcloud firestore databases restore --source-backup=... --destination-database=...
+      # Idempotent: only creates a schedule that doesn't exist yet. Allowed
+      # to fail without failing the deploy (e.g. if the service account
+      # lacks the "Cloud Datastore Owner" role); the log then says why.
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Ensure Firestore backup schedules
+        continue-on-error: true
+        run: |
+          existing="$(gcloud firestore backups schedules list --database='(default)' --project="$FIREBASE_PROJECT_ID" --format=json)"
+          if ! grep -q dailyRecurrence <<<"$existing"; then
+            gcloud firestore backups schedules create --database='(default)' --project="$FIREBASE_PROJECT_ID" \
+              --recurrence=daily --retention=7d
+          fi
+          if ! grep -q weeklyRecurrence <<<"$existing"; then
+            gcloud firestore backups schedules create --database='(default)' --project="$FIREBASE_PROJECT_ID" \
+              --recurrence=weekly --day-of-week=SUN --retention=14w
+          fi
+          gcloud firestore backups schedules list --database='(default)' --project="$FIREBASE_PROJECT_ID"

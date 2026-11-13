@@ -23,7 +23,10 @@
 
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
 import { getAuth, setPersistence, browserLocalPersistence, type Auth } from 'firebase/auth';
-import { initializeFirestore, type Firestore } from 'firebase/firestore';
+import {
+  initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
+  terminate, clearIndexedDbPersistence, type Firestore,
+} from 'firebase/firestore';
 import { getFunctions, type Functions } from 'firebase/functions';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
 
@@ -55,19 +58,44 @@ export const auth: Auth | null = app ? getAuth(app) : null;
 // which would otherwise break most submission writes the moment any
 // optional field is left unset. getFirestore() doesn't expose this
 // option; initializeFirestore() does.
-export const db: Firestore | null = app ? initializeFirestore(app, { ignoreUndefinedProperties: true }) : null;
+//
+// persistentLocalCache keeps what this device already downloaded in
+// IndexedDB between app opens, so reopening the app shows data straight
+// from the phone and listeners only fetch what changed since, instead of
+// re-downloading everything every time (storage/capacity work, see
+// docs/PSU_FieldOps_Build_Log_PRD.md §9.2). Multi-tab manager so two open
+// tabs share one cache instead of the second one failing. If the browser
+// can't use IndexedDB (some private-browsing modes), the SDK falls back to
+// memory on its own. The cache is wiped on logout (clearLocalFirestoreCache
+// below) so a shared phone never keeps the previous person's data.
+export const db: Firestore | null = app
+  ? initializeFirestore(app, {
+      ignoreUndefinedProperties: true,
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+    })
+  : null;
+
+// Called after sign-out: deletes this device's cached Firestore data, then
+// reloads, because a terminated Firestore instance can't be used again.
+export async function clearLocalFirestoreCache(): Promise<void> {
+  if (!db) return;
+  try {
+    await terminate(db);
+    await clearIndexedDbPersistence(db);
+  } catch (err) {
+    console.error('Clearing the local Firestore cache failed:', err);
+  }
+  window.location.reload();
+}
 // Powers calls to Cloud Functions (see functions/src/index.ts) — e.g.
 // reclaimAbandonedSignup, called from authService.ts when a self-signup
 // hits an orphaned Auth account. Region must match the Cloud Functions
 // (us-central1). Without this, the client can hit the wrong endpoint and
 // you get opaque CORS / not-found errors.
 export const functions: Functions | null = app ? getFunctions(app, 'us-central1') : null;
-// New submission photos no longer upload here — see
-// services/cloudinaryPhotoService.ts and functions/src/index.ts's
-// mintCloudinaryUploadSignature for where they go now, and that file's
-// header comment for why. This export (and storage.rules) stays only so
-// photos already sitting in this bucket from before that switch keep
-// resolving — nothing new gets written through it.
+// Photo evidence uploads (services/storagePhotoService.ts). Photos went to
+// Cloudinary for a while; new ones come here again now that the project is
+// on the paid Blaze plan. Older Cloudinary photo URLs keep working as-is.
 export const storage: FirebaseStorage | null = app ? getStorage(app) : null;
 
 // Explicit rather than relying on the SDK default: keeps people logged in

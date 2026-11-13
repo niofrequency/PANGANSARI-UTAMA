@@ -169,6 +169,14 @@ Rules: `firestore.rules` (deployed automatically by CI). Storage rules: `storage
 4. Photos: compressed once on upload; Cloudinary free-tier storage/bandwidth limits unknown vs. current usage — needs a dashboard check.
 5. Demo mode stores photos as base64 in `localStorage` (quota ~5–10 MB) — only matters if demo mode is used in practice.
 
+### 9.2a Fixed (storage workstream, branch `claude/gifted-mayer-ohigvv`)
+- **Scoped submissions:** each device now live-listens only to the last 60 days plus anything still `PENDING`, limited to the user's sites (`siteId in …` when ≤30 sites). Older history loads on demand, 300 at a time, from a "Load older records" button under every history list and Admin → Activity. Composite indexes are in `firestore.indexes.json` (deployed by CI); if an index is still building, queries fall back to the unfiltered form instead of showing nothing.
+- **Persistent Firestore cache** (IndexedDB) enabled; wiped on logout so shared phones don't keep the previous person's data (logout now reloads the page).
+- **Backups:** CI creates Firestore backup schedules if missing (daily kept 7 days, weekly kept 14 weeks).
+- **Photos:** new uploads go to **Firebase Storage** (project is on Blaze); saved at max 1024 px, WebP 0.7 (JPEG 0.7 where WebP encoding isn't supported) instead of JPEG 0.85 at 1280 px, roughly half the size. Cloudinary photos already stored keep working.
+- **Not changed (on purpose):** Staff ID-only login for pre-import accounts stays as-is until PSU supplies details for those users.
+- **Still open:** `users`, `warnings`, `fieldReports`, `correctiveActions`, `trainings` are still whole-collection listeners (small today); dashboards/analytics only see what's loaded (60 days by default).
+
 ### 9.3 Directions to evaluate (not started)
 - Scope subscriptions: by **site** (`where('siteId','in', userSites)`), **department**, **date window** (e.g. last 30–60 days), and **role** (frontline only needs their own submissions). Needs composite indexes and matching `firestore.rules`.
 - Paginated / on-demand history (load older months only when asked).

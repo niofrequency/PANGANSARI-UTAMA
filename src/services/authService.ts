@@ -35,7 +35,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { auth, db, functions } from '../lib/firebase';
+import { auth, db, functions, clearLocalFirestoreCache } from '../lib/firebase';
 import { User, UserRole } from '../types';
 
 export const SUPER_ADMIN_EMAIL = 'mpigome44@gmail.com';
@@ -529,6 +529,9 @@ export async function loginByStaffCode(staffCode: string, password?: string): Pr
 export async function logout() {
   if (!auth) return;
   await signOut(auth);
+  // Persistent Firestore cache (lib/firebase.ts): don't leave this
+  // account's data on the device for whoever uses the phone next.
+  await clearLocalFirestoreCache();
 }
 
 // Restores a session on page reload and keeps the current user's profile

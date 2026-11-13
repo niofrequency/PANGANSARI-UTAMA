@@ -16,6 +16,7 @@ import { Lightbox } from '../Lightbox';
 import { ListCard } from '../ListCard';
 import { DesktopShell } from '../DesktopShell';
 import { DateFilterBar } from '../DateFilterBar';
+import { LoadOlderHistory } from '../LoadOlderHistory';
 import { useDateFilter } from '../../hooks/useDateFilter';
 import { isValidStaffCode } from '../../utils/staffCode';
 import { cloudinaryUrl } from '../../utils/cloudinaryUrl';
@@ -293,6 +294,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
                     </div>
                   )}
                 />
+                <LoadOlderHistory />
               </>
             )}
 

@@ -4,15 +4,11 @@ rules_version = '2';
 // (requires the Firebase CLI and `firebase init` once, pointed at this
 // project — same setup as firestore.rules)
 //
-// New submission photos no longer upload here as of this version — they
-// go to Cloudinary instead (see src/services/cloudinaryPhotoService.ts
-// and functions/src/index.ts's mintCloudinaryUploadSignature, and that
-// file's header comment for why: this bucket's free tier is a flat 5GB,
-// and Cloudinary's is far more generous on both storage and the
-// repeated-viewing bandwidth these photos actually cost). This file and
-// everything already sitting in this bucket keep working exactly as
-// before — nothing here needed to change, and nothing already stored
-// needs migrating; this is purely a going-forward switch for new photos.
+// Photo evidence uploads land here (src/services/storagePhotoService.ts).
+// They went to Cloudinary for a while because this bucket's free tier was
+// a flat 5GB; the project is on the paid Blaze plan now, where this bucket
+// is the cheapest place for them. Photos already on Cloudinary keep
+// working from their stored URLs.
 //
 // Layout: submissions/{uid}/{fileName} — one folder per uploader. A
 // signed-in user can only ever write into their own folder, because
@@ -30,7 +26,7 @@ rules_version = '2';
 // — this isn't a gap to close by loosening the rule (that would mean
 // letting ANYONE, authenticated or not, write into any uploader's
 // folder). PhotoCapture.tsx already knows this and skips the upload
-// attempt entirely for that case (Cloudinary now, this bucket before),
+// attempt entirely for that case,
 // keeping the photo as a local data URL embedded in the submission
 // instead — exactly like demo mode already does. Nothing to change here
 // unless Scan-to-Job later gets a real Auth session behind it (e.g. a
