@@ -33,3 +33,16 @@
     @apply w-full p-4 bg-psu-bg border border-psu-gray/10 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-psu-blue/50 transition-all;
   }
 }
+
+/* Global print (Layout.tsx's Print button): white page, keep brand
+   colors/photos, never print floating UI (toasts, install banner). */
+@media print {
+  @page { margin: 12mm; }
+  html, body {
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .min-h-screen { min-height: 0 !important; }
+  [data-sonner-toaster] { display: none !important; }
+}

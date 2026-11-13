@@ -39,6 +39,35 @@ import { outboxDb } from '../lib/outboxDb';
 // Every component using this hook is unaffected by which mode is active;
 // the returned shape is identical either way.
 
+// Staff ID sessions that couldn't be upgraded to a real Firebase Auth
+// session (mintStaffCodeToken unavailable) live only in React state, so a
+// mobile browser reloading a backgrounded tab would sign them out. Kept in
+// localStorage until they press Logout (or the shared-device auto-logout
+// after a scanned job runs).
+const PIN_SESSION_KEY = 'psu_pin_session_v1';
+function readPinSession(): User | null {
+  try {
+    const raw = localStorage.getItem(PIN_SESSION_KEY);
+    return raw ? (JSON.parse(raw) as User) : null;
+  } catch {
+    return null;
+  }
+}
+function writePinSession(user: User) {
+  try {
+    localStorage.setItem(PIN_SESSION_KEY, JSON.stringify(user));
+  } catch {
+    // storage blocked — session just won't survive a reload
+  }
+}
+function clearPinSession() {
+  try {
+    localStorage.removeItem(PIN_SESSION_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 export function useAppStore() {
   // v2: key names bumped once, deliberately, to invalidate an old cache of
   // fake demo data (30 days of randomly-generated submissions) that was
@@ -149,6 +178,19 @@ export function useAppStore() {
   useEffect(() => {
     if (!isFirebaseConfigured) return;
     const unsubAuth = watchAuthAndProfile((user) => {
+      if (!user) {
+        // A Staff ID session that never got a real Firebase Auth token
+        // (see loginByStaffCode) has nothing for Firebase to restore, so on
+        // a phone that reloaded the tab after the person switched apps it
+        // used to land back on Login. Restore it from localStorage instead.
+        const saved = readPinSession();
+        if (saved) {
+          setPinSessionActive(true);
+          setCurrentUser(saved);
+          setIsAuthResolving(false);
+          return;
+        }
+      }
       setCurrentUser(user);
       setIsAuthResolving(false); // first callback = the initial check is done, whatever it found
     });
@@ -365,7 +407,7 @@ export function useAppStore() {
       if (!result.ok) return result;
       const p = result.profile;
       setPinSessionActive(!result.authUpgraded);
-      setCurrentUser({
+      const staffUser: User = {
         id: p.uid || codeUpper,
         name: p.name,
         firstName: p.firstName || '',
@@ -376,7 +418,10 @@ export function useAppStore() {
         isActive: p.isActive,
         staffCode: p.staffCode,
         assignedSites: p.assignedSites,
-      });
+      };
+      if (result.authUpgraded) clearPinSession();
+      else writePinSession(staffUser);
+      setCurrentUser(staffUser);
       return { ok: true };
     }
 
@@ -399,6 +444,7 @@ export function useAppStore() {
     // but currentUser stayed populated forever.
     const wasPinSession = pinSessionActive;
     setPinSessionActive(false);
+    clearPinSession();
     if (isFirebaseConfigured) {
       firebaseLogout();
       if (wasPinSession) setCurrentUser(null);

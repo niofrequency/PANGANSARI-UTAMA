@@ -28,7 +28,7 @@ export function DesktopShell({
   children: ReactNode;
 }) {
   return (
-    <div className="md:flex">
+    <div className="md:flex print:block">
       <DesktopSidebar navItems={navItems} activeId={activeId} onNav={onNav} />
       <div className="flex-1 min-w-0">
         <div className="hidden md:flex items-center justify-between mb-6 gap-4">

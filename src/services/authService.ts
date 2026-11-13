@@ -519,6 +519,17 @@ export async function logout() {
 // (role, active status, etc.) live — so if an admin changes someone's role
 // or deactivates them while they're logged in, it takes effect immediately
 // without needing a manual refresh.
+//
+// Mobile "logged out after switching apps/tabs" fix: when a phone browser
+// backgrounds or discards the tab and the person comes back, Firestore may
+// (a) hand us a cache-only snapshot that says the profile doc "doesn't
+// exist" before the server has answered, or (b) error the listener while
+// the connection/token is being re-established. Both used to be treated as
+// "signed out" — onChange(null) — which dropped them to the Login screen
+// even though Firebase Auth still had a perfectly valid session. Now only
+// the SERVER saying the profile is gone, an admin deactivating them, or a
+// real Auth sign-out ends the session; transient states keep the last
+// known user and re-subscribe.
 export function watchAuthAndProfile(
   onChange: (user: User | null) => void
 ): () => void {
@@ -528,30 +539,50 @@ export function watchAuthAndProfile(
   }
 
   let unsubProfile: (() => void) | null = null;
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  let currentFirebaseUser: FirebaseUser | null = null;
+  let hasDeliveredUser = false;
 
-  const unsubAuth = onAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
+  const clearRetry = () => {
+    if (retryTimer) {
+      clearTimeout(retryTimer);
+      retryTimer = null;
+    }
+  };
+
+  const stopProfile = () => {
+    clearRetry();
     if (unsubProfile) {
       unsubProfile();
       unsubProfile = null;
     }
-    if (!firebaseUser || !firebaseUser.email) {
-      onChange(null);
-      return;
-    }
-    const ref = userDocRef(firebaseUser.email);
+  };
+
+  const subscribeProfile = (firebaseUser: FirebaseUser, attempt: number) => {
+    stopProfile();
+    const ref = userDocRef(firebaseUser.email!);
     unsubProfile = onSnapshot(
       ref,
+      { includeMetadataChanges: true },
       (snap) => {
+        if (currentFirebaseUser !== firebaseUser) return;
+        const fromCache = snap.metadata.fromCache;
         if (!snap.exists()) {
+          // Cache-only "missing" (offline / tab just resumed) isn't proof
+          // the account is gone — wait for the server's answer.
+          if (fromCache) return;
+          hasDeliveredUser = false;
           onChange(null);
           return;
         }
         const data = snap.data() as FirestoreUserProfile;
         if (data.isActive === false) {
+          hasDeliveredUser = false;
           onChange(null);
           logout();
           return;
         }
+        hasDeliveredUser = true;
         onChange({
           id: firebaseUser.uid,
           name: data.name,
@@ -561,18 +592,51 @@ export function watchAuthAndProfile(
           role: data.role,
           site: data.site,
           isActive: data.isActive,
+          staffCode: data.staffCode,
           assignedSites: data.assignedSites,
         });
       },
       (err) => {
-        console.error('watchAuthAndProfile profile listener failed:', err);
-        onChange(null); // fail closed rather than leaving the app stuck loading
+        console.error('watchAuthAndProfile profile listener failed, retrying:', err);
+        if (currentFirebaseUser !== firebaseUser) return;
+        unsubProfile = null;
+        // Keep whoever is already signed in on screen and quietly retry.
+        // Only on the very first load (nobody shown yet) do we eventually
+        // give up, so the app never sits on the loading spinner forever.
+        if (!hasDeliveredUser && attempt >= 3) {
+          onChange(null);
+          return;
+        }
+        const delay = Math.min(30000, 1000 * 2 ** attempt);
+        retryTimer = setTimeout(() => subscribeProfile(firebaseUser, attempt + 1), delay);
       }
     );
+  };
+
+  const unsubAuth = onAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
+    stopProfile();
+    currentFirebaseUser = firebaseUser;
+    hasDeliveredUser = false;
+    if (!firebaseUser || !firebaseUser.email) {
+      onChange(null);
+      return;
+    }
+    subscribeProfile(firebaseUser, 0);
   });
+
+  // Coming back to the tab: if the listener died while we were away,
+  // re-attach right away instead of waiting out the backoff.
+  const onVisible = () => {
+    if (document.visibilityState !== 'visible') return;
+    if (currentFirebaseUser && !unsubProfile) subscribeProfile(currentFirebaseUser, 0);
+  };
+  document.addEventListener('visibilitychange', onVisible);
+  window.addEventListener('online', onVisible);
 
   return () => {
     unsubAuth();
-    if (unsubProfile) unsubProfile();
+    stopProfile();
+    document.removeEventListener('visibilitychange', onVisible);
+    window.removeEventListener('online', onVisible);
   };
 }

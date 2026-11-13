@@ -71,6 +71,17 @@ service cloud.firestore {
       );
     }
 
+    // Housekeeping / Food Safety / General Managers — can manage every
+    // NON-admin account from the Manager Portal's Users tab (see
+    // UserManagementPanel.tsx). They can never create, promote to,
+    // edit, or delete an ADMIN account; only isAdmin() can.
+    function isManager() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(email())).data.role in
+          ['HOUSEKEEPING_MANAGER', 'FOOD_SAFETY_MANAGER', 'GENERAL_MANAGER'] &&
+        get(/databases/$(database)/documents/users/$(email())).data.isActive != false;
+    }
+
     function isOwnUserDoc(userId) {
       return isSignedIn() && userId == email();
     }
@@ -120,6 +131,18 @@ service cloud.firestore {
         && (userId != 'mpigome44@gmail.com' || isSuperAdmin());
 
       allow delete: if isAdmin() && userId != 'mpigome44@gmail.com';
+
+      // Managers: same as above for every non-ADMIN account.
+      allow create: if isManager()
+        && userId != 'mpigome44@gmail.com'
+        && request.resource.data.role != 'ADMIN';
+      allow update: if isManager()
+        && userId != 'mpigome44@gmail.com'
+        && resource.data.role != 'ADMIN'
+        && request.resource.data.role != 'ADMIN';
+      allow delete: if isManager()
+        && userId != 'mpigome44@gmail.com'
+        && resource.data.role != 'ADMIN';
     }
 
     // ── staffCodes ───────────────────────────────────────────────────
@@ -134,6 +157,16 @@ service cloud.firestore {
       allow get: if true;
       allow list: if isSignedIn();
       allow create, update, delete: if isAdmin();
+      // Managers may hand out / change / remove Staff IDs for non-ADMIN
+      // accounts only — never point a code at an ADMIN's email (that would
+      // let them sign in as that admin via Scan-to-Job).
+      allow create: if isManager()
+        && get(/databases/$(database)/documents/users/$(request.resource.data.email)).data.role != 'ADMIN';
+      allow update: if isManager()
+        && get(/databases/$(database)/documents/users/$(resource.data.email)).data.role != 'ADMIN'
+        && get(/databases/$(database)/documents/users/$(request.resource.data.email)).data.role != 'ADMIN';
+      allow delete: if isManager()
+        && get(/databases/$(database)/documents/users/$(resource.data.email)).data.role != 'ADMIN';
     }
 
     // ── submissions ─────────────────────────────────────────────────
