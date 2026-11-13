@@ -81,7 +81,7 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled }: Supervi
     <div className="space-y-6">
       {/* Mobile pill tab bar — unchanged, just hidden once the sidebar
           below takes over at md+. */}
-      <div className="flex md:hidden bg-white rounded-2xl p-1.5 shadow-sm border border-psu-gray/5">
+      <div className="flex md:hidden print:hidden bg-white rounded-2xl p-1.5 shadow-sm border border-psu-gray/5">
         {tabs.map(tab => (
           <button
             key={tab.id}

@@ -72,6 +72,9 @@ export const translations = {
       ADMIN: 'Admin',
     },
     layout: {
+      printPage: 'Print',
+      printedBy: 'Printed by',
+      printedOn: 'Printed',
       installApp: 'Install App',
       logout: 'Log out',
       storageQuotaWarning: "Your device's local storage is full — new submissions may not be saved. Ask your Admin to clear old records, or free up space on this device.",
@@ -179,6 +182,7 @@ export const translations = {
     manager: {
       tabAnalytics: 'Analytics',
       tabEscalations: 'Escalations',
+      tabUsers: 'Users',
       dashboardTitle: 'Analytics Dashboard',
       escalationsTitle: 'Escalation Queue',
       allClear: 'All clear',
@@ -843,6 +847,9 @@ export const translations = {
       ADMIN: 'Admin',
     },
     layout: {
+      printPage: 'Cetak',
+      printedBy: 'Dicetak oleh',
+      printedOn: 'Dicetak',
       installApp: 'Pasang Aplikasi',
       logout: 'Keluar',
       storageQuotaWarning: 'Penyimpanan lokal perangkat Anda sudah penuh — kiriman baru mungkin tidak tersimpan. Minta Admin menghapus data lama, atau kosongkan ruang di perangkat ini.',
@@ -950,6 +957,7 @@ export const translations = {
     manager: {
       tabAnalytics: 'Analitik',
       tabEscalations: 'Eskalasi',
+      tabUsers: 'Pengguna',
       dashboardTitle: 'Dasbor Analitik',
       escalationsTitle: 'Antrean Eskalasi',
       allClear: 'Semua sudah selesai',

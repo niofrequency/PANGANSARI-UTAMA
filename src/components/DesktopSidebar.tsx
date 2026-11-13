@@ -61,7 +61,7 @@ export function DesktopSidebar({
   return (
     <nav
       className={cn(
-        "hidden md:flex md:flex-col shrink-0 gap-1 bg-white border-r border-psu-gray/10 rounded-xl p-2 md:mr-6 transition-[width] duration-200",
+        "hidden md:flex print:!hidden md:flex-col shrink-0 gap-1 bg-white border-r border-psu-gray/10 rounded-xl p-2 md:mr-6 transition-[width] duration-200",
         expanded ? "md:w-60" : "md:w-14"
       )}
     >

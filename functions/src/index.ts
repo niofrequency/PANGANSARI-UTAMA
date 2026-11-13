@@ -25,6 +25,15 @@ async function isAdminCaller(email: string): Promise<boolean> {
   return snap.exists && snap.data()?.role === 'ADMIN';
 }
 
+// Housekeeping / Food Safety / General Managers can manage non-admin
+// accounts from the Manager Portal's Users tab — mirrors isManager() in
+// firestore.rules.
+const MANAGER_ROLES = ['HOUSEKEEPING_MANAGER', 'FOOD_SAFETY_MANAGER', 'GENERAL_MANAGER'];
+async function isManagerCaller(email: string): Promise<boolean> {
+  const snap = await admin.firestore().doc(`users/${email}`).get();
+  return snap.exists && snap.data()?.isActive !== false && MANAGER_ROLES.includes(snap.data()?.role);
+}
+
 interface CreateStaffAccountData {
   email: string;
   password: string;
@@ -354,8 +363,9 @@ export const adminResetCredentials = onCall(
     if (!request.auth || !callerEmail) {
       throw new HttpsError('unauthenticated', 'You must be signed in.');
     }
-    if (!(await isAdminCaller(callerEmail))) {
-      throw new HttpsError('permission-denied', 'Only an admin account can reset staff credentials.');
+    const callerIsAdmin = await isAdminCaller(callerEmail);
+    if (!callerIsAdmin && !(await isManagerCaller(callerEmail))) {
+      throw new HttpsError('permission-denied', 'Only an admin or manager account can reset staff credentials.');
     }
 
     const { uid, currentEmail, newEmail, newPassword } =
@@ -365,6 +375,15 @@ export const adminResetCredentials = onCall(
       throw new HttpsError('invalid-argument', 'Missing uid or currentEmail.');
     }
     const currentEmailLower = String(currentEmail).trim().toLowerCase();
+
+    // Managers can reset anyone's login except an ADMIN account's — same
+    // limit as firestore.rules' isManager() on users/{email}.
+    if (!callerIsAdmin) {
+      const targetSnap = await admin.firestore().doc(`users/${currentEmailLower}`).get();
+      if (targetSnap.exists && targetSnap.data()?.role === 'ADMIN') {
+        throw new HttpsError('permission-denied', "A manager can't reset an admin account's login.");
+      }
+    }
     const newEmailLower = newEmail ? String(newEmail).trim().toLowerCase() : undefined;
 
     // Manage your own login the normal way (it's how you're authenticated

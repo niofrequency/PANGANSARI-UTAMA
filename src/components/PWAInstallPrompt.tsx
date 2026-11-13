@@ -32,7 +32,7 @@ export function PWAInstallPrompt() {
             initial={{ y: 100 }}
             animate={{ y: 0 }}
             exit={{ y: 100 }}
-            className="fixed bottom-20 left-4 right-4 z-[90] bg-psu-gray text-white p-4 rounded-2xl shadow-2xl flex items-center gap-4 border border-white/10"
+            className="print:hidden fixed bottom-20 left-4 right-4 z-[90] bg-psu-gray text-white p-4 rounded-2xl shadow-2xl flex items-center gap-4 border border-white/10"
           >
             <button
               onClick={() => setShowGuide(true)}

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { AnalyticsDashboard } from '../Dashboard/AnalyticsDashboard';
-import { LayoutDashboard, ClipboardCheck, ClipboardList, History, ListTodo } from 'lucide-react';
+import { LayoutDashboard, ClipboardCheck, ClipboardList, History, ListTodo, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
@@ -10,6 +10,7 @@ import { OpsLogsTab } from '../OpsLogs/OpsLogsTab';
 import { CorrectiveActionsTab } from '../CorrectiveActions/CorrectiveActionsTab';
 import { userCanSeeSite } from '../../lib/siteScope';
 import { DesktopShell } from '../DesktopShell';
+import { UserManagementPanel } from '../Admin/UserManagementPanel';
 
 // The daily Housekeeping/Food Safety Escalations queue used to live here
 // as its own tab with a single Approve/Deny action, separate from Ops
@@ -29,7 +30,7 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
   // departments' Ops Logs queue, below.
   const isGeneralManager = currentUser?.role === 'GENERAL_MANAGER';
   const isFoodSafety = currentUser?.role === 'FOOD_SAFETY_MANAGER' || isGeneralManager;
-  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'OPS_LOGS' | 'HISTORY' | 'ACTIONS' | 'INSPECTIONS'>('DASHBOARD');
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'OPS_LOGS' | 'HISTORY' | 'ACTIONS' | 'INSPECTIONS' | 'USERS'>('DASHBOARD');
 
   // The Dashboard tab used to get the raw, unfiltered store data — every
   // site's submissions, blended together, regardless of who was looking at
@@ -52,6 +53,10 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
     { id: 'HISTORY' as const, icon: History, label: t('ops.historySectionTitle') },
     { id: 'ACTIONS' as const, icon: ListTodo, label: t('correctiveAction.tabTitle') },
     ...(isFoodSafety ? [{ id: 'INSPECTIONS' as const, icon: ClipboardCheck, label: t('inspection.tabTitle') }] : []),
+    // Personnel management — same tool as the Admin Portal's Personnel
+    // tab, minus anything touching ADMIN accounts (see
+    // UserManagementPanel's canManageAdmins).
+    { id: 'USERS' as const, icon: Users, label: t('manager.tabUsers') },
   ];
 
   const activeTabLabel = tabs.find(tab => tab.id === activeTab)?.label ?? '';
@@ -60,7 +65,7 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
     <div className="space-y-6">
       {/* Mobile pill tab bar — unchanged, just hidden once the sidebar
           below takes over at md+. */}
-      <div className="flex md:hidden bg-white rounded-2xl p-1.5 shadow-sm border border-psu-gray/5">
+      <div className="flex md:hidden print:hidden bg-white rounded-2xl p-1.5 shadow-sm border border-psu-gray/5">
         {tabs.map(tab => (
           <button
             key={tab.id}
@@ -176,6 +181,17 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
             exit={{ opacity: 0, scale: 0.98 }}
           >
             <CorrectiveActionsTab store={store} department={isFoodSafety ? 'FOOD_SAFETY' : 'HOUSEKEEPING'} isGeneralManager={isGeneralManager} />
+          </motion.div>
+        )}
+
+        {activeTab === 'USERS' && (
+          <motion.div
+            key="users"
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+          >
+            <UserManagementPanel store={store} canManageAdmins={false} />
           </motion.div>
         )}
       </AnimatePresence>
