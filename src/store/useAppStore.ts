@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { User, Submission, UserRole, Site, Warning, TrainingModule, FieldReport, FieldReportStatus, CorrectiveAction, CorrectiveActionStatus, ChatMessage } from '../types';
 import { subscribeMyMessages, addMessageDoc, markMessageReadDoc } from '../services/chatService';
-import { canChatRoles, conversationId } from '../lib/chatPolicy';
+import { canChatUsers, conversationId } from '../lib/chatPolicy';
 import { INITIAL_USERS, INITIAL_SUBMISSIONS, INITIAL_WARNINGS, INITIAL_FIELD_REPORTS, INITIAL_CORRECTIVE_ACTIONS, SITES, TRAINING_MODULES } from '../data/mockData';
 import { isFirebaseConfigured } from '../lib/firebase';
 import {
@@ -832,7 +832,7 @@ export function useAppStore() {
   // lib/chatPolicy.ts) or there's nothing to send.
   const sendChatMessage = (to: User, text: string): boolean => {
     const body = text.trim();
-    if (!currentUser || !body || !canChatRoles(currentUser.role, to.role)) return false;
+    if (!currentUser || !body || !canChatUsers(currentUser, to)) return false;
     const message: Omit<ChatMessage, 'id'> = {
       conversationId: conversationId(currentUser.id, to.id),
       participants: [currentUser.id, to.id],
