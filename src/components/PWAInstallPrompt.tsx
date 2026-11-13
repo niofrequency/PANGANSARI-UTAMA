@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useTranslation } from '../i18n/LanguageContext';
 import { InstallGuide } from './InstallGuide';
 
+const AUTO_HIDE_MS = 60_000;
+
 export function PWAInstallPrompt() {
   const { t } = useTranslation();
   const [isVisible, setIsVisible] = useState(false);
@@ -23,6 +25,15 @@ export function PWAInstallPrompt() {
     setIsVisible(false);
     sessionStorage.setItem('psu_install_banner_dismissed', '1');
   };
+
+  // Hide on its own after a minute so it doesn't keep covering the
+  // screen; counts as dismissed for this session. Tapping it before then
+  // still opens the install guide as usual.
+  useEffect(() => {
+    if (!isVisible) return;
+    const timer = setTimeout(dismiss, AUTO_HIDE_MS);
+    return () => clearTimeout(timer);
+  }, [isVisible]);
 
   return (
     <>
