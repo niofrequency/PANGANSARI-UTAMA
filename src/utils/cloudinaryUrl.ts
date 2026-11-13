@@ -1,7 +1,8 @@
 // Cloudinary can transform an image on the fly just by editing its URL —
 // no separate resize step, no extra copies to manage. Used everywhere a
 // submission/report photo is actually *displayed*, as opposed to
-// uploaded (see services/cloudinaryPhotoService.ts for the upload side):
+// uploaded (new photos now go to Firebase Storage, see
+// services/storagePhotoService.ts; this only affects older Cloudinary ones):
 // a photo gets viewed far more times than it's ever uploaded — a
 // reviewing Supervisor, a Manager browsing history, Admin's Activity tab
 // — and Cloudinary's free tier counts bandwidth the same as storage, so

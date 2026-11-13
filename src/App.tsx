@@ -14,6 +14,7 @@ import { JanitorPortal } from './components/Portals/JanitorPortal';
 import { SupervisorPortal } from './components/Portals/SupervisorPortal';
 import { ManagerPortal } from './components/Portals/ManagerPortal';
 import { TechnicianPortal } from './components/Portals/TechnicianPortal';
+import { OlderHistoryContext } from './components/LoadOlderHistory';
 import { AdminPortal } from './components/Admin/AdminPortal';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { PrivacyPolicyPage } from './components/Legal/PrivacyPolicyPage';
@@ -250,6 +251,7 @@ export default function App() {
   if (pathname !== '/' && pathname !== '/go') return <NotFoundPage />;
 
   return (
+    <OlderHistoryContext.Provider value={store.olderHistory}>
     <div className="min-h-screen bg-psu-bg font-sans">
       <AnimatePresence mode="wait">
         {isAuthResolving ? (
@@ -305,5 +307,6 @@ export default function App() {
       </AnimatePresence>
       <PWAInstallPrompt />
     </div>
+    </OlderHistoryContext.Provider>
   );
 }

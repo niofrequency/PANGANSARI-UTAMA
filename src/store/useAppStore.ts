@@ -16,7 +16,8 @@ import {
 import { subscribeUsers, updateUserRoleDoc, updateUserSiteDoc, updateUserAssignedSitesDoc, setStaffIdentityDoc, toggleUserActiveDoc, deleteUserDoc } from '../services/usersService';
 import { createStaffAccountDirect } from '../services/adminCreateAccount';
 import { resetStaffCredentials } from '../services/adminResetCredentials';
-import { subscribeSubmissions, addSubmissionDoc, updateSubmissionDoc, CLEAR_FIELD } from '../services/submissionsService';
+import { subscribeSubmissions, fetchOlderSubmissions, liveWindowStartISO, addSubmissionDoc, updateSubmissionDoc, CLEAR_FIELD, type SubmissionScope } from '../services/submissionsService';
+import { sitesForScope } from '../lib/siteScope';
 import { subscribeWarnings, addWarningDoc } from '../services/warningsService';
 import { subscribeFieldReports, addFieldReportDoc, updateFieldReportDoc } from '../services/fieldReportsService';
 import { subscribeCorrectiveActions, addCorrectiveActionDoc, updateCorrectiveActionDoc } from '../services/correctiveActionsService';
@@ -222,22 +223,81 @@ export function useAppStore() {
   // Same live-subscription pattern as users above — this is what actually
   // makes a submission a Technician files show up on a Supervisor's
   // different device. pinSessionActive is skipped for the same reason it
-  // is above: a Staff ID session never establishes a real Firebase Auth
-  // session (see loginByStaffCode's comment), so firestore.rules'
-  // isSignedIn() check has nothing to check against — every read/write
-  // attempt would just fail. That's a real, separate gap (Staff ID
-  // sessions currently can't read or write Firestore at all) that needs
-  // its own fix, not something this effect can route around.
+  // is above: a Staff ID session that never got a real Firebase Auth
+  // session can't satisfy firestore.rules' isSignedIn().
+  //
+  // Scoped, not the whole collection (see submissionsService.ts's header):
+  // a live listener on the last LIVE_WINDOW_DAYS days + anything still
+  // PENDING, limited to this user's sites. Older history only arrives when
+  // a History screen asks for it (loadOlderSubmissions below), and is
+  // merged into `submissions` alongside the live set, so every lookup by
+  // id (stamp/reject/resubmit/delete) still finds it.
+  const submissionScopeKey = currentUser ? JSON.stringify(sitesForScope(currentUser)) : '';
+  const [liveSubmissions, setLiveSubmissions] = useState<Submission[]>([]);
+  const [olderSubmissions, setOlderSubmissions] = useState<Submission[]>([]);
+  const [liveWindowStart, setLiveWindowStart] = useState<string>(() => liveWindowStartISO());
+  const [olderCursor, setOlderCursor] = useState<string | null>(null);
+  const [hasMoreOlder, setHasMoreOlder] = useState(true);
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+
   useEffect(() => {
     if (!isFirebaseConfigured) return;
+    setOlderSubmissions([]);
+    setOlderCursor(null);
+    setHasMoreOlder(true);
     if (!currentUser || pinSessionActive) {
-      setSubmissions([]);
+      setLiveSubmissions([]);
       return;
     }
-    const unsubSubmissions = subscribeSubmissions(setSubmissions);
+    const since = liveWindowStartISO();
+    setLiveWindowStart(since);
+    const scope: SubmissionScope = { sites: sitesForScope(currentUser) };
+    const unsubSubmissions = subscribeSubmissions(scope, since, setLiveSubmissions);
     return () => unsubSubmissions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isFirebaseConfigured, currentUser?.id, pinSessionActive]);
+  }, [isFirebaseConfigured, currentUser?.id, submissionScopeKey, pinSessionActive]);
+
+  useEffect(() => {
+    if (!isFirebaseConfigured) return;
+    const byId = new Map<string, Submission>();
+    for (const s of olderSubmissions) byId.set(s.id, s);
+    for (const s of liveSubmissions) byId.set(s.id, s); // live copy is always the freshest
+    setSubmissions(
+      Array.from(byId.values()).sort((a, b) => (a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0))
+    );
+  }, [liveSubmissions, olderSubmissions]);
+
+  // Fetches the next page of history older than what's loaded (one-off
+  // read, not live). No-op in demo mode, where everything is local anyway.
+  const loadOlderSubmissions = async () => {
+    if (!isFirebaseConfigured || !currentUser || pinSessionActive) return;
+    if (isLoadingOlder || !hasMoreOlder) return;
+    setIsLoadingOlder(true);
+    try {
+      const before = olderCursor || liveWindowStart;
+      const { submissions: page, hasMore } = await fetchOlderSubmissions({ sites: sitesForScope(currentUser) }, before);
+      setOlderSubmissions((prev) => {
+        const seen = new Set(prev.map((s) => s.id));
+        return [...prev, ...page.filter((s) => !seen.has(s.id))];
+      });
+      if (page.length > 0) setOlderCursor(page[page.length - 1].timestamp);
+      setHasMoreOlder(hasMore);
+    } catch (err) {
+      console.error('loadOlderSubmissions failed:', err);
+    } finally {
+      setIsLoadingOlder(false);
+    }
+  };
+
+  const olderHistory = {
+    // Demo mode keeps everything in memory, so there's never more to load.
+    enabled: isFirebaseConfigured,
+    // Everything on or after this date is already loaded (and live).
+    loadedFrom: olderCursor || liveWindowStart,
+    hasMore: isFirebaseConfigured && hasMoreOlder,
+    isLoading: isLoadingOlder,
+    loadMore: loadOlderSubmissions,
+  };
 
   useEffect(() => {
     if (!isFirebaseConfigured) return;
@@ -1034,6 +1094,7 @@ export function useAppStore() {
     outboxPendingCount,
     users,
     submissions: visibleSubmissions,
+    olderHistory,
     warnings,
     fieldReports,
     messages: visibleMessages,

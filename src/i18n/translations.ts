@@ -46,6 +46,10 @@ export const translations = {
       fromLabel: 'From',
       toLabel: 'To',
       noResults: 'Nothing matches this search or date range',
+      showingSince: 'Showing records since {date}',
+      loadOlder: 'Load older records',
+      loadingOlder: 'Loading...',
+      noOlder: 'No older records',
     },
     roles: {
       HOUSEKEEPER: 'Housekeeper',
@@ -893,6 +897,10 @@ export const translations = {
       fromLabel: 'Dari',
       toLabel: 'Sampai',
       noResults: 'Tidak ada yang cocok dengan pencarian atau rentang tanggal ini',
+      showingSince: 'Menampilkan data sejak {date}',
+      loadOlder: 'Muat data lebih lama',
+      loadingOlder: 'Memuat...',
+      noOlder: 'Tidak ada data yang lebih lama',
     },
     roles: {
       HOUSEKEEPER: 'Housekeeper',

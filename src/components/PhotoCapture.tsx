@@ -4,7 +4,7 @@ import { motion } from 'motion/react';
 import imageCompression from 'browser-image-compression';
 import { useTranslation } from '../i18n/LanguageContext';
 import { isFirebaseConfigured, auth } from '../lib/firebase';
-import { uploadSubmissionPhoto } from '../services/cloudinaryPhotoService';
+import { uploadSubmissionPhoto } from '../services/storagePhotoService';
 
 interface PhotoCaptureProps {
   onCapture: (url: string) => void;
@@ -24,7 +24,23 @@ interface PhotoCaptureProps {
 // than fits on a phone screen, so every photo is downscaled to this before
 // it's ever stored — still plenty for the timestamp/GPS stamp and for a
 // supervisor reviewing it, at a fraction of the size.
-const MAX_DIMENSION = 1280;
+//
+// 1024px / quality 0.7 (was 1280px, and the final save below used JPEG at
+// 0.85, which undid most of the compression step): still clear for
+// checklist evidence and the timestamp/GPS bar, at roughly half the bytes
+// per photo — half the storage and half the download cost on every view.
+const MAX_DIMENSION = 1024;
+const OUTPUT_QUALITY = 0.7;
+
+// WebP is ~25-35% smaller than JPEG at the same visual quality. Browsers
+// that can't ENCODE WebP from a canvas (older Safari) silently return a
+// PNG instead — far bigger — so check what actually came back and fall
+// back to JPEG.
+function canvasToCompactDataUrl(canvas: HTMLCanvasElement): string {
+  const webp = canvas.toDataURL('image/webp', OUTPUT_QUALITY);
+  if (webp.startsWith('data:image/webp')) return webp;
+  return canvas.toDataURL('image/jpeg', OUTPUT_QUALITY);
+}
 
 // Real compression (browser-image-compression: resizes, re-encodes, and
 // fixes the iOS "photo shows sideways" EXIF-orientation quirk by drawing
@@ -40,7 +56,7 @@ async function compressPhoto(file: File): Promise<File> {
   try {
     return await imageCompression(file, {
       maxWidthOrHeight: MAX_DIMENSION,
-      initialQuality: 0.7,
+      initialQuality: OUTPUT_QUALITY,
       useWebWorker: true,
     });
   } catch (err) {
@@ -87,7 +103,7 @@ function stampPhoto(file: File, coords: GeolocationCoordinates | null): Promise<
           ctx.fillText(gps, canvas.width - 12, canvas.height - barHeight / 2);
         }
 
-        resolve(canvas.toDataURL('image/jpeg', 0.85));
+        resolve(canvasToCompactDataUrl(canvas));
       };
       img.src = reader.result as string;
     };
@@ -124,23 +140,18 @@ export function PhotoCapture({ onCapture, uid }: PhotoCaptureProps) {
       // local copy is what ends up submitted, not nothing.
       onCapture(stamped);
 
-      // mintCloudinaryUploadSignature (functions/src/index.ts) only ever
-      // mints a signature for whoever request.auth says the caller is —
-      // a REAL, currently signed-in Firebase Auth session, not just "this
-      // app's currentUser has this id." Scan-to-Job (StaffIdGate.tsx /
-      // loginByStaffCode) deliberately never creates one (see
-      // authService.ts's comment on why), so for that session
-      // auth.currentUser is null even though uid is a real uid on file.
-      // Attempting the upload there would just be a guaranteed-to-fail
-      // network round-trip on every single photo a frontline Scan-to-Job
-      // technician or housekeeper takes — skip it and keep the local data
-      // URL, exactly like demo mode already does.
+      // storage.rules only lets a REAL, currently signed-in Firebase Auth
+      // session write into its own submissions/{uid}/ folder. A Staff ID
+      // session that never got an Auth session (loginByStaffCode's local
+      // fallback) has auth.currentUser null even though uid is a real uid
+      // on file — the upload would be a guaranteed failure, so skip it and
+      // keep the local data URL, exactly like demo mode does.
       if (isFirebaseConfigured && uid && auth?.currentUser?.uid === uid) {
         try {
-          const remoteUrl = await uploadSubmissionPhoto(stamped);
+          const remoteUrl = await uploadSubmissionPhoto(stamped, uid);
           onCapture(remoteUrl);
         } catch (uploadErr) {
-          console.error('Photo upload to Cloudinary failed, keeping local copy:', uploadErr);
+          console.error('Photo upload to Firebase Storage failed, keeping local copy:', uploadErr);
         }
       }
     } catch (e) {

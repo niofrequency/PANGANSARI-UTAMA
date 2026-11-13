@@ -4,6 +4,7 @@ import { useTranslation } from '../i18n/LanguageContext';
 import { Submission } from '../types';
 import { useDateFilter } from '../hooks/useDateFilter';
 import { DateFilterBar } from './DateFilterBar';
+import { LoadOlderHistory } from './LoadOlderHistory';
 
 // Everything a submission carries that a person filing/reviewing dozens of
 // these might actually search for — room/barak (Room Cleaning), staff
@@ -88,6 +89,8 @@ export function SubmissionHistoryList<T extends Submission>({
           </p>
         </div>
       )}
+
+      <LoadOlderHistory />
     </div>
   );
 }
