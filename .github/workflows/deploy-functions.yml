@@ -47,5 +47,8 @@ jobs:
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
+      # --force lets the Firebase CLI set up the Artifact Registry cleanup
+      # policy for old function container images on its own; without it a
+      # non-interactive deploy succeeds but still exits 1.
       - name: Deploy to Firebase
-        run: npx firebase-tools@14 deploy --only functions --project "$FIREBASE_PROJECT_ID" --non-interactive
+        run: npx firebase-tools@14 deploy --only functions --project "$FIREBASE_PROJECT_ID" --non-interactive --force
