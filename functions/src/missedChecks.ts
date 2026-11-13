@@ -16,6 +16,7 @@
 
 import * as admin from 'firebase-admin';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
+import { monitored } from './monitoring';
 
 const TIME_ZONE = 'Asia/Jayapura';
 const TZ_OFFSET_MS = 9 * 60 * 60 * 1000;
@@ -290,7 +291,7 @@ export async function runMissedCheckSweep(nowMs = Date.now()): Promise<{ created
 export const checkMissedChecks = onSchedule(
   { schedule: 'every 30 minutes', timeZone: TIME_ZONE, region: 'us-central1', timeoutSeconds: 300 },
   async () => {
-    const result = await runMissedCheckSweep();
+    const result = await monitored('checkMissedChecks', () => runMissedCheckSweep());
     console.log('checkMissedChecks', result);
   }
 );

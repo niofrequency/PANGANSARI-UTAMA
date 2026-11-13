@@ -96,6 +96,15 @@ export const translations = {
       truncated: 'Stopped at 20,000 — pick a shorter date range.',
       failed: 'Export failed. Check your connection and try again.',
     },
+    health: {
+      title: 'App health',
+      refresh: 'Refresh',
+      allGood: 'No errors in the last 24 hours',
+      server: 'Server',
+      app: 'App',
+      lastSeen: 'last {ago} ago',
+      hint: 'Errors from phones and from server jobs, grouped by kind. Admins get a push notification when a new kind appears.',
+    },
     roles: {
       HOUSEKEEPER: 'Housekeeper',
       HOUSEKEEPING_LAUNDRY: 'Laundry Staff',
@@ -991,6 +1000,15 @@ export const translations = {
       done: '{count} data diekspor.',
       truncated: 'Berhenti di 20.000 — pilih rentang tanggal yang lebih pendek.',
       failed: 'Ekspor gagal. Periksa koneksi lalu coba lagi.',
+    },
+    health: {
+      title: 'Kesehatan aplikasi',
+      refresh: 'Muat ulang',
+      allGood: 'Tidak ada error dalam 24 jam terakhir',
+      server: 'Server',
+      app: 'Aplikasi',
+      lastSeen: 'terakhir {ago} lalu',
+      hint: 'Error dari ponsel dan dari proses server, dikelompokkan per jenis. Admin mendapat notifikasi saat muncul jenis baru.',
     },
     roles: {
       HOUSEKEEPER: 'Housekeeper',

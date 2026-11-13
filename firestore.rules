@@ -432,6 +432,28 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ── monitoring ──────────────────────────────────────────────────
+    // appErrors: the app reports its own errors (src/lib/errorReporter.ts).
+    // Create-only, as yourself, fixed fields with size caps; only Admins
+    // read. errorFingerprints is written by the errorDigest function only.
+    match /appErrors/{errorId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.source == 'app'
+        && request.resource.data.keys().hasOnly(['source', 'kind', 'fingerprint', 'message', 'stack', 'path', 'uid', 'role', 'appVersion', 'userAgent', 'createdAt'])
+        && request.resource.data.message is string && request.resource.data.message.size() <= 500
+        && request.resource.data.stack is string && request.resource.data.stack.size() <= 2000
+        && request.resource.data.fingerprint is string && request.resource.data.fingerprint.size() <= 40
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    match /errorFingerprints/{fp} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     // ── trainings ───────────────────────────────────────────────────
     match /trainings/{moduleId} {
       allow read: if isSignedIn();

@@ -14,6 +14,7 @@ import { isFirebaseConfigured } from '../../lib/firebase';
 import { Modal } from '../Modal';
 import { ChecksTab, useOpenChecksSignal } from '../Checks/ChecksTab';
 import { ExportPanel } from '../Export/ExportPanel';
+import { AppHealthPanel } from './AppHealthPanel';
 import { AlarmClock } from 'lucide-react';
 import { Lightbox } from '../Lightbox';
 import { ListCard } from '../ListCard';
@@ -372,6 +373,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
             animate={{ opacity: 1, scale: 1 }}
           >
             <h2 className="text-xl font-bold tracking-tight text-psu-gray mb-6 px-2">{t('admin.tabAnalytics')}</h2>
+            <div className="mb-6"><AppHealthPanel /></div>
             <div className="mb-6">{renderScopeFilters()}</div>
             <AnalyticsDashboard submissions={scopedSubmissions} warnings={scopedWarnings} sites={scopedSites} users={scopedUsers} />
           </motion.div>

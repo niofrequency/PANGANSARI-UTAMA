@@ -20,6 +20,7 @@ import { subscribeSubmissions, fetchOlderSubmissions, liveWindowStartISO, addSub
 import { sitesForScope } from '../lib/siteScope';
 import { subscribeCheckSchedules, subscribeMissedChecks, addCheckScheduleDoc, updateCheckScheduleDoc, deleteCheckScheduleDoc } from '../services/checksService';
 import { localDateISO } from '../utils/localDate';
+import { setErrorReporterRole } from '../lib/errorReporter';
 
 // Roles that see missed-check alerts and can open the check schedule.
 export const CHECK_VIEWER_ROLES: UserRole[] = [
@@ -357,6 +358,8 @@ export function useAppStore() {
   // review or manage sites need them; frontline phones skip both
   // listeners entirely. Demo mode keeps schedules in localStorage so the
   // editor still works, but nothing checks them (that runs on the server).
+  useEffect(() => { setErrorReporterRole(currentUser?.role); }, [currentUser?.role]);
+
   const canSeeChecks = !!currentUser && CHECK_VIEWER_ROLES.includes(currentUser.role);
   const [checkSchedules, setCheckSchedules] = useState<CheckSchedule[]>(() => {
     if (isFirebaseConfigured) return [];

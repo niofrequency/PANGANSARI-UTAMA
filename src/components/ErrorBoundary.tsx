@@ -1,4 +1,5 @@
 import React from 'react';
+import { reportError } from '../lib/errorReporter';
 
 interface Props {
   children: React.ReactNode;
@@ -35,6 +36,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   componentDidCatch(error: unknown) {
     console.error('Uncaught error, showing fallback screen:', error);
+    reportError(error, 'render');
   }
 
   render() {

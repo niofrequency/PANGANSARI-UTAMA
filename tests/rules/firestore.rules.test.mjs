@@ -189,3 +189,20 @@ test('missed checks are readable by staff but written only by the server', async
   await assertFails(deleteDoc(doc(as(people.fsManager), 'missedChecks', 'm-1')));
   await assertFails(getDoc(doc(anon(), 'missedChecks', 'm-1')));
 });
+
+// ── monitoring ─────────────────────────────────────────────────────
+test('the app can report its own errors, but only admins can read them', async () => {
+  const report = (p, extra = {}) => ({
+    source: 'app', kind: 'error', fingerprint: 'abc', message: 'boom', stack: 'at x', path: '/',
+    uid: p.uid, role: p.role, appVersion: 'dev', userAgent: 'test', createdAt: serverTimestamp(), ...extra,
+  });
+  const ref = await assertSucceeds(addDoc(collection(as(people.tech), 'appErrors'), report(people.tech)));
+  await assertFails(addDoc(collection(as(people.tech), 'appErrors'), report(people.tech2)));
+  await assertFails(addDoc(collection(as(people.tech), 'appErrors'), report(people.tech, { source: 'server' })));
+  await assertFails(addDoc(collection(as(people.tech), 'appErrors'), report(people.tech, { extra: 'x' })));
+  await assertFails(addDoc(collection(as(people.tech), 'appErrors'), report(people.tech, { message: 'x'.repeat(501) })));
+  await assertFails(addDoc(collection(anon(), 'appErrors'), report(people.tech)));
+  await assertFails(getDoc(doc(as(people.fsManager), 'appErrors', ref.id)));
+  await assertSucceeds(getDoc(doc(as(people.admin), 'appErrors', ref.id)));
+  await assertFails(deleteDoc(doc(as(people.admin), 'appErrors', ref.id)));
+});

@@ -13,6 +13,10 @@ admin.initializeApp();
 // Missed-check alerts (scheduled every 30 minutes).
 export { checkMissedChecks } from './missedChecks';
 
+// Error monitoring digest (hourly) — see monitoring.ts.
+export { errorDigest } from './monitoring';
+import { monitored } from './monitoring';
+
 // Keep in sync with SUPER_ADMIN_EMAIL in src/services/authService.ts and
 // the matching constant in firestore.rules. This one account is
 // permanently an admin; see isAdminCaller() below for everyone else who
@@ -540,7 +544,7 @@ export const mintCloudinaryUploadSignature = onCall(
 // database in any location, no Eventarc region pairing needed.
 export const notifyChatMessage = functionsV1.firestore
   .document('messages/{messageId}')
-  .onCreate(async (snap) => {
+  .onCreate((snap) => monitored('notifyChatMessage', async () => {
     const m = snap.data() as { toId?: string; fromName?: string; text?: string };
     if (!m?.toId) return;
 
@@ -569,7 +573,7 @@ export const notifyChatMessage = functionsV1.firestore
       }
     });
     await Promise.all(dead);
-  });
+  }));
 
 
 // ── Bulk employee import ─────────────────────────────────────────────
