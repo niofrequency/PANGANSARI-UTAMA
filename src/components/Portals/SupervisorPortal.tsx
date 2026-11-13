@@ -9,6 +9,7 @@ import { OpsLogsTab } from '../OpsLogs/OpsLogsTab';
 import { FieldReportsTab } from '../FieldReports/FieldReportsTab';
 import { ChatTab, useChatTab, useOpenChatSignal } from '../Chat/ChatTab';
 import { ChecksTab, MissedChecksBanner, useOpenChecksSignal } from '../Checks/ChecksTab';
+import { ExportPanel } from '../Export/ExportPanel';
 import { AlarmClock } from 'lucide-react';
 import { CorrectiveActionsTab } from '../CorrectiveActions/CorrectiveActionsTab';
 import { Modal } from '../Modal';
@@ -128,7 +129,10 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled }: Supervi
       {activeTab === 'CHECKS' && <ChecksTab store={store} department={department} canEdit={false} />}
 
       {activeTab === 'HISTORY' && (
-        <OpsLogsTab store={store} department={isFoodSafety ? 'FOOD_SAFETY' : 'HOUSEKEEPING'} tier="supervisor" mode="historyOnly" />
+        <div className="space-y-6">
+          <ExportPanel store={store} department={department} />
+          <OpsLogsTab store={store} department={department} tier="supervisor" mode="historyOnly" />
+        </div>
       )}
 
       {activeTab === 'REPORTS' && (

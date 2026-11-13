@@ -14,6 +14,7 @@ import { UserManagementPanel } from '../Admin/UserManagementPanel';
 import { FieldReportsTab } from '../FieldReports/FieldReportsTab';
 import { ChatTab, useChatTab, useOpenChatSignal } from '../Chat/ChatTab';
 import { ChecksTab, MissedChecksBanner, useOpenChecksSignal } from '../Checks/ChecksTab';
+import { ExportPanel } from '../Export/ExportPanel';
 import { AlarmClock } from 'lucide-react';
 
 // The daily Housekeeping/Food Safety Escalations queue used to live here
@@ -176,6 +177,7 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
             exit={{ opacity: 0, scale: 0.98 }}
             className="space-y-8"
           >
+            <ExportPanel store={store} department={checksDepartment} />
             {/* Same department split as Ops Logs above — a General
                 Manager gets both departments' History, one below the
                 other; a department Manager only gets their own. */}

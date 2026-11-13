@@ -13,6 +13,7 @@ import { SUPER_ADMIN_EMAIL } from '../../services/authService';
 import { isFirebaseConfigured } from '../../lib/firebase';
 import { Modal } from '../Modal';
 import { ChecksTab, useOpenChecksSignal } from '../Checks/ChecksTab';
+import { ExportPanel } from '../Export/ExportPanel';
 import { AlarmClock } from 'lucide-react';
 import { Lightbox } from '../Lightbox';
 import { ListCard } from '../ListCard';
@@ -231,6 +232,7 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
 
             {activitySegment === 'SUBMISSIONS' && (
               <>
+                <ExportPanel store={store} />
                 <div className="flex gap-2 flex-wrap">
                   {(['ALL', 'PENDING', 'APPROVED', 'REJECTED'] as const).map(status => (
                     <button
