@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useFixEditor } from '../../lib/fixEditors';
 import { useAppStore } from '../../store/useAppStore';
 import { TrainingsTab } from '../TrainingsTab';
 import { ClipboardList, History, GraduationCap, CheckCircle2, Clock, XCircle, Pencil, Trash2, MessageCircle } from 'lucide-react';
@@ -47,6 +48,7 @@ export function LaundryStaffPortal({ store, fromQr, onDeepLinkHandled, onScanJob
   // useAppStore.ts), same as every other merged-in submission type.
   const [editingId, setEditingId] = useState<string | null>(null);
   const editingSubmission = editingId ? myHistory.find(s => s.id === editingId) : undefined;
+  useFixEditor((s) => s.type === 'LAUNDRY_SHOP' && s.userId === currentUser?.id, (s) => { setEditingId(s.id); setActiveTab('TASKS'); });
   // "Type DELETE to confirm" fail-safe (ConfirmDeleteModal) in front of
   // permanently removing one of their own History entries — see
   // deleteSubmission in useAppStore.ts.

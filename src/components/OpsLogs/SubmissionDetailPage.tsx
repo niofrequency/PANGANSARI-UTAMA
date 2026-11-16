@@ -192,7 +192,9 @@ export function SubmissionDetailPage({ store, submission, onBack, canStamp, onSt
                 {s.meta?.returned ? t('ops.chain.returnedBanner', { name: s.meta.returned.name, role: t(`rolesShort.${s.meta.returned.role}`) }) : t('ops.signoff.rejectedBanner')}
               </p>
               <p className="text-xs text-psu-gray/70 font-medium">{s.meta?.returned?.note || s.rejectionReason}</p>
-              {isOwner && <p className="text-[11px] text-psu-gray/50">{t('ops.chain.ownerHint')}</p>}
+              {isOwner
+                ? <p className="text-[11px] text-psu-gray/50">{t('ops.chain.ownerHint')}</p>
+                : <p className="text-[11px] font-bold text-psu-gray/50">{t('ops.chain.waitingFix', { name: s.userName })}</p>}
             </div>
           )}
 

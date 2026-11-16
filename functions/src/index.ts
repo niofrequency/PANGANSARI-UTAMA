@@ -576,6 +576,87 @@ export const notifyChatMessage = functionsV1.firestore
   }));
 
 
+// ── Sent-back logs ───────────────────────────────────────────────────
+// A Supervisor / Manager rejects or returns a log (useAppStore.ts's
+// rejectSignoff / returnSubmission → status REJECTED, meta.returned):
+// push the filer ("fix and resend", opens the log at /?fix=<id>), plus
+// anyone lower in the chain who had already stamped it. When the filer
+// fixes and resends it (REJECTED → PENDING), push whoever sent it back.
+const LOG_LABELS: Record<string, string> = {
+  HOUSEKEEPING: "Today's Checklist", FOOD_SAFETY: 'Daily Food Safety Log', TEMP_CONTROL: 'Temperature Control',
+  DISHWASH_TEMP: 'Dishwashing Temperature', MESS_HALL_HYGIENE: 'Mess Hall Hygiene', COOKING_SERVICE: 'Cooking & Service',
+  HOT_PACKED_MEAL: 'Hot Packed Meal', THAWING: 'Thawing', STAFF_READY: 'Staff Ready', LAUNDRY_SHOP: 'Laundry Shop',
+  RESTROOM: 'Restroom', GEMBA_WALK: 'Gemba Walk',
+};
+
+async function pushTo(uids: string[], data: Record<string, string>) {
+  const unique = [...new Set(uids.filter(Boolean))];
+  if (!unique.length) return;
+  const db = admin.firestore();
+  const snaps = await Promise.all(unique.map((uid) => db.collection('pushTokens').where('uid', '==', uid).get()));
+  const tokens = snaps.flatMap((sn) => sn.docs.map((d) => d.id));
+  if (!tokens.length) return;
+  const response = await admin.messaging().sendEachForMulticast({
+    tokens,
+    data,
+    webpush: { headers: { Urgency: 'high', TTL: '86400' } },
+  });
+  const dead: Promise<unknown>[] = [];
+  response.responses.forEach((r, i) => {
+    const code = r.error?.code || '';
+    if (code === 'messaging/registration-token-not-registered' || code === 'messaging/invalid-registration-token' || code === 'messaging/invalid-argument') {
+      dead.push(db.collection('pushTokens').doc(tokens[i]).delete());
+    }
+  });
+  await Promise.all(dead);
+}
+
+export const notifySubmissionReturned = functionsV1.firestore
+  .document('submissions/{submissionId}')
+  .onUpdate((change, ctx) => monitored('notifySubmissionReturned', async () => {
+    const before = change.before.data() as any;
+    const after = change.after.data() as any;
+    if (!before || !after || after.deletedAt) return;
+    const label = LOG_LABELS[after.type] || 'Log';
+    const site = after.siteName ? ` · ${after.siteName}` : '';
+
+    if (before.status !== 'REJECTED' && after.status === 'REJECTED') {
+      const r = after.meta?.returned || {};
+      const note = String(r.note || after.rejectionReason || '').slice(0, 160);
+      const by = r.name ? `${r.name}: ` : '';
+      await pushTo([after.userId], {
+        title: `Fix needed: ${label}`,
+        body: `${by}${note}`,
+        url: `/?fix=${ctx.params.submissionId}`,
+        tag: `fix-${ctx.params.submissionId}`,
+      });
+      // Anyone below the rejecter who had already stamped it.
+      const so = before.meta?.signoff || {};
+      const stampers = ['checkedBy', 'approvedBy', 'verifiedBy']
+        .map((k) => so[k]?.userId as string | undefined)
+        .filter((u): u is string => !!u && u !== r.userId && u !== after.userId);
+      await pushTo(stampers, {
+        title: `Sent back: ${label}${site}`,
+        body: `${r.name || 'A reviewer'} sent ${after.userName || 'the'}'s log back to fix: ${note}`,
+        url: '/',
+        tag: `fix-${ctx.params.submissionId}`,
+      });
+      return;
+    }
+
+    if (before.status === 'REJECTED' && after.status === 'PENDING') {
+      const r = after.meta?.returned;
+      if (!r?.userId || r.userId === after.userId) return;
+      const fix = String(after.meta?.fixNote || '').slice(0, 160);
+      await pushTo([r.userId], {
+        title: `Fixed & resent: ${label}${site}`,
+        body: `${after.userName || 'The filer'} fixed it and sent it back for review.${fix ? ` "${fix}"` : ''}`,
+        url: '/',
+        tag: `fix-${ctx.params.submissionId}`,
+      });
+    }
+  }));
+
 // ── Bulk employee import ─────────────────────────────────────────────
 // Admin Portal → Import Staff (src/components/Admin/ImportStaffPanel.tsx)
 // sends rows already mapped to a site + role (src/lib/employeeImport.ts),

@@ -93,10 +93,14 @@ self.addEventListener('notificationclick', (event) => {
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
       // Missed-check alerts (functions/src/missedChecks.ts) open the
       // Checks view; everything else is chat.
-      const tab = new URL(url, self.location.origin).searchParams.get('tab');
+      // Sent-back logs (notifySubmissionReturned) open the fix page.
+      const params = new URL(url, self.location.origin).searchParams;
+      const tab = params.get('tab');
+      const fix = params.get('fix');
       for (const c of clients) {
         if ('focus' in c) {
-          c.postMessage({ type: tab === 'checks' ? 'OPEN_CHECKS' : 'OPEN_CHAT' });
+          if (fix) c.postMessage({ type: 'OPEN_FIX', id: fix });
+          else if (tab) c.postMessage({ type: tab === 'checks' ? 'OPEN_CHECKS' : 'OPEN_CHAT' });
           return c.focus();
         }
       }

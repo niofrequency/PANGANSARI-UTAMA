@@ -25,6 +25,8 @@ import { useTranslation } from './i18n/LanguageContext';
 import { DeepLinkAction, DeepLinkJob, parseDeepLink, consumeDeepLink, clearDeepLink, setDeepLink } from './lib/deepLink';
 import { titleKeyForChainType } from './data/opsLogsCatalog';
 import { UserRole } from './types';
+import { SubmissionDetailPage, useBackToClose } from './components/OpsLogs/SubmissionDetailPage';
+import { findFixEditor } from './lib/fixEditors';
 import { motion, AnimatePresence } from 'motion/react';
 
 const TECHNICIAN_ACTIONS: DeepLinkJob['action'][] = ['fridge', 'core', 'clean', 'wellness'];
@@ -230,9 +232,34 @@ export default function App() {
         .filter(s => s.userId === currentUser.id && s.status === 'REJECTED')
         .map(s => {
           const titleKey = titleKeyForChainType(s.type);
-          return { id: s.id, title: titleKey ? t(titleKey) : s.type, reason: s.rejectionReason };
+          const r = s.meta?.returned;
+          return {
+            id: s.id,
+            title: titleKey ? t(titleKey) : s.type,
+            reason: r?.note || s.rejectionReason,
+            by: r ? `${r.name} (${t(`rolesShort.${r.role}`)})` : undefined,
+          };
         })
     : [];
+
+  // A sent-back log opened from the Needs-fixing banner, the bell or a
+  // push notification (/?fix=<id>) — shown as a page on top of the portal
+  // (the portal stays mounted underneath so its editor can take over).
+  const [fixOpenId, setFixOpenId] = useState<string | null>(() => new URLSearchParams(window.location.search).get('fix'));
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('fix')) {
+      params.delete('fix');
+      const q = params.toString();
+      window.history.replaceState(window.history.state, '', window.location.pathname + (q ? `?${q}` : ''));
+    }
+    const onMessage = (e: MessageEvent) => { if (e.data?.type === 'OPEN_FIX' && e.data.id) setFixOpenId(e.data.id); };
+    navigator.serviceWorker?.addEventListener('message', onMessage);
+    return () => navigator.serviceWorker?.removeEventListener('message', onMessage);
+  }, []);
+  const fixSubmission = fixOpenId && currentUser ? store.submissions.find(s => s.id === fixOpenId && s.userId === currentUser.id) : undefined;
+  useBackToClose(!!fixSubmission, () => setFixOpenId(null));
+  const fixEditor = fixSubmission && fixSubmission.status === 'REJECTED' ? findFixEditor(fixSubmission) : undefined;
 
   const showStaffIdGate = !currentUser && (!!pendingJob || manualStaffIdLogin) && !showEmailLoginOverride;
 
@@ -299,8 +326,18 @@ export default function App() {
             exit={{ opacity: 0, y: -10 }}
             className="pb-20"
           >
-            <Layout user={currentUser} onLogout={logout} storageError={storageError} rejectedNotices={rejectedNotices} offlinePendingCount={outboxPendingCount} unreadChatCount={store.unreadChatCount}>
-              {renderPortal()}
+            <Layout user={currentUser} onLogout={logout} storageError={storageError} rejectedNotices={fixSubmission ? [] : rejectedNotices} onOpenNotice={setFixOpenId} offlinePendingCount={outboxPendingCount} unreadChatCount={store.unreadChatCount}>
+              {fixSubmission && (
+                <div className="md:max-w-4xl md:mx-auto">
+                  <SubmissionDetailPage
+                    store={store}
+                    submission={fixSubmission}
+                    onBack={() => window.history.state?.psuDetail ? window.history.back() : setFixOpenId(null)}
+                    onEdit={fixEditor ? () => { const s = fixSubmission; setFixOpenId(null); fixEditor.edit(s); } : undefined}
+                  />
+                </div>
+              )}
+              <div className={fixSubmission ? 'hidden' : undefined}>{renderPortal()}</div>
             </Layout>
           </motion.div>
         )}

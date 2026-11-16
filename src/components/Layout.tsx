@@ -15,6 +15,8 @@ export interface RejectedNotice {
   id: string;
   title: string;
   reason?: string;
+  // Who sent it back, e.g. "Sari Sup (Supervisor)".
+  by?: string;
 }
 
 interface LayoutProps {
@@ -30,6 +32,8 @@ interface LayoutProps {
   // fix and resubmit (see useAppStore.ts's rejectSignoff/
   // resubmitAfterRejection). Empty or omitted hides the bell entirely.
   rejectedNotices?: RejectedNotice[];
+  // Opens a sent-back log as a page so its filer can fix and resend it.
+  onOpenNotice?: (id: string) => void;
   // How many submissions are sitting in the Dexie outbox (useAppStore.ts)
   // waiting to reach Firestore — set only in Firebase mode; demo mode
   // never has one. Shown only while the browser also reports itself
@@ -41,7 +45,7 @@ interface LayoutProps {
   unreadChatCount?: number;
 }
 
-export function Layout({ user, onLogout, children, storageError, rejectedNotices = [], offlinePendingCount = 0, unreadChatCount = 0 }: LayoutProps) {
+export function Layout({ user, onLogout, children, storageError, rejectedNotices = [], onOpenNotice, offlinePendingCount = 0, unreadChatCount = 0 }: LayoutProps) {
   const { t, language, toggleLanguage } = useTranslation();
   const [showInstallGuide, setShowInstallGuide] = useState(false);
   const [showNotices, setShowNotices] = useState(false);
@@ -148,10 +152,13 @@ export function Layout({ user, onLogout, children, storageError, rejectedNotices
                       </div>
                       <div className="space-y-2 max-h-72 overflow-y-auto">
                         {rejectedNotices.map(n => (
-                          <div key={n.id} className="bg-psu-rejected/5 border border-psu-rejected/10 rounded-xl p-3">
+                          <button key={n.id} type="button" onClick={() => { setShowNotices(false); onOpenNotice?.(n.id); }}
+                            className="w-full text-left bg-psu-rejected/5 border border-psu-rejected/10 rounded-xl p-3 hover:bg-psu-rejected/10 transition-colors">
                             <p className="text-xs font-bold text-psu-gray">{n.title}</p>
-                            {n.reason && <p className="text-[11px] text-psu-gray/60 font-medium mt-1">{n.reason}</p>}
-                          </div>
+                            {n.by && <p className="text-[10px] font-bold text-psu-rejected/80 mt-0.5">{t('layout.sentBackBy', { name: n.by })}</p>}
+                            {n.reason && <p className="text-[11px] text-psu-gray/60 font-medium mt-1">“{n.reason}”</p>}
+                            {onOpenNotice && <p className="text-[10px] font-black text-psu-blue uppercase tracking-widest mt-2">{t('layout.fixNow')} →</p>}
+                          </button>
                         ))}
                       </div>
                       <p className="text-[10px] text-psu-gray/40 font-medium leading-relaxed border-t border-psu-gray/5 pt-3">
@@ -206,6 +213,28 @@ export function Layout({ user, onLogout, children, storageError, rejectedNotices
           full-width pane, forms and reports cap their own width with
           md:max-w-3xl/md:max-w-2xl at the call site. */}
       <main className="flex-1 min-w-0 p-6 lg:p-8 print:p-0">
+        {rejectedNotices.length > 0 && onOpenNotice && (
+          <div className="mb-5 rounded-2xl border border-psu-rejected/20 bg-psu-rejected/5 p-4 print:hidden">
+            <p className="text-[10px] font-black text-psu-rejected uppercase tracking-widest flex items-center gap-1.5">
+              <AlertTriangle size={14} /> {t('layout.needsFixBanner', { count: rejectedNotices.length })}
+            </p>
+            <div className="mt-3 space-y-2">
+              {rejectedNotices.map(n => (
+                <div key={n.id} className="flex items-center gap-3 bg-white rounded-xl p-3 border border-psu-rejected/10">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-psu-gray truncate">{n.title}</p>
+                    {n.by && <p className="text-[10px] font-bold text-psu-rejected/80">{t('layout.sentBackBy', { name: n.by })}</p>}
+                    {n.reason && <p className="text-[11px] text-psu-gray/60 line-clamp-2">“{n.reason}”</p>}
+                  </div>
+                  <button type="button" onClick={() => onOpenNotice(n.id)}
+                    className="shrink-0 px-4 py-2.5 rounded-xl bg-psu-rejected text-white text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all">
+                    {t('layout.fixNow')}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {children}
       </main>
 
