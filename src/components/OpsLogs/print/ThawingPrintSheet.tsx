@@ -1,7 +1,7 @@
 import { Fragment } from 'react';
 import { Submission } from '../../../types';
 import { THAWING_METHODS, THAW_PRODUCT_CATEGORIES } from '../../../data/thawingData';
-import { C, CC, PaperLogo, PrintPage, PrintSheetProps, ControlledCopy, submissionDate, monthLabel, StampMark } from './paperShared';
+import { C, CC, PaperLogo, PrintPage, PrintSheetProps, ControlledCopy, submissionDate, monthLabel, StampMark, draftedStamp } from './paperShared';
 
 type Batch = { category: string; qty: string; startTime: string; endTime: string; endTempC: string; usedFor: string[] };
 
@@ -172,9 +172,9 @@ export function ThawingPrintSheet({ submission, allSubmissions = [] }: PrintShee
       </table>
 
       <div className="flex justify-between items-end px-8 pt-1">
-        <div className="text-center">Dilaksanakan oleh,<div style={{ height: 18 }}>{submission.meta?.signoff?.draftedBy?.name || submission.userName}</div><u>(Nama/ No. ID)</u><br />Butcher/ Thawing Staff</div>
-        <div className="text-center">Dicheck oleh,<div style={{ minHeight: 18 }}>{submission.meta?.signoff?.checkedBy ? <StampMark small step="checkedBy" stamp={submission.meta.signoff.checkedBy} /> : ''}</div><u>(Nama/ No. ID)</u><br />Coord/Chef/Area Manager</div>
-        <div className="text-center">Diverifikasi oleh,<div style={{ minHeight: 18 }}>{submission.meta?.signoff?.verifiedBy ? <StampMark small step="verifiedBy" stamp={submission.meta.signoff.verifiedBy} /> : submission.meta?.signoff?.approvedBy ? <StampMark small step="approvedBy" stamp={submission.meta.signoff.approvedBy} /> : ''}</div><u>(Nama/ No. ID)</u><br />QC/ QSHE</div>
+        <div className="text-center">Dilaksanakan oleh,<div style={{ minHeight: 18 }}><StampMark small step="draftedBy" stamp={draftedStamp(submission)} /><div className="font-bold">{draftedStamp(submission).name.toUpperCase()}</div></div><u>(Nama/ No. ID)</u><br />Butcher/ Thawing Staff</div>
+        <div className="text-center">Dicheck oleh,<div style={{ minHeight: 18 }}>{submission.meta?.signoff?.checkedBy ? <><StampMark small step="checkedBy" stamp={submission.meta.signoff.checkedBy} /><div className="font-bold">{submission.meta.signoff.checkedBy.name.toUpperCase()}</div></> : ''}</div><u>(Nama/ No. ID)</u><br />Coord/Chef/Area Manager</div>
+        <div className="text-center">Diverifikasi oleh,<div style={{ minHeight: 18 }}>{submission.meta?.signoff?.verifiedBy ? <><StampMark small step="verifiedBy" stamp={submission.meta.signoff.verifiedBy} /><div className="font-bold">{submission.meta.signoff.verifiedBy.name.toUpperCase()}</div></> : submission.meta?.signoff?.approvedBy ? <><StampMark small step="approvedBy" stamp={submission.meta.signoff.approvedBy} /><div className="font-bold">{submission.meta.signoff.approvedBy.name.toUpperCase()}</div></> : ''}</div><u>(Nama/ No. ID)</u><br />QC/ QSHE</div>
         <ControlledCopy />
       </div>
     </PrintPage>

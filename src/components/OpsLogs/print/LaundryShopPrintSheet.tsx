@@ -1,5 +1,5 @@
 import { LAUNDRY_GARMENT_COLUMNS } from '../../../data/laundryShopData';
-import { B, C, CC, PaperHeader, PrintPage, PrintSheetProps, SigBlock, longDate, submissionDate } from './paperShared';
+import { B, C, CC, PaperHeader, PrintPage, PrintSheetProps, SigBlock, longDate, submissionDate, draftedStamp } from './paperShared';
 
 const ROWS_PER_SHEET = 22;
 const SPARE_COLS = 4; // the paper has four blank garment columns after Kaos Kaki
@@ -66,7 +66,7 @@ export function LaundryShopPrintSheet({ submission }: PrintSheetProps) {
           </table>
 
           <div className="flex justify-around pt-2">
-            <SigBlock heading="Dibuat Oleh," role="Laundryman/girl" name={sign?.draftedBy?.name || submission.userName} at={sign?.draftedBy?.at} />
+            <SigBlock heading="Dibuat Oleh," role="Laundryman/girl" name={sign?.draftedBy?.name || submission.userName} at={sign?.draftedBy?.at} step="draftedBy" stamp={draftedStamp(submission)} />
             <SigBlock heading="Diperiksa Oleh," role="Leader / Supervisor laundry" name={sign?.checkedBy?.name} at={sign?.checkedBy?.at} step="checkedBy" stamp={sign?.checkedBy} />
             <SigBlock heading="Diketahui Oleh," role="Coord. / Asst.Manger / Manager" name={(sign?.approvedBy || sign?.verifiedBy)?.name} at={(sign?.approvedBy || sign?.verifiedBy)?.at} step={sign?.approvedBy ? 'approvedBy' : 'verifiedBy'} stamp={sign?.approvedBy || sign?.verifiedBy} />
           </div>

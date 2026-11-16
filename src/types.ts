@@ -216,7 +216,7 @@ export interface Submission {
     // src/data/opsLogsCatalog.ts's SIGNOFF_CHAINS — not every form uses
     // all four slots.
     signoff?: {
-      draftedBy?: { userId: string; name: string; staffCode?: string; at: string };
+      draftedBy?: { userId: string; name: string; staffCode?: string; at: string; role?: UserRole; signature?: string };
       // `role` = the stamper's role at the time (shown on the paper stamp).
       // `signature` = optional e-signature (small PNG data URL) drawn when stamping.
       checkedBy?: { userId: string; name: string; at: string; role?: UserRole; signature?: string };

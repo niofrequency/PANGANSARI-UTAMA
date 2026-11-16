@@ -1,6 +1,6 @@
 import { Submission } from '../../../types';
 import { SIGNOFF_CHAINS, SignoffChainType, SignoffStep } from '../../../data/opsLogsCatalog';
-import { StampMark } from './paperShared';
+import { SignStep, StampData, StampMark, draftedStamp } from './paperShared';
 
 // Shared building blocks for every Ops Log print sheet (see
 // OpsLogsTab.tsx's Print button). Unlike the 3 audit forms (Gemba Walk,
@@ -98,11 +98,13 @@ const STEP_LABEL: Record<SignoffStep, string> = {
 export function OpsPrintSignoff({ submission }: { submission: Submission }) {
   const chain = SIGNOFF_CHAINS[submission.type as SignoffChainType] || [];
   const signoff = submission.meta?.signoff;
-  const draftedBy = signoff?.draftedBy;
 
-  const slots: { label: string; name?: string; at?: string; step?: SignoffStep }[] = [
-    { label: 'Drafted', name: draftedBy?.name || submission.userName, at: draftedBy?.at || submission.timestamp },
-    ...chain.map((step) => ({ label: STEP_LABEL[step], name: signoff?.[step]?.name, at: signoff?.[step]?.at, step })),
+  // Drafted (the filer) · then each reviewer step in chain order — e.g.
+  // Drafted | Checked (Supervisor) | Approved (Manager). A finished log
+  // shows a stamp in every column with the person's full name on the line.
+  const slots: { label: string; step: SignStep; stamp?: StampData }[] = [
+    { label: 'Drafted', step: 'draftedBy', stamp: draftedStamp(submission) },
+    ...chain.map((step) => ({ label: STEP_LABEL[step], step: step as SignStep, stamp: signoff?.[step] as StampData | undefined })),
   ];
 
   return (
@@ -110,21 +112,15 @@ export function OpsPrintSignoff({ submission }: { submission: Submission }) {
       <tbody>
         <tr>
           {slots.map((s) => (
-            <td key={s.label} className="align-top px-2" style={{ width: `${100 / slots.length}%` }}>
-              <p style={{ fontSize: '8px' }} className="font-bold">{s.label}</p>
-              {s.step && signoff?.[s.step] ? (
-                <div className="border-b border-black flex items-end justify-center" style={{ minHeight: '28px', paddingBottom: 3 }}>
-                  <StampMark step={s.step} stamp={signoff[s.step]} />
-                </div>
-              ) : (
-                <>
-                  <div className="border-b border-black" style={{ height: '28px' }} />
-                  <p style={{ fontSize: '7px' }}>
-                    {s.name || ''}
-                    {s.at ? <><br />{new Date(s.at).toLocaleString('en-GB')}</> : ''}
-                  </p>
-                </>
-              )}
+            <td key={s.label} className="align-top px-3 text-center" style={{ width: `${100 / slots.length}%` }}>
+              <p style={{ fontSize: '8px' }} className="font-bold text-left">{s.label}</p>
+              <div className="flex items-center justify-center" style={{ height: 62 }}>
+                {s.stamp?.name ? <StampMark step={s.step} stamp={s.stamp} /> : null}
+              </div>
+              <div className="border-b border-black pb-0.5 font-bold" style={{ fontSize: '9px', minHeight: 14 }}>{s.stamp?.name?.toUpperCase() || ''}</div>
+              <p style={{ fontSize: '7px' }} className="pt-0.5">
+                {s.stamp?.at ? new Date(s.stamp.at).toLocaleString('en-GB') : ''}
+              </p>
             </td>
           ))}
         </tr>

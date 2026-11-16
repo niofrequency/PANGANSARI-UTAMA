@@ -1,7 +1,7 @@
 import { Fragment } from 'react';
 import { Submission } from '../../../types';
 import { RESTROOM_GROUPS, RESTROOM_SLOTS } from '../../../data/restroomData';
-import { C, CC, PaperHeader, PrintPage, PrintSheetProps, submissionDate, initials, StampMark } from './paperShared';
+import { C, CC, PaperHeader, PrintPage, PrintSheetProps, submissionDate, initials, StampMark, draftedStamp } from './paperShared';
 
 const BLOCKS_PER_PAGE = 6;
 const MARK_LABEL: Record<string, string> = { bersih: 'Bersih', tersedia: 'Tersedia', tidak: 'Tidak', rusak: 'Rusak' };
@@ -55,7 +55,7 @@ export function RestroomPrintSheet({ submission, allSubmissions = [] }: PrintShe
           <div className="flex justify-between py-0.5">
             <span><b>Lokasi :</b> {submission.siteName}{section ? ` — ${section}` : ''}</span>
             <span><b>Section :</b> {section}</span>
-            <span><b>Diperiksa Oleh:</b> {sign?.checkedBy ? <StampMark small step="checkedBy" stamp={sign.checkedBy} /> : (sign?.approvedBy?.name || '')}</span>
+            <span><b>Diperiksa Oleh:</b> {sign?.checkedBy ? <><StampMark small step="checkedBy" stamp={sign.checkedBy} /> <b>{sign.checkedBy.name.toUpperCase()}</b></> : ''}</span>
           </div>
 
           <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
@@ -105,9 +105,14 @@ export function RestroomPrintSheet({ submission, allSubmissions = [] }: PrintShe
           <div className="flex justify-between pt-1">
             <div className="italic">Catat Masalah - Masalah yang di temui dalam<br />Form Penyimpangan.</div>
             <div className="text-center">
+              <b>Dibuat Oleh</b>
+              <div style={{ minHeight: 22 }} className="flex items-end justify-center"><StampMark step="draftedBy" stamp={draftedStamp(submission)} /></div>
+              <b>{draftedStamp(submission).name.toUpperCase()}</b>
+            </div>
+            <div className="text-center">
               <b>Tanda tangan Atasan</b>
               <div style={{ minHeight: 22 }} className="flex items-end justify-center">{sign?.approvedBy ? <StampMark step="approvedBy" stamp={sign.approvedBy} /> : sign?.verifiedBy ? <StampMark step="verifiedBy" stamp={sign.verifiedBy} /> : ''}</div>
-              ( ........................................ )
+              {(sign?.approvedBy || sign?.verifiedBy) ? <b>( {(sign?.approvedBy || sign?.verifiedBy)?.name?.toUpperCase()} )</b> : '( ........................................ )'}
             </div>
           </div>
         </div>

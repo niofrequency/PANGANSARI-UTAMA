@@ -1,5 +1,5 @@
 import { DISHWASH_ROUNDS, DISHWASH_LOCATIONS } from '../../../data/dishwashData';
-import { B, C, CC, PaperLogo, PrintPage, PrintSheetProps, SigBlock, daysInMonth, monthLabel, initials } from './paperShared';
+import { B, C, CC, PaperLogo, PrintPage, PrintSheetProps, SigBlock, daysInMonth, monthLabel, initials, draftedStamp } from './paperShared';
 
 const ROUND_LABEL: Record<string, string> = { '07': 'Pagi (07.00)', '12': 'Siang (12.00)', '18': 'Malam (18.00)' };
 const HEAD_BG = '#cfe2f3';
@@ -108,7 +108,7 @@ export function DishwashPrintSheet({ submission, allSubmissions = [] }: PrintShe
 
       <div className="flex justify-between px-6 pt-4">
         <SigBlock heading="Mengetahui :" role="Pengawas/Process Owner" name={reviewer?.name} at={reviewer?.at} stamps={[['checkedBy', so?.checkedBy], ['approvedBy', so?.approvedBy], ['verifiedBy', so?.verifiedBy]]} />
-        <SigBlock heading="Petugas:" role={' '} name={submission.meta?.signoff?.draftedBy?.name || submission.userName} />
+        <SigBlock heading="Petugas:" role={' '} name={submission.meta?.signoff?.draftedBy?.name || submission.userName} step="draftedBy" stamp={draftedStamp(submission)} />
       </div>
     </PrintPage>
   );
