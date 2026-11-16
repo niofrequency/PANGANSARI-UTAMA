@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
 import { AnalyticsDashboard } from '../Dashboard/AnalyticsDashboard';
 import {
@@ -26,6 +26,7 @@ import { useDateFilter } from '../../hooks/useDateFilter';
 import { isValidStaffCode } from '../../utils/staffCode';
 import { cloudinaryUrl } from '../../utils/cloudinaryUrl';
 import { PrintQrPanel } from './PrintQrPanel';
+import { SubmissionDetailPage, useBackToClose } from '../OpsLogs/SubmissionDetailPage';
 import { UserManagementPanel } from './UserManagementPanel';
 import { ChatTab, useChatTab, useOpenChatSignal } from '../Chat/ChatTab';
 import { ImportStaffPanel } from './ImportStaffPanel';
@@ -44,6 +45,9 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
   const [activitySearch, setActivitySearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | Submission['status']>('ALL');
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
+  // A log opens as its own page; the phone/browser Back button returns here.
+  useBackToClose(!!selectedSubmission, () => setSelectedSubmission(null));
+  useEffect(() => { if (activeTab !== 'ACTIVITY') setSelectedSubmission(null); }, [activeTab]);
   // Submissions-only — Warnings/Actions have their own timestamps but
   // aren't "past checklists" in the sense this filter is for.
   const activityDateFilter = useDateFilter();
@@ -193,7 +197,17 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
           </motion.div>
         )}
 
-        {activeTab === 'ACTIVITY' && (
+        {activeTab === 'ACTIVITY' && selectedSubmission && (
+          <motion.div key="activity-detail" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <SubmissionDetailPage
+              store={store}
+              submission={selectedSubmission}
+              onBack={() => window.history.state?.psuDetail ? window.history.back() : setSelectedSubmission(null)}
+            />
+          </motion.div>
+        )}
+
+        {activeTab === 'ACTIVITY' && !selectedSubmission && (
           <motion.div
             key="activity"
             initial={{ opacity: 0, scale: 0.98 }}
@@ -410,87 +424,6 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
         )}
       </AnimatePresence>
       </DesktopShell>
-
-      {/* Submission Detail Modal (read-only — Admin can see everything but
-          approving/rejecting stays with Supervisors/Managers) */}
-      <AnimatePresence>
-        {selectedSubmission && (
-          <Modal size="md" boxClassName="rounded-[32px] overflow-hidden flex flex-col max-h-[85vh]">
-              <div className="p-8 overflow-y-auto">
-                <div className="flex justify-between items-start mb-8">
-                  <div>
-                    <h3 className="text-xl font-bold tracking-tight text-psu-gray">{t('admin.detailTitle')}</h3>
-                    <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-1">{t('supervisorHK.entryId')}{selectedSubmission.id.slice(-6)}</p>
-                  </div>
-                  <button onClick={() => setSelectedSubmission(null)} className="p-2 text-psu-gray/30 hover:text-psu-rejected transition-colors">
-                    <XCircle size={24} />
-                  </button>
-                </div>
-
-                <div className="space-y-6">
-                  <div className="bg-psu-bg p-5 rounded-2xl border border-psu-gray/5 flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-4 min-w-0">
-                      <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm shrink-0">
-                        <UserIcon className="text-psu-blue" size={24} />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[9px] font-black text-psu-gray/40 uppercase tracking-widest">{t('admin.submittedBy')}</p>
-                        <p className="text-sm font-bold text-psu-gray truncate">{selectedSubmission.userName}</p>
-                        <p className="text-[10px] text-psu-gray/40 truncate">{selectedSubmission.siteName}</p>
-                      </div>
-                    </div>
-                    <span className={statusBadgeClass(selectedSubmission.status)}>{statusLabel(selectedSubmission.status)}</span>
-                  </div>
-
-                  {/* HOUSEKEEPING (UN.00.65): one proof photo for the whole
-                      submission, not per item. */}
-                  {selectedSubmission.meta?.photoUrl && (
-                    <button
-                      type="button"
-                      onClick={() => setLightboxUrl(cloudinaryUrl(selectedSubmission.meta!.photoUrl, 1600) ?? null)}
-                      className="block w-full rounded-2xl overflow-hidden border border-psu-gray/5"
-                    >
-                      <img src={cloudinaryUrl(selectedSubmission.meta.photoUrl, 800)} className="w-full h-48 object-cover" alt="Proof" />
-                    </button>
-                  )}
-
-                  <div className="space-y-4">
-                    <h4 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em] border-b border-psu-gray/5 pb-2">{t('supervisorHK.checklistTitle')}</h4>
-                    {selectedSubmission.items.map((item, idx) => (
-                      <div key={idx} className="bg-white border border-psu-gray/10 p-4 rounded-2xl">
-                        <div className="flex justify-between items-start gap-4">
-                          <p className="text-xs font-bold text-psu-gray leading-relaxed">{item.question}</p>
-                          <span className={cn(
-                            "text-[9px] font-black px-2 py-1 rounded-md shrink-0",
-                            item.answer === true ? "bg-psu-green/10 text-psu-green" : "bg-psu-blue/10 text-psu-blue"
-                          )}>
-                            {item.answer === true ? t('supervisorHK.pass') : item.answer === false ? t('supervisorHK.fail') : item.answer}
-                          </span>
-                        </div>
-                        {item.photoUrl && (
-                          <button
-                            type="button"
-                            onClick={() => setLightboxUrl(cloudinaryUrl(item.photoUrl, 1600) ?? null)}
-                            className="block w-full mt-4 rounded-xl overflow-hidden border border-psu-gray/5"
-                          >
-                            <img src={cloudinaryUrl(item.photoUrl, 600)} className="w-full h-40 object-cover" alt="Proof" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
-                  {selectedSubmission.rejectionReason && (
-                    <div className="bg-psu-rejected/5 border border-psu-rejected/10 p-4 rounded-2xl">
-                      <p className="text-[10px] font-black text-psu-rejected uppercase tracking-widest mb-1">{t('common.rejected')}</p>
-                      <p className="text-xs text-psu-gray/70">{selectedSubmission.rejectionReason}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-          </Modal>
-        )}
-      </AnimatePresence>
 
       <Lightbox src={lightboxUrl} onClose={() => setLightboxUrl(null)} />
     </div>

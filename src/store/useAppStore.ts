@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { User, Submission, UserRole, Site, Warning, TrainingModule, FieldReport, FieldReportStatus, CorrectiveAction, CorrectiveActionStatus, ChatMessage, CheckSchedule, MissedCheck } from '../types';
 import { subscribeMyMessages, addMessageDoc, markMessageReadDoc, editMessageDoc, deleteMessageForEveryoneDoc, hideMessageForMeDoc } from '../services/chatService';
 import { canChatUsers, conversationId, canStillEdit } from '../lib/chatPolicy';
+import { canManageSubmission } from '../lib/submissionAuthority';
 import { registerPush, unregisterPush, setAppBadgeCount } from '../lib/pushNotifications';
 import { INITIAL_USERS, INITIAL_SUBMISSIONS, INITIAL_WARNINGS, INITIAL_FIELD_REPORTS, INITIAL_CORRECTIVE_ACTIONS, SITES, TRAINING_MODULES } from '../data/mockData';
 import { isFirebaseConfigured } from '../lib/firebase';
@@ -699,9 +700,11 @@ export function useAppStore() {
   // happened. The record stays in Firestore/localStorage forever, with
   // its original status untouched; `submissions` below just filters
   // every deletedAt-set entry out of what any screen actually shows.
+  // Own entries, or (chain of command) an entry filed by someone ranked
+  // below you — see lib/submissionAuthority.ts and firestore.rules.
   const deleteSubmission = (submissionId: string) => {
     const target = submissions.find(s => s.id === submissionId);
-    if (!target || !currentUser || target.userId !== currentUser.id) return;
+    if (!target || !currentUser || (target.userId !== currentUser.id && !canManageSubmission(currentUser, target))) return;
     const deletedBy = { userId: currentUser.id, name: currentUser.name };
     const patch = { deletedAt: new Date().toISOString(), deletedBy };
 
@@ -759,6 +762,28 @@ export function useAppStore() {
   // chain — same "someone has to decide" moment a plain Reject always
   // was, just with the sign-off chain's partial progress left in place
   // (as a record of how far it got) until it's actually resubmitted.
+  // Chain of command: a Supervisor or higher sends a log (any status, even
+  // APPROVED) back down to whoever filed it. Every sign-off stamp is
+  // cleared, so once it's fixed it has to climb the whole chain again.
+  const returnSubmission = (submissionId: string, note: string) => {
+    const target = submissions.find(s => s.id === submissionId);
+    if (!currentUser || !target || !note.trim() || !canManageSubmission(currentUser, target)) return;
+    const returned = { userId: currentUser.id, name: currentUser.name, role: currentUser.role, at: new Date().toISOString(), note: note.trim(), fromStatus: target.status };
+    const signoff = target.meta?.signoff?.draftedBy ? { draftedBy: target.meta.signoff.draftedBy } : {};
+    if (isFirebaseConfigured) {
+      updateSubmissionDoc(submissionId, {
+        status: 'REJECTED',
+        rejectionReason: note.trim(),
+        'meta.returned': returned,
+        'meta.signoff': signoff,
+      }).catch((err) => console.error('returnSubmission failed:', err));
+      return;
+    }
+    setSubmissions(prev => prev.map(s => s.id === submissionId
+      ? { ...s, status: 'REJECTED' as const, rejectionReason: note.trim(), meta: { ...s.meta, returned, signoff } }
+      : s));
+  };
+
   const rejectSignoff = (submissionId: string, reason: string) => {
     if (isFirebaseConfigured) {
       updateSubmissionDoc(submissionId, { status: 'REJECTED', rejectionReason: reason.trim() })
@@ -1189,6 +1214,7 @@ export function useAppStore() {
     logout,
     addSubmission,
     deleteSubmission,
+    returnSubmission,
     addSignoffStamp,
     rejectSignoff,
     resubmitAfterRejection,

@@ -222,6 +222,14 @@ export interface Submission {
       verifiedBy?: { userId: string; name: string; at: string };
     };
 
+    // Chain of command: a Supervisor or higher sent this log back for
+    // correction (any status, see lib/submissionAuthority.ts). Its sign-off
+    // stamps were cleared at that moment, so once fixed it climbs the whole
+    // chain again. Kept after the fix as a record of what happened.
+    returned?: { userId: string; name: string; role: string; at: string; note: string; fromStatus: string };
+    // Set by the filer when they send a returned log back up ("Fixed").
+    fixNote?: string;
+
     // RESTROOM (UN.00.45) — its 3 daily slots
     slot?: '08' | '11' | '16';
     // COOKING_SERVICE / HOT_PACKED_MEAL / THAWING — true if any reading on

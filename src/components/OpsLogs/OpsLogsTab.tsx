@@ -1,19 +1,15 @@
 import { useState, ComponentType } from 'react';
 import { useAppStore } from '../../store/useAppStore';
-import { Modal } from '../Modal';
-import { Lightbox } from '../Lightbox';
 import { ListCard } from '../ListCard';
 import { SubmissionHistoryList } from '../SubmissionHistoryList';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { cn } from '../../utils/cn';
 import { motion, AnimatePresence } from 'motion/react';
-import { ClipboardList, ChevronLeft, ChevronRight, CheckCircle2, XCircle, Clock, Stamp, Pencil, AlertTriangle, Printer } from 'lucide-react';
+import { ClipboardList, ChevronRight, CheckCircle2, XCircle, Clock, Pencil, AlertTriangle, CornerUpLeft } from 'lucide-react';
 import { Submission, OpsLogType } from '../../types';
 import { OPS_LOG_DEFS, OpsDepartment, departmentOf, titleKeyForChainType } from '../../data/opsLogsCatalog';
-import { SignoffProgress, nextSignoffStep, RejectButton, OpsFormProps } from './opsHelpers';
+import { SignoffProgress, nextSignoffStep, OpsFormProps } from './opsHelpers';
 import { userCanSeeSite } from '../../lib/siteScope';
-import { cloudinaryUrl } from '../../utils/cloudinaryUrl';
-import { DAILY_FOOD_HANDLER_ALL_CRITERIA } from '../../data/dailyFoodHandlerData';
 import { MessHallHygieneForm } from './MessHallHygieneForm';
 import { CookingServiceForm } from './CookingServiceForm';
 import { HotPackedMealForm } from './HotPackedMealForm';
@@ -23,50 +19,7 @@ import { LaundryShopForm } from './LaundryShopForm';
 import { RestroomForm } from './RestroomForm';
 import { TempControlForm } from './TempControlForm';
 import { DishwashForm } from './DishwashForm';
-import { MessHallHygienePrintSheet } from './print/MessHallHygienePrintSheet';
-import { CookingServicePrintSheet } from './print/CookingServicePrintSheet';
-import { HotPackedMealPrintSheet } from './print/HotPackedMealPrintSheet';
-import { ThawingPrintSheet } from './print/ThawingPrintSheet';
-import { StaffReadyPrintSheet } from './print/StaffReadyPrintSheet';
-import { LaundryShopPrintSheet } from './print/LaundryShopPrintSheet';
-import { RestroomPrintSheet } from './print/RestroomPrintSheet';
-import { RoomCleaningPrintSheet } from './print/RoomCleaningPrintSheet';
-import { FoodSafetyDailyLogPrintSheet } from './print/FoodSafetyDailyLogPrintSheet';
-import { TempControlPrintSheet } from './print/TempControlPrintSheet';
-import { DishwashPrintSheet } from './print/DishwashPrintSheet';
-import { PrintSheetProps } from './print/paperShared';
-
-// One print sheet per type this tab's shared detail modal can show —
-// every Ops Log type, plus the 2 review-only types (HOUSEKEEPING/
-// FOOD_SAFETY) that share this same modal. Only Supervisor/Manager/GM/
-// Admin ever reach this modal (see this file's own header comment), so
-// the Print button below needs no extra role check of its own — same
-// reasoning as InspectionsTab.tsx's report views. Gemba Walk (the third
-// review-only type) already has its own Print button on
-// GembaWalkReportView.tsx and isn't duplicated here.
-const OPS_PRINT_COMPONENTS: Partial<Record<Submission['type'], ComponentType<PrintSheetProps>>> = {
-  TEMP_CONTROL: TempControlPrintSheet,
-  DISHWASH_TEMP: DishwashPrintSheet,
-  MESS_HALL_HYGIENE: MessHallHygienePrintSheet,
-  COOKING_SERVICE: CookingServicePrintSheet,
-  HOT_PACKED_MEAL: HotPackedMealPrintSheet,
-  THAWING: ThawingPrintSheet,
-  STAFF_READY: StaffReadyPrintSheet,
-  LAUNDRY_SHOP: LaundryShopPrintSheet,
-  RESTROOM: RestroomPrintSheet,
-  HOUSEKEEPING: RoomCleaningPrintSheet,
-  FOOD_SAFETY: FoodSafetyDailyLogPrintSheet,
-};
-
-// A Food Safety Technician's daily log folds in a personal wellness/
-// hygiene/PPE self-check. If any of those items came back false, that's
-// not a routine failed checklist item, it's someone reporting they may
-// not be fit to handle food — worth surfacing before a reviewer opens the
-// card, not just visible once they do. Carried over from the old Field
-// Queue/Escalations screens this tab absorbed.
-const isNotReadyToWork = (s: Submission) =>
-  s.type === 'FOOD_SAFETY' &&
-  DAILY_FOOD_HANDLER_ALL_CRITERIA.some(c => s.items.find(i => i.id === c.id)?.answer === false);
+import { SubmissionDetailPage, isNotReadyToWork, useBackToClose } from './SubmissionDetailPage';
 
 // Which OpsLogTypes actually reconstruct their form state from an
 // existing submission (see each form's own `editingSubmission` handling)
@@ -126,7 +79,6 @@ export function OpsLogsTab({
   const [selected, setSelected] = useState<Submission | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [queueOpen, setQueueOpen] = useState(true);
-  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   const defs = OPS_LOG_DEFS.filter(d => d.department === department);
   const fillableDefs = tier === 'supervisor'
@@ -193,246 +145,14 @@ export function OpsLogsTab({
     );
   }
 
-  // Mobile/tablet popup content (below lg) — the Modal that used to be
-  // the only way this detail was ever shown. From lg up, a dedicated
-  // full-page view takes over instead (renderDesktopPage below); this one
-  // is now mobile-only.
-  const renderDetailPanel = (selected: Submission) => (
-    <>
-      {/* Only Supervisor/Manager/GM/Admin ever reach this panel — see
-          this file's header comment — so the Print button needs no
-          extra role check of its own. OPS_PRINT_COMPONENTS covers every
-          type this panel can show except Gemba Walk, which already has
-          its own Print button on GembaWalkReportView.tsx. */}
-      {OPS_PRINT_COMPONENTS[selected.type] && (() => {
-        const PrintSheet = OPS_PRINT_COMPONENTS[selected.type]!;
-        return <div className="hidden print:block"><PrintSheet submission={selected} allSubmissions={submissions.filter(x => !x.deletedAt)} /></div>;
-      })()}
-      <div className="p-8 overflow-y-auto print:hidden">
-        <div className="flex justify-between items-start mb-6">
-          <div>
-            <h3 className="text-lg font-bold tracking-tight text-psu-gray">{titleKeyFor(selected) ? t(titleKeyFor(selected)!) : selected.type}</h3>
-            <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-1">{selected.userName} · {selected.siteName}</p>
-          </div>
-          <div className="flex items-center gap-1 shrink-0">
-            {OPS_PRINT_COMPONENTS[selected.type] && (
-              <button onClick={() => window.print()} className="p-2 text-psu-gray/30 hover:text-psu-blue transition-colors" title={t('common.printButton')}>
-                <Printer size={20} />
-              </button>
-            )}
-            <button onClick={() => setSelected(null)} className="p-2 text-psu-gray/30 hover:text-psu-rejected transition-colors"><XCircle size={22} /></button>
-          </div>
-        </div>
+  const closeDetail = () => setSelected(null);
+  useBackToClose(!!selected, closeDetail);
 
-        <div className="mb-5"><SignoffProgress submission={selected} /></div>
-
-        {isNotReadyToWork(selected) && (
-          <div className="mb-5 bg-psu-rejected/10 border border-psu-rejected/20 rounded-2xl p-4 flex items-center gap-3">
-            <AlertTriangle className="text-psu-rejected shrink-0" size={20} />
-            <p className="text-xs font-bold text-psu-rejected">{t('supervisorHK.notReadyDetailBanner')}</p>
-          </div>
-        )}
-
-        {selected.status === 'REJECTED' && selected.rejectionReason && (
-          <div className="mb-5 bg-psu-rejected/10 border border-psu-rejected/20 rounded-2xl p-4 space-y-1">
-            <p className="text-[10px] font-black text-psu-rejected uppercase tracking-widest">{t('ops.signoff.rejectedBanner')}</p>
-            <p className="text-xs text-psu-gray/70 font-medium">{selected.rejectionReason}</p>
-          </div>
-        )}
-
-        {selected.wasApprovedBeforeEdit && (
-          <div className="mb-5 bg-psu-rejected/10 border border-psu-rejected/20 rounded-2xl p-4 flex items-center gap-3">
-            <Pencil className="text-psu-rejected shrink-0" size={18} />
-            <p className="text-xs font-bold text-psu-rejected">{t('ops.signoff.editedAfterApprovalBanner')}</p>
-          </div>
-        )}
-
-        {/* HOUSEKEEPING (UN.00.65): one proof photo for the whole
-            submission, not per item. */}
-        {selected.meta?.photoUrl && (
-          <button
-            type="button"
-            onClick={() => setLightboxUrl(cloudinaryUrl(selected.meta!.photoUrl, 1600) ?? null)}
-            className="block w-full mb-5 rounded-2xl overflow-hidden border border-psu-gray/5"
-          >
-            <img src={cloudinaryUrl(selected.meta.photoUrl, 800)} className="w-full h-48 object-cover" alt="Proof" />
-          </button>
-        )}
-
-        <div className="space-y-3">
-          {selected.items.map((item, idx) => (
-            <div key={idx} className="bg-psu-bg border border-psu-gray/10 p-4 rounded-2xl">
-              <p className="text-xs font-bold text-psu-gray">{item.question}</p>
-              {item.answer !== '' && (
-                <p className="text-xs text-psu-gray/60 mt-1">
-                  {item.answer === true ? t('supervisorHK.pass') : item.answer === false ? t('supervisorHK.fail') : String(item.answer)}
-                </p>
-              )}
-              {item.remarks && <p className="text-[10px] text-psu-gray/40 mt-1 italic">{item.remarks}</p>}
-              {item.photoUrl && (
-                <button type="button" onClick={() => setLightboxUrl(cloudinaryUrl(item.photoUrl, 1600) ?? null)} className="block mt-2">
-                  <img src={cloudinaryUrl(item.photoUrl, 500)} className="w-full h-32 object-cover rounded-xl" alt="" />
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {selected.status === 'PENDING' && nextSignoffStep(selected) && (tier === 'supervisor' ? nextSignoffStep(selected) === 'checkedBy' : true) && (
-        <div className="p-6 bg-psu-bg/30 border-t border-psu-gray/5 space-y-3 print:hidden">
-          <button onClick={() => handleStamp(selected)}
-            className="w-full flex items-center justify-center gap-2 py-4 bg-psu-green text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-psu-green/20 active:scale-95 transition-all"
-          >
-            <Stamp size={16} /> {t('ops.stampButton')} — {t(`ops.signoff.${nextSignoffStep(selected)}`)}
-          </button>
-          <div className="flex">
-            <RejectButton onReject={(reason) => handleReject(selected, reason)} />
-          </div>
-        </div>
-      )}
-
-      {selected.status === 'REJECTED' && selected.userId === currentUser?.id && EDITABLE_OPS_LOG_TYPES.includes(selected.type as OpsLogType) && (
-        <div className="p-6 bg-psu-bg/30 border-t border-psu-gray/5 print:hidden">
-          <button onClick={() => handleEdit(selected)}
-            className="w-full flex items-center justify-center gap-2 py-4 bg-psu-blue text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-psu-blue/20 active:scale-95 transition-all"
-          >
-            <Pencil size={16} /> {t('ops.signoff.editAndResubmit')}
-          </button>
-        </div>
-      )}
-    </>
-  );
-
-  // Desktop-only (lg and up) — a dedicated full-width page instead of a
-  // popup, navigated to by selecting a queue/history row and back out of
-  // via the button below, the same "list page ↔ detail page" navigation
-  // InspectionsTab.tsx's audit report views already use. Not a sidebar
-  // next to the list — the list is hidden entirely while this is open
-  // (see the render below), so the checklist gets the full page instead
-  // of sharing it. Below lg this never renders at all; the mobile popup
-  // (renderDetailPanel above) is what shows instead.
-  const renderDesktopPage = (selected: Submission) => {
-    const canStamp = selected.status === 'PENDING' && nextSignoffStep(selected) && (tier === 'supervisor' ? nextSignoffStep(selected) === 'checkedBy' : true);
-    const canEdit = selected.status === 'REJECTED' && selected.userId === currentUser?.id && EDITABLE_OPS_LOG_TYPES.includes(selected.type as OpsLogType);
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between print:hidden">
-          <button onClick={() => setSelected(null)} className="flex items-center gap-2 text-xs font-black text-psu-gray/40 uppercase tracking-widest hover:text-psu-gray transition-colors">
-            <ChevronLeft size={16} /> {t('inspection.backToList')}
-          </button>
-          {OPS_PRINT_COMPONENTS[selected.type] && (
-            <button onClick={() => window.print()} className="flex items-center gap-2 bg-psu-gray/5 text-psu-gray px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all">
-              <Printer size={14} /> {t('common.printButton')}
-            </button>
-          )}
-        </div>
-
-        {OPS_PRINT_COMPONENTS[selected.type] && (() => {
-          const PrintSheet = OPS_PRINT_COMPONENTS[selected.type]!;
-          return <div className="hidden print:block"><PrintSheet submission={selected} allSubmissions={submissions.filter(x => !x.deletedAt)} /></div>;
-        })()}
-
-        {/* Single column, full width — Stamp/Reject/Edit used to live in
-            their own sticky sidebar column here, which left the checklist
-            squeezed into 2/3 of the page. They now sit above the photo
-            instead, so the checklist itself can stretch across the whole
-            width below. */}
-        <div className="print:hidden space-y-6">
-          <div className="card space-y-4">
-            <div>
-              <h2 className="text-2xl font-black text-psu-gray">{titleKeyFor(selected) ? t(titleKeyFor(selected)!) : selected.type}</h2>
-              <p className="text-xs text-psu-gray/40 font-black uppercase tracking-widest mt-1">{selected.userName} · {selected.siteName}</p>
-            </div>
-
-            <SignoffProgress submission={selected} />
-
-            {isNotReadyToWork(selected) && (
-              <div className="bg-psu-rejected/10 border border-psu-rejected/20 rounded-2xl p-4 flex items-center gap-3">
-                <AlertTriangle className="text-psu-rejected shrink-0" size={20} />
-                <p className="text-xs font-bold text-psu-rejected">{t('supervisorHK.notReadyDetailBanner')}</p>
-              </div>
-            )}
-
-            {selected.status === 'REJECTED' && selected.rejectionReason && (
-              <div className="bg-psu-rejected/10 border border-psu-rejected/20 rounded-2xl p-4 space-y-1">
-                <p className="text-[10px] font-black text-psu-rejected uppercase tracking-widest">{t('ops.signoff.rejectedBanner')}</p>
-                <p className="text-xs text-psu-gray/70 font-medium">{selected.rejectionReason}</p>
-              </div>
-            )}
-
-            {selected.wasApprovedBeforeEdit && (
-              <div className="bg-psu-rejected/10 border border-psu-rejected/20 rounded-2xl p-4 flex items-center gap-3">
-                <Pencil className="text-psu-rejected shrink-0" size={18} />
-                <p className="text-xs font-bold text-psu-rejected">{t('ops.signoff.editedAfterApprovalBanner')}</p>
-              </div>
-            )}
-
-            {(canStamp || canEdit) && (
-              <div className="space-y-3">
-                {canStamp && (
-                  <>
-                    <button onClick={() => handleStamp(selected)}
-                      className="w-full flex items-center justify-center gap-2 py-4 bg-psu-green text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-psu-green/20 active:scale-95 transition-all"
-                    >
-                      <Stamp size={16} /> {t('ops.stampButton')} — {t(`ops.signoff.${nextSignoffStep(selected)}`)}
-                    </button>
-                    {/* RejectButton's own button is flex-1 — needs a flex
-                        wrapper to stretch full-width, same as mobile. */}
-                    <div className="flex">
-                      <RejectButton onReject={(reason) => handleReject(selected, reason)} />
-                    </div>
-                  </>
-                )}
-                {canEdit && (
-                  <button onClick={() => handleEdit(selected)}
-                    className="w-full flex items-center justify-center gap-2 py-4 bg-psu-blue text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-psu-blue/20 active:scale-95 transition-all"
-                  >
-                    <Pencil size={16} /> {t('ops.signoff.editAndResubmit')}
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* HOUSEKEEPING (UN.00.65): one proof photo for the whole
-                submission, not per item. */}
-            {selected.meta?.photoUrl && (
-              <button
-                type="button"
-                onClick={() => setLightboxUrl(cloudinaryUrl(selected.meta!.photoUrl, 1600) ?? null)}
-                className="block w-full rounded-2xl overflow-hidden border border-psu-gray/5"
-              >
-                <img src={cloudinaryUrl(selected.meta.photoUrl, 1000)} className="w-full h-64 object-cover" alt="Proof" />
-              </button>
-            )}
-          </div>
-
-          {/* The full checklist, now free to spread across the whole page
-              width instead of sharing it with the actions sidebar. */}
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-            {selected.items.map((item, idx) => (
-              <div key={idx} className="bg-white border border-psu-gray/10 p-4 rounded-2xl">
-                <p className="text-xs font-bold text-psu-gray">{item.question}</p>
-                {item.answer !== '' && (
-                  <p className="text-xs text-psu-gray/60 mt-1 flex items-center gap-1.5">
-                    {item.answer === true && <CheckCircle2 size={13} className="text-psu-green shrink-0" />}
-                    {item.answer === false && <XCircle size={13} className="text-psu-rejected shrink-0" />}
-                    {item.answer === true ? t('supervisorHK.pass') : item.answer === false ? t('supervisorHK.fail') : String(item.answer)}
-                  </p>
-                )}
-                {item.remarks && <p className="text-[10px] text-psu-gray/40 mt-1 italic">{item.remarks}</p>}
-                {item.photoUrl && (
-                  <button type="button" onClick={() => setLightboxUrl(cloudinaryUrl(item.photoUrl, 1600) ?? null)} className="block mt-2">
-                    <img src={cloudinaryUrl(item.photoUrl, 500)} className="w-full h-32 object-cover rounded-xl" alt="" />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  };
+  // Logs a Supervisor/Manager (or anyone up the chain) sent back for
+  // correction, still waiting for the filer to fix them — shown to the
+  // whole chain until resolved.
+  const returnedWaiting = submissions.filter(s => s.status === 'REJECTED' && !s.deletedAt && inScope(s))
+    .sort((a, b) => new Date(b.meta?.returned?.at || b.timestamp).getTime() - new Date(a.meta?.returned?.at || a.timestamp).getTime());
 
   // Shared between the two places History can render (the collapsible
   // disclosure in 'full'/Manager Portal mode, and the plain list under its
@@ -464,17 +184,29 @@ export function OpsLogsTab({
     );
   };
 
+  // A log opens as its own page (every screen size), not a popup; Back —
+  // the page's button or the phone/browser's — returns to this list.
+  if (selected) {
+    const step = nextSignoffStep(selected);
+    const canStamp = selected.status === 'PENDING' && !!step && selected.userId !== currentUser?.id
+      && (tier === 'supervisor' ? step === 'checkedBy' : step === 'approvedBy' || step === 'verifiedBy');
+    const editable = selected.userId === currentUser?.id && EDITABLE_OPS_LOG_TYPES.includes(selected.type as OpsLogType);
+    return (
+      <SubmissionDetailPage
+        store={store}
+        submission={selected}
+        onBack={() => window.history.state?.psuDetail ? window.history.back() : closeDetail()}
+        canStamp={canStamp}
+        onStamp={() => handleStamp(selected)}
+        onReject={(reason) => handleReject(selected, reason)}
+        onEdit={editable ? () => handleEdit(selected) : undefined}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
-      {/* Desktop full page (lg and up) — replaces the list entirely while
-          open; see the list's own lg:hidden below. */}
-      {selected && (
-        <div className="hidden lg:block">
-          {renderDesktopPage(selected)}
-        </div>
-      )}
-
-      <div className={cn("space-y-6", selected && "lg:hidden")}>
+      <div className="space-y-6">
       {mode !== 'historyOnly' && fillableDefs.length > 0 && (
         <div className="space-y-3">
           <h3 className="text-[10px] font-black text-psu-gray/30 uppercase tracking-[0.2em] px-2">{t('ops.fillSectionTitle')}</h3>
@@ -580,6 +312,34 @@ export function OpsLogsTab({
         </div>
       )}
 
+      {mode !== 'historyOnly' && returnedWaiting.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="flex items-center justify-between px-2 text-[10px] font-black text-psu-warning uppercase tracking-[0.2em]">
+            <span className="flex items-center gap-1.5"><CornerUpLeft size={14} /> {t('ops.chain.returnedSection')}</span>
+            <span className="bg-psu-warning/10 px-3 py-1 rounded-full">{returnedWaiting.length}</span>
+          </h3>
+          <div className="card !p-0 overflow-hidden divide-y divide-psu-gray/5">
+            {returnedWaiting.map(r => {
+              const k = titleKeyFor(r);
+              return (
+                <button key={r.id} onClick={() => setSelected(r)} className="w-full text-left px-5 py-4 flex items-center justify-between gap-3 hover:bg-psu-bg">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-psu-gray truncate">{k ? t(k) : r.type}</p>
+                    <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5 truncate">
+                      {r.userName} · {r.siteName} · {new Date(r.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                    </p>
+                    <p className="text-[11px] text-psu-warning mt-1 truncate">
+                      {r.meta?.returned ? `${r.meta.returned.name}: ${r.meta.returned.note}` : r.rejectionReason}
+                    </p>
+                  </div>
+                  <ChevronRight size={16} className="text-psu-gray/20 shrink-0" />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {mode !== 'queueOnly' && (
         mode === 'historyOnly' ? (
           <div className="space-y-3">
@@ -621,21 +381,6 @@ export function OpsLogsTab({
       )}
       </div>
 
-      {/* Mobile/tablet only (below lg) — the desktop full page above
-          takes over from lg up, see backdropClassName below. */}
-      <AnimatePresence>
-        {selected && (
-          <Modal
-            size="md"
-            backdropClassName="print:static print:inset-auto print:block print:p-0 print:bg-transparent print:backdrop-blur-none lg:hidden"
-            boxClassName="rounded-[32px] overflow-hidden flex flex-col max-h-[85vh] print:block print:max-w-none print:max-h-none print:overflow-visible print:shadow-none print:rounded-none"
-          >
-            {renderDetailPanel(selected)}
-          </Modal>
-        )}
-      </AnimatePresence>
-
-      <Lightbox src={lightboxUrl} onClose={() => setLightboxUrl(null)} />
     </div>
   );
 }
