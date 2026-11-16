@@ -67,8 +67,8 @@ export function LaundryShopPrintSheet({ submission }: PrintSheetProps) {
 
           <div className="flex justify-around pt-2">
             <SigBlock heading="Dibuat Oleh," role="Laundryman/girl" name={sign?.draftedBy?.name || submission.userName} at={sign?.draftedBy?.at} />
-            <SigBlock heading="Diperiksa Oleh," role="Leader / Supervisor laundry" name={sign?.checkedBy?.name} at={sign?.checkedBy?.at} />
-            <SigBlock heading="Diketahui Oleh," role="Coord. / Asst.Manger / Manager" name={(sign?.approvedBy || sign?.verifiedBy)?.name} at={(sign?.approvedBy || sign?.verifiedBy)?.at} />
+            <SigBlock heading="Diperiksa Oleh," role="Leader / Supervisor laundry" name={sign?.checkedBy?.name} at={sign?.checkedBy?.at} step="checkedBy" stamp={sign?.checkedBy} />
+            <SigBlock heading="Diketahui Oleh," role="Coord. / Asst.Manger / Manager" name={(sign?.approvedBy || sign?.verifiedBy)?.name} at={(sign?.approvedBy || sign?.verifiedBy)?.at} step={sign?.approvedBy ? 'approvedBy' : 'verifiedBy'} stamp={sign?.approvedBy || sign?.verifiedBy} />
           </div>
         </div>
       ))}

@@ -21,7 +21,8 @@ export function DishwashPrintSheet({ submission, allSubmissions = [] }: PrintShe
     if (!d || !d.startsWith(month)) continue;
     byDay.set(Number(d.slice(8, 10)), s);
   }
-  const reviewer = submission.meta?.signoff?.checkedBy || submission.meta?.signoff?.approvedBy || submission.meta?.signoff?.verifiedBy;
+  const so = submission.meta?.signoff;
+  const reviewer = so?.checkedBy || so?.approvedBy || so?.verifiedBy;
 
   const docRows: [string, string][] = [
     ['No. Dokumen', 'UN.00.51'],
@@ -106,7 +107,7 @@ export function DishwashPrintSheet({ submission, allSubmissions = [] }: PrintShe
       </table>
 
       <div className="flex justify-between px-6 pt-4">
-        <SigBlock heading="Mengetahui :" role="Pengawas/Process Owner" name={reviewer?.name} at={reviewer?.at} />
+        <SigBlock heading="Mengetahui :" role="Pengawas/Process Owner" name={reviewer?.name} at={reviewer?.at} stamps={[['checkedBy', so?.checkedBy], ['approvedBy', so?.approvedBy], ['verifiedBy', so?.verifiedBy]]} />
         <SigBlock heading="Petugas:" role={' '} name={submission.meta?.signoff?.draftedBy?.name || submission.userName} />
       </div>
     </PrintPage>

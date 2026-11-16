@@ -108,9 +108,9 @@ export function OpsLogsTab({
 
   const history = submissions.filter(inScope).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-  const handleStamp = (s: Submission) => {
+  const handleStamp = (s: Submission, signature?: string) => {
     const step = nextSignoffStep(s);
-    if (step) addSignoffStamp(s.id, step);
+    if (step) addSignoffStamp(s.id, step, signature);
     setSelected(null);
   };
 
@@ -197,7 +197,7 @@ export function OpsLogsTab({
         submission={selected}
         onBack={() => window.history.state?.psuDetail ? window.history.back() : closeDetail()}
         canStamp={canStamp}
-        onStamp={() => handleStamp(selected)}
+        onStamp={(signature) => handleStamp(selected, signature)}
         onReject={(reason) => handleReject(selected, reason)}
         onEdit={editable ? () => handleEdit(selected) : undefined}
       />

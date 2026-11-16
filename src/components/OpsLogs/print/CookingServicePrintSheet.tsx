@@ -158,8 +158,8 @@ export function CookingServicePrintSheet({ submission }: PrintSheetProps) {
         </table>
 
         <div className="flex justify-between px-10 pt-2 pb-1">
-          <SigBlock heading="Approved by," name={sign?.approvedBy?.name || sign?.verifiedBy?.name} at={sign?.approvedBy?.at || sign?.verifiedBy?.at} />
-          <SigBlock heading="Reviewed by," name={sign?.checkedBy?.name} at={sign?.checkedBy?.at} />
+          <SigBlock heading="Approved by," name={sign?.approvedBy?.name || sign?.verifiedBy?.name} at={sign?.approvedBy?.at || sign?.verifiedBy?.at} step={sign?.approvedBy ? 'approvedBy' : 'verifiedBy'} stamp={sign?.approvedBy || sign?.verifiedBy} />
+          <SigBlock heading="Reviewed by," name={sign?.checkedBy?.name} at={sign?.checkedBy?.at} step="checkedBy" stamp={sign?.checkedBy} />
           <SigBlock heading="Prepared by," name={sign?.draftedBy?.name || submission.userName} at={sign?.draftedBy?.at} />
         </div>
         <div className="flex justify-between border-t border-black px-1 font-bold">
