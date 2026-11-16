@@ -792,6 +792,7 @@ export const translations = {
       remarkPlaceholder: 'Optional notes...',
       slotLabel: 'Slot',
       mealPeriodsLabel: 'Meal periods cooked today',
+      paper: { zoom: 'Zoom', fit: 'Fit to screen', photos: 'Photos' },
       chain: {
         returnButton: 'Return for correction',
         returnPlaceholder: 'What needs to be fixed?',
@@ -1722,6 +1723,7 @@ export const translations = {
       remarkPlaceholder: 'Catatan opsional...',
       slotLabel: 'Slot',
       mealPeriodsLabel: 'Waktu makan yang dimasak hari ini',
+      paper: { zoom: 'Perbesar', fit: 'Pas layar', photos: 'Foto' },
       chain: {
         returnButton: 'Kembalikan untuk perbaikan',
         returnPlaceholder: 'Apa yang perlu diperbaiki?',

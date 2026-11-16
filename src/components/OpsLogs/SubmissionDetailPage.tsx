@@ -1,5 +1,5 @@
-import { ComponentType, ReactNode, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle2, ChevronLeft, CornerUpLeft, Pencil, Printer, Send, Stamp, Trash2, XCircle } from 'lucide-react';
+import { ComponentType, ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { AlertTriangle, CheckCircle2, ChevronLeft, CornerUpLeft, Pencil, Printer, Send, Stamp, Trash2, XCircle, ZoomIn, ZoomOut } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { Submission } from '../../types';
@@ -23,11 +23,16 @@ import { FoodSafetyDailyLogPrintSheet } from './print/FoodSafetyDailyLogPrintShe
 import { TempControlPrintSheet } from './print/TempControlPrintSheet';
 import { DishwashPrintSheet } from './print/DishwashPrintSheet';
 import { PrintSheetProps } from './print/paperShared';
+import { GembaWalkPrintSheet } from '../Inspections/print/GembaWalkPrintSheet';
+import { InspectionPrintSheet } from '../Inspections/print/InspectionPrintSheet';
+import { DailyFoodHandlerPrintSheet } from '../Inspections/print/DailyFoodHandlerPrintSheet';
 
 type Store = ReturnType<typeof useAppStore>;
 
-// Paper-replica print sheet per log type (Gemba Walk prints from its own
-// report view).
+// Paper-replica sheet per log type: the same PSU paper form the worker's
+// checklist replaces. Shown on screen on the review page (so every level
+// of the chain reviews the form in its paper layout, with the stamps on
+// its signature lines) and used for Print.
 export const OPS_PRINT_COMPONENTS: Partial<Record<Submission['type'], ComponentType<PrintSheetProps>>> = {
   TEMP_CONTROL: TempControlPrintSheet,
   DISHWASH_TEMP: DishwashPrintSheet,
@@ -40,7 +45,60 @@ export const OPS_PRINT_COMPONENTS: Partial<Record<Submission['type'], ComponentT
   RESTROOM: RestroomPrintSheet,
   HOUSEKEEPING: RoomCleaningPrintSheet,
   FOOD_SAFETY: FoodSafetyDailyLogPrintSheet,
+  GEMBA_WALK: GembaWalkPrintSheet,
+  FOOD_SAFETY_INSPECTION: InspectionPrintSheet,
+  DAILY_FOOD_HANDLER: DailyFoodHandlerPrintSheet,
 };
+
+// Sheets laid out on landscape A4; the rest are portrait.
+const LANDSCAPE_SHEETS = new Set<Submission['type']>([
+  'MESS_HALL_HYGIENE', 'COOKING_SERVICE', 'HOT_PACKED_MEAL', 'THAWING', 'STAFF_READY', 'LAUNDRY_SHOP', 'RESTROOM', 'DAILY_FOOD_HANDLER',
+]);
+
+// Shows a paper sheet at its natural width (A4 proportions), scaled down to
+// fit the screen; "Zoom" switches to full size with sideways scrolling.
+function PaperOnScreen({ landscape, children }: { landscape: boolean; children: ReactNode }) {
+  const { t } = useTranslation();
+  const width = landscape ? 1100 : 780;
+  const outer = useRef<HTMLDivElement>(null);
+  const inner = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+  const [height, setHeight] = useState<number | undefined>(undefined);
+  const [zoomed, setZoomed] = useState(false);
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      if (!outer.current || !inner.current) return;
+      const sc = Math.min(1, outer.current.clientWidth / width);
+      setScale(sc);
+      setHeight(inner.current.offsetHeight * sc);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (outer.current) ro.observe(outer.current);
+    if (inner.current) ro.observe(inner.current);
+    return () => ro.disconnect();
+  }, [width]);
+
+  const fits = scale >= 0.999;
+  return (
+    <div className="card !p-3 md:!p-4 space-y-2 print:hidden">
+      {!fits && (
+        <div className="flex justify-end">
+          <button type="button" onClick={() => setZoomed(z => !z)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-psu-gray/5 text-psu-gray text-[10px] font-black uppercase tracking-widest">
+            {zoomed ? <ZoomOut size={13} /> : <ZoomIn size={13} />} {zoomed ? t('ops.paper.fit') : t('ops.paper.zoom')}
+          </button>
+        </div>
+      )}
+      <div ref={outer} className={cn('w-full', zoomed ? 'overflow-x-auto' : 'overflow-hidden')} style={zoomed ? undefined : { height }}>
+        <div ref={inner} style={{ width, transform: zoomed ? undefined : `scale(${scale})`, transformOrigin: 'top left' }}>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // A Food Safety Technician's daily log includes a wellness / hygiene / PPE
 // self-check; any "Not Good" there means they may not be fit to handle food.
@@ -230,26 +288,47 @@ export function SubmissionDetailPage({ store, submission, onBack, canStamp, onSt
           )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {s.items.map((item, idx) => (
-            <div key={idx} className="bg-white border border-psu-gray/10 p-4 rounded-2xl">
-              <p className="text-xs font-bold text-psu-gray">{item.question}</p>
-              {item.answer !== '' && item.answer !== undefined && (
-                <p className="text-xs text-psu-gray/60 mt-1 flex items-center gap-1.5">
-                  {item.answer === true && <CheckCircle2 size={13} className="text-psu-green shrink-0" />}
-                  {item.answer === false && <XCircle size={13} className="text-psu-rejected shrink-0" />}
-                  {item.answer === true ? t('supervisorHK.pass') : item.answer === false ? t('supervisorHK.fail') : String(item.answer)}
-                </p>
-              )}
-              {item.remarks && <p className="text-[10px] text-psu-gray/40 mt-1 italic">{item.remarks}</p>}
-              {item.photoUrl && (
-                <button type="button" onClick={() => setLightboxUrl(cloudinaryUrl(item.photoUrl, 1600) ?? null)} className="block mt-2">
-                  <img src={cloudinaryUrl(item.photoUrl, 500)} className="w-full h-32 object-cover rounded-xl" alt="" />
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
+        {PrintSheet ? (
+          <>
+            <PaperOnScreen landscape={LANDSCAPE_SHEETS.has(s.type)}>
+              <PrintSheet submission={s} allSubmissions={submissions.filter(x => !x.deletedAt)} />
+            </PaperOnScreen>
+            {s.items.some(i => i.photoUrl) && (
+              <div className="card space-y-3">
+                <p className="text-[10px] font-black text-psu-gray/40 uppercase tracking-widest">{t('ops.paper.photos')}</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {s.items.filter(i => i.photoUrl).map((item, idx) => (
+                    <button key={idx} type="button" onClick={() => setLightboxUrl(cloudinaryUrl(item.photoUrl, 1600) ?? null)} className="text-left">
+                      <img src={cloudinaryUrl(item.photoUrl, 500)} className="w-full h-32 object-cover rounded-xl" alt="" />
+                      <p className="text-[10px] text-psu-gray/60 mt-1 line-clamp-2">{item.question}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {s.items.map((item, idx) => (
+              <div key={idx} className="bg-white border border-psu-gray/10 p-4 rounded-2xl">
+                <p className="text-xs font-bold text-psu-gray">{item.question}</p>
+                {item.answer !== '' && item.answer !== undefined && (
+                  <p className="text-xs text-psu-gray/60 mt-1 flex items-center gap-1.5">
+                    {item.answer === true && <CheckCircle2 size={13} className="text-psu-green shrink-0" />}
+                    {item.answer === false && <XCircle size={13} className="text-psu-rejected shrink-0" />}
+                    {item.answer === true ? t('supervisorHK.pass') : item.answer === false ? t('supervisorHK.fail') : String(item.answer)}
+                  </p>
+                )}
+                {item.remarks && <p className="text-[10px] text-psu-gray/40 mt-1 italic">{item.remarks}</p>}
+                {item.photoUrl && (
+                  <button type="button" onClick={() => setLightboxUrl(cloudinaryUrl(item.photoUrl, 1600) ?? null)} className="block mt-2">
+                    <img src={cloudinaryUrl(item.photoUrl, 500)} className="w-full h-32 object-cover rounded-xl" alt="" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <ConfirmDeleteModal
