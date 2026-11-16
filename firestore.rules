@@ -171,6 +171,32 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/users/$(resource.data.email)).data.role != 'ADMIN';
     }
 
+    // ── chain of command (submissions) ─────────────────────────────
+    // Mirrors src/lib/submissionAuthority.ts: a Supervisor or anyone
+    // above them may delete or send back a log filed by someone ranked
+    // BELOW them, in the same department (Admin / GM: any department).
+    function roleRank(r) {
+      return r == 'ADMIN' ? 6
+        : r == 'GENERAL_MANAGER' ? 5
+        : r in ['HOUSEKEEPING_MANAGER', 'FOOD_SAFETY_MANAGER'] ? 4
+        : r in ['HOUSEKEEPING_SUPERVISOR', 'FOOD_SAFETY_SUPERVISOR'] ? 3
+        : r in ['HOUSEKEEPING_LEADHAND', 'FOOD_SAFETY_LEADHAND'] ? 2
+        : 1;
+    }
+    function roleDept(r) {
+      return r in ['ADMIN', 'GENERAL_MANAGER'] ? 'ALL'
+        : (r in ['HOUSEKEEPER', 'HOUSEKEEPING_LAUNDRY', 'HOUSEKEEPING_JANITOR', 'HOUSEKEEPING_LEADHAND', 'HOUSEKEEPING_SUPERVISOR', 'HOUSEKEEPING_MANAGER'] ? 'HK' : 'FS');
+    }
+    function outranksSubmitter() {
+      let me = get(/databases/$(database)/documents/users/$(email())).data;
+      let myRole = isSuperAdmin() ? 'ADMIN' : me.role;
+      return request.auth.uid != resource.data.userId
+        && me.get('isActive', true) != false
+        && roleRank(myRole) >= 3
+        && roleRank(myRole) > roleRank(resource.data.role)
+        && (roleDept(myRole) == 'ALL' || roleDept(myRole) == roleDept(resource.data.role));
+    }
+
     // ── submissions ─────────────────────────────────────────────────
     match /submissions/{submissionId} {
       allow read: if isSignedIn();
@@ -213,6 +239,16 @@ service cloud.firestore {
           && onlyChanged(['items', 'meta', 'score', 'status', 'rejectionReason', 'wasApprovedBeforeEdit']))
         ||
         (request.auth.uid == resource.data.userId
+          && onlyChanged(['deletedAt', 'deletedBy']))
+        ||
+        // 4. Chain of command: a superior sends the log back for
+        //    correction from ANY status (stamps cleared inside meta), …
+        (outranksSubmitter()
+          && request.resource.data.status == 'REJECTED'
+          && onlyChanged(['meta', 'status', 'rejectionReason']))
+        ||
+        // 5. … or soft-deletes it.
+        (outranksSubmitter()
           && onlyChanged(['deletedAt', 'deletedBy']))
       );
 

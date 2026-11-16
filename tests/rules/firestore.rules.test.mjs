@@ -122,6 +122,40 @@ test('submissions can never be hard-deleted', async () => {
   await assertFails(deleteDoc(doc(as(people.admin), 'submissions', 'sub-pending')));
 });
 
+test('chain of command: a superior can send back an APPROVED log and delete it', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'submissions', 'sub-approved'), {
+      userId: people.tech.uid, userName: 'tech', role: 'FOOD_SAFETY_TECHNICIAN', siteId: 'site-a', siteName: 'A',
+      timestamp: '2026-11-01T00:00:00.000Z', type: 'TEMP_CONTROL', status: 'APPROVED', items: [], meta: { signoff: { checkedBy: { name: 'x' } } },
+    });
+  });
+  const back = { status: 'REJECTED', rejectionReason: 'Recheck 16:00', 'meta.signoff': {}, 'meta.returned': { name: 'Sup', note: 'Recheck 16:00' } };
+  await assertSucceeds(updateDoc(doc(as(people.fsSupervisor), 'submissions', 'sub-approved'), back));
+  await assertSucceeds(updateDoc(doc(as(people.fsManager), 'submissions', 'sub-approved'), { deletedAt: 'now', deletedBy: { name: 'M' } }));
+});
+
+test('chain of command: peers, juniors and other departments cannot send back or delete', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'submissions', 'sub-sup'), {
+      userId: people.fsSupervisor.uid, userName: 'sup', role: 'FOOD_SAFETY_SUPERVISOR', siteId: 'site-a', siteName: 'A',
+      timestamp: '2026-11-01T00:00:00.000Z', type: 'COOKING_SERVICE', status: 'APPROVED', items: [], meta: {},
+    });
+  });
+  const back = { status: 'REJECTED', rejectionReason: 'x' };
+  const del = { deletedAt: 'now', deletedBy: { name: 'x' } };
+  // another supervisor (same rank): no
+  await assertFails(updateDoc(doc(as(people.fsSupervisorB), 'submissions', 'sub-sup'), back));
+  await assertFails(updateDoc(doc(as(people.fsSupervisorB), 'submissions', 'sub-sup'), del));
+  // frontline: no
+  await assertFails(updateDoc(doc(as(people.tech2), 'submissions', 'sub-pending'), del));
+  // housekeeping side can't delete a food-safety log
+  await assertFails(updateDoc(doc(as(people.housekeeper), 'submissions', 'sub-pending'), del));
+  // a superior still can't rewrite the answers while sending back
+  await assertFails(updateDoc(doc(as(people.fsManager), 'submissions', 'sub-sup'), { ...back, items: [{ id: '1' }] }));
+  // the manager above them can
+  await assertSucceeds(updateDoc(doc(as(people.fsManager), 'submissions', 'sub-sup'), back));
+});
+
 // ── corrective actions ─────────────────────────────────────────────
 test('the assignee can mark an action done but cannot verify it themselves', async () => {
   const t = as(people.tech);

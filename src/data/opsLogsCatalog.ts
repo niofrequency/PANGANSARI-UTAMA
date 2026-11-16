@@ -32,15 +32,17 @@ export type SignoffChainType = OpsLogType | 'HOUSEKEEPING' | 'FOOD_SAFETY' | 'GE
 // resubmitting (resubmitAfterRejection()) always restarts the chain from
 // the first step, regardless of how far it had gotten.
 export const SIGNOFF_CHAINS: Record<SignoffChainType, SignoffStep[]> = {
-  TEMP_CONTROL: ['checkedBy'],
-  DISHWASH_TEMP: ['checkedBy'],
+  // Every chain ends with a Manager step: worker → Supervisor/Leadhand
+  // (Checked by) → Manager (Approved by), up the chain of command.
+  TEMP_CONTROL: ['checkedBy', 'approvedBy'],
+  DISHWASH_TEMP: ['checkedBy', 'approvedBy'],
   MESS_HALL_HYGIENE: ['checkedBy', 'approvedBy', 'verifiedBy'],
   COOKING_SERVICE: ['checkedBy', 'approvedBy'],
   HOT_PACKED_MEAL: ['checkedBy', 'approvedBy'],
   THAWING: ['checkedBy', 'verifiedBy'],
   STAFF_READY: ['approvedBy', 'verifiedBy'],
   LAUNDRY_SHOP: ['checkedBy', 'approvedBy'],
-  RESTROOM: ['checkedBy'],
+  RESTROOM: ['checkedBy', 'approvedBy'],
   // Technician's daily log and Housekeeper's Room Cleaning: Supervisor
   // checks it, then Manager approves it — strictly in that order.
   FOOD_SAFETY: ['checkedBy', 'approvedBy'],
