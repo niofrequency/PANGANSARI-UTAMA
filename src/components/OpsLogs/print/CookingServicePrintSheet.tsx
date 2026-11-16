@@ -1,7 +1,7 @@
 import { Fragment } from 'react';
 import { Submission } from '../../../types';
 import { MEAL_PERIODS, INSTALLATION_CODES } from '../../../data/cookingServiceData';
-import { B, C, CC, PaperLogo, PrintPage, PrintSheetProps, SigBlock, longDate, submissionDate } from './paperShared';
+import { B, C, CC, PaperLogo, PrintPage, PrintSheetProps, SigBlock, longDate, submissionDate, draftedStamp } from './paperShared';
 
 type Cell = { cookTime: string; cookTemp: string; installTime: string; installTemp: string; installCode: string; recipe: string };
 
@@ -160,7 +160,7 @@ export function CookingServicePrintSheet({ submission }: PrintSheetProps) {
         <div className="flex justify-between px-10 pt-2 pb-1">
           <SigBlock heading="Approved by," name={sign?.approvedBy?.name || sign?.verifiedBy?.name} at={sign?.approvedBy?.at || sign?.verifiedBy?.at} step={sign?.approvedBy ? 'approvedBy' : 'verifiedBy'} stamp={sign?.approvedBy || sign?.verifiedBy} />
           <SigBlock heading="Reviewed by," name={sign?.checkedBy?.name} at={sign?.checkedBy?.at} step="checkedBy" stamp={sign?.checkedBy} />
-          <SigBlock heading="Prepared by," name={sign?.draftedBy?.name || submission.userName} at={sign?.draftedBy?.at} />
+          <SigBlock heading="Prepared by," name={sign?.draftedBy?.name || submission.userName} at={sign?.draftedBy?.at} step="draftedBy" stamp={draftedStamp(submission)} />
         </div>
         <div className="flex justify-between border-t border-black px-1 font-bold">
           <span>Form No.: UF.09001</span><span>Revisi No.: 06</span><span>Date : 01 Oktober 2025</span>

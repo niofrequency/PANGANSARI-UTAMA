@@ -88,14 +88,20 @@ export function SigBlock({ heading, role, name, at, align = 'left', stamp, step,
   return (
     <div style={{ textAlign: align, minWidth: 140 }}>
       {heading && <div>{heading}</div>}
-      <div style={{ minHeight: 26, fontSize: '8px' }} className="flex items-end" >
+      <div style={{ minHeight: step || stamps ? 58 : 26, fontSize: '8px' }} className="flex items-end" >
         <span className="w-full" style={{ textAlign: align }}>
           {stamps && stamps.some(([, x]) => x?.name)
-            ? <span className="inline-flex gap-1.5 pb-0.5 flex-wrap" style={{ justifyContent: align === 'center' ? 'center' : align === 'right' ? 'flex-end' : 'flex-start' }}>
-                {stamps.map(([st, x]) => x?.name ? <span key={st}><StampMark step={st} stamp={x} /></span> : null)}
+            ? <span className="inline-flex flex-col gap-0.5 pb-0.5" style={{ alignItems: align === 'center' ? 'center' : align === 'right' ? 'flex-end' : 'flex-start' }}>
+                <span className="inline-flex gap-1.5 flex-wrap" style={{ justifyContent: align === 'center' ? 'center' : align === 'right' ? 'flex-end' : 'flex-start' }}>
+                  {stamps.map(([st, x]) => x?.name ? <span key={st}><StampMark step={st} stamp={x} /></span> : null)}
+                </span>
+                <span className="font-bold mt-1" style={{ fontSize: '8.5px' }}>{stamps.map(([, x]) => x?.name).filter(Boolean).join(' / ')}</span>
               </span>
             : stamp?.name && step
-            ? <span className="inline-block pb-0.5"><StampMark step={step} stamp={stamp} /></span>
+            ? <span className="inline-flex flex-col pb-0.5" style={{ alignItems: align === 'center' ? 'center' : align === 'right' ? 'flex-end' : 'flex-start' }}>
+                <StampMark step={step} stamp={stamp} />
+                <span className="font-bold mt-1.5" style={{ fontSize: '8.5px' }}>{stamp.name}</span>
+              </span>
             : <>{name || ''}{at ? ` · ${new Date(at).toLocaleDateString('en-GB')}` : ''}</>}
         </span>
       </div>
@@ -164,10 +170,10 @@ export function PrintPage({ landscape, children, fontSize = 8 }: { landscape?: b
 // the reviewer's job title, their name and the date. Every sheet's
 // signature lines render one of these as soon as that step is in, for
 // every level of the chain (Supervisor, Manager, GM, Admin).
-export type SignStep = 'checkedBy' | 'approvedBy' | 'verifiedBy';
+export type SignStep = 'draftedBy' | 'checkedBy' | 'approvedBy' | 'verifiedBy';
 export type StampData = { userId?: string; name: string; at: string; role?: UserRole; signature?: string };
 
-const STEP_WORD: Record<SignStep, string> = { checkedBy: 'CHECKED', approvedBy: 'APPROVED', verifiedBy: 'VERIFIED' };
+const STEP_WORD: Record<SignStep, string> = { draftedBy: 'DRAFTED', checkedBy: 'CHECKED', approvedBy: 'APPROVED', verifiedBy: 'VERIFIED' };
 
 export const ROLE_TITLE: Record<UserRole, string> = {
   ADMIN: 'Admin',
@@ -186,7 +192,7 @@ export const ROLE_TITLE: Record<UserRole, string> = {
 
 export function StampMark({ step, stamp, small = false }: { step: SignStep; stamp?: StampData; small?: boolean }) {
   if (!stamp?.name) return null;
-  const color = step === 'checkedBy' ? '#1d4ed8' : step === 'approvedBy' ? '#047857' : '#7c3aed';
+  const color = step === 'draftedBy' ? '#334155' : step === 'checkedBy' ? '#1d4ed8' : step === 'approvedBy' ? '#047857' : '#7c3aed';
   const date = stamp.at ? new Date(stamp.at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
   const title = stamp.role ? ROLE_TITLE[stamp.role] : '';
   return (
@@ -199,7 +205,8 @@ export function StampMark({ step, stamp, small = false }: { step: SignStep; stam
         color,
         borderRadius: 4,
         padding: small ? '1px 4px' : '2px 8px',
-        transform: 'rotate(-4deg)',
+        transform: 'rotate(-3deg)',
+        maxWidth: '100%',
         lineHeight: 1.15,
         fontSize: small ? '6.5px' : '8px',
         background: 'rgba(255,255,255,0.85)',
@@ -208,9 +215,10 @@ export function StampMark({ step, stamp, small = false }: { step: SignStep; stam
         WebkitPrintColorAdjust: 'exact',
       }}
     >
-      <span className="block font-black tracking-widest" style={{ fontSize: small ? '7.5px' : '10px' }}>
-        ✓ {STEP_WORD[step]}{title ? ` BY ${title.toUpperCase()}` : ''}
+      <span className="block font-black tracking-widest" style={{ fontSize: small ? '8px' : '11px' }}>
+        ✓ {STEP_WORD[step]}
       </span>
+      {title && <span className="block font-bold tracking-wide" style={{ fontSize: small ? '5.5px' : '6.5px' }}>BY {title.toUpperCase()}</span>}
       {stamp.signature && (
         <img src={stamp.signature} alt="" className="block mx-auto" style={{ height: small ? 16 : 24, maxWidth: small ? 90 : 130, objectFit: 'contain', margin: '1px auto' }} />
       )}
@@ -222,17 +230,26 @@ export function StampMark({ step, stamp, small = false }: { step: SignStep; stam
 
 // Fills in the job title on stamps saved before the role was recorded
 // on the stamp itself, from the current user list.
-export function withStampRoles(s: Submission, users: { id: string; role: UserRole }[]): Submission {
+export function withStampRoles(s: Submission, users: { id: string; role: UserRole; name?: string; firstName?: string; lastName?: string }[]): Submission {
   const so = s.meta?.signoff;
   if (!so) return s;
   const next: Record<string, unknown> = { ...so };
   let changed = false;
-  for (const step of ['checkedBy', 'approvedBy', 'verifiedBy'] as SignStep[]) {
+  for (const step of ['draftedBy', 'checkedBy', 'approvedBy', 'verifiedBy'] as SignStep[]) {
     const st = so[step] as StampData | undefined;
-    if (st && !st.role && st.userId) {
-      const u = users.find((x) => x.id === st.userId);
-      if (u) { next[step] = { ...st, role: u.role }; changed = true; }
-    }
+    if (!st) continue;
+    const u = st.userId ? users.find((x) => x.id === st.userId) : undefined;
+    const full = u ? ([u.firstName, u.lastName].filter(Boolean).join(' ').trim() || u.name) : undefined;
+    const role = st.role || u?.role || (step === 'draftedBy' ? s.role : undefined);
+    const name = full && full.length > (st.name || '').length ? full : st.name;
+    if (role !== st.role || name !== st.name) { next[step] = { ...st, role, name }; changed = true; }
   }
   return changed ? { ...s, meta: { ...s.meta, signoff: next as NonNullable<Submission['meta']>['signoff'] } } : s;
+}
+
+// The filer's "Drafted" stamp — always present once a log is submitted
+// (falls back to the submission's own name / time / role).
+export function draftedStamp(s: Submission): StampData {
+  const d = s.meta?.signoff?.draftedBy as StampData | undefined;
+  return { ...(d || {}), userId: d?.userId || s.userId, name: d?.name || s.userName, at: d?.at || s.timestamp, role: d?.role || s.role };
 }

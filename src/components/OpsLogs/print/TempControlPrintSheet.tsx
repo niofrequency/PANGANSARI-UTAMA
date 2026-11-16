@@ -2,6 +2,7 @@ import { TEMP_CONTROL_SLOTS, TEMP_CONTROL_ASSETS } from '../../../data/tempContr
 import {
   B, C, CC, PaperHeader, PrintPage, PrintSheetProps, ControlledCopy, Check, SigBlock,
   daysInMonth, monthLabel, initials,
+  draftedStamp,
 } from './paperShared';
 
 // UF.10000 Temperature Control Checklist — replica of the paper pad: one
@@ -106,7 +107,7 @@ export function TempControlPrintSheet({ submission, allSubmissions = [] }: Print
 
           <div className="flex justify-between px-10 pt-3 pb-1">
             <SigBlock heading="Mengetahui," role="Pengawas/Process Owner" name={reviewer?.name} at={reviewer?.at} align="center" stamps={[['checkedBy', so?.checkedBy], ['approvedBy', so?.approvedBy], ['verifiedBy', so?.verifiedBy]]} />
-            <SigBlock heading="Yang mengerjakan," role={' '} name={submission.meta?.signoff?.draftedBy?.name || submission.userName} align="center" />
+            <SigBlock heading="Yang mengerjakan," role={' '} name={submission.meta?.signoff?.draftedBy?.name || submission.userName} align="center" step="draftedBy" stamp={draftedStamp(submission)} />
           </div>
         </div>
       </div>

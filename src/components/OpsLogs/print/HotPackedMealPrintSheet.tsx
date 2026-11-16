@@ -1,6 +1,6 @@
 import { Submission } from '../../../types';
 import { HOT_PACK_MEAL_PERIODS, HOT_PACK_TYPES } from '../../../data/hotPackedMealData';
-import { B, C, CC, PaperLogo, PrintPage, PrintSheetProps, ControlledCopy, Check, SigBlock, longDate, submissionDate } from './paperShared';
+import { B, C, CC, PaperLogo, PrintPage, PrintSheetProps, ControlledCopy, Check, SigBlock, longDate, submissionDate, draftedStamp } from './paperShared';
 
 type Cell = { cookTime: string; cookTemp: string; holdTime: string; holdTemp: string; packStart: string; packFinish: string; packOk: boolean | null };
 
@@ -150,7 +150,7 @@ export function HotPackedMealPrintSheet({ submission }: PrintSheetProps) {
           1. Temperature for cooked meals must be greater than 75 °C<br />
           2. Do the organoleptic Test&nbsp; by √ IF OK or X if not OK. ( APPEARANCE, COLOR, TEXTUR, AROMA, TASTE)
         </div>
-        <SigBlock heading="Delivered by," name={sign?.draftedBy?.name || submission.userName} at={sign?.draftedBy?.at} align="center" />
+        <SigBlock heading="Delivered by," name={sign?.draftedBy?.name || submission.userName} at={sign?.draftedBy?.at} align="center" step="draftedBy" stamp={draftedStamp(submission)} />
       </div>
     </PrintPage>
   );

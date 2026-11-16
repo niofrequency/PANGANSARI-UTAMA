@@ -1,5 +1,5 @@
 import { MESS_HALL_AREAS } from '../../../data/messHallHygieneData';
-import { B, C, CC, PaperLogo, PrintPage, PrintSheetProps, SigBlock, daysInMonth, monthLabel, initials } from './paperShared';
+import { B, C, CC, PaperLogo, PrintPage, PrintSheetProps, SigBlock, daysInMonth, monthLabel, initials, draftedStamp } from './paperShared';
 
 const AREA_BG = '#f4f1a6';
 const FOOT_BG = '#a9c7b4';
@@ -117,6 +117,8 @@ export function MessHallHygienePrintSheet({ submission, allSubmissions = [] }: P
       </table>
 
       <div className={'flex justify-between px-16 pt-3 pb-2 border-l border-r border-b border-black'}>
+        <SigBlock heading="Prepared by," role="Staff" align="center" step="draftedBy" stamp={draftedStamp(submission)} />
+        <SigBlock heading="Checked by," role="Supervisor" align="center" step="checkedBy" stamp={submission.meta?.signoff?.checkedBy} />
         <SigBlock heading="Approved By," role="Manager" name={approver?.name} at={approver?.at} align="center" step="approvedBy" stamp={approver} />
         <SigBlock heading="Verified by :" role="QSHE/Head Chef" name={verifier?.name} at={verifier?.at} align="center" step="verifiedBy" stamp={verifier} />
       </div>

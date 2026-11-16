@@ -1,5 +1,5 @@
 import { STAFF_READY_GROUPS } from '../../../data/staffReadyData';
-import { B, C, CC, PaperLogo, PrintPage, PrintSheetProps, longDate, submissionDate, StampMark } from './paperShared';
+import { B, C, CC, PaperLogo, PrintPage, PrintSheetProps, longDate, submissionDate, StampMark, draftedStamp } from './paperShared';
 
 type Row = { name: string; gender?: string; position: string; marks: Record<string, string>; fhCardValid?: boolean; bodyTempC?: string; remark?: string };
 
@@ -89,12 +89,15 @@ export function StaffReadyPrintSheet({ submission }: PrintSheetProps) {
           </table>
 
           <div className={B + ' border-t-0 flex items-end justify-between px-4 py-1'} style={{ minHeight: 70 }}>
-            <div>Approve by : {approver ? <StampMark step={sign?.approvedBy ? 'approvedBy' : 'checkedBy'} stamp={approver} /> : ''}</div>
+            <div className="flex gap-4 items-end">
+              <div>Prepared by :<br /><StampMark step="draftedBy" stamp={draftedStamp(submission)} /><br /><b>{draftedStamp(submission).name}</b></div>
+              <div>Approve by :<br />{approver ? <><StampMark step={sign?.approvedBy ? 'approvedBy' : 'checkedBy'} stamp={approver} /><br /><b>{approver.name}</b></> : ''}</div>
+            </div>
             <div className="flex gap-16 self-start">
               <div><i>Keterangan :</i><div className="pl-8">Y = Ya<br />T = Tidak<br />B = Baik<br />C = Cukup<br />J = Jelek</div></div>
               <div>C = Cook<br />AC = Asst Cook<br />MA = Mess Attendent<br />GP = General Purpose</div>
             </div>
-            <div className="self-center">QHSE PSU by : {sign?.verifiedBy ? <StampMark step="verifiedBy" stamp={sign.verifiedBy} /> : ''}</div>
+            <div className="self-center">QHSE PSU by : {sign?.verifiedBy ? <><StampMark step="verifiedBy" stamp={sign.verifiedBy} /><br /><b>{sign.verifiedBy.name}</b></> : ''}</div>
           </div>
         </div>
       ))}
