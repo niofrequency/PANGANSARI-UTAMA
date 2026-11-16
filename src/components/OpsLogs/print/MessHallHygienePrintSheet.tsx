@@ -117,8 +117,8 @@ export function MessHallHygienePrintSheet({ submission, allSubmissions = [] }: P
       </table>
 
       <div className={'flex justify-between px-16 pt-3 pb-2 border-l border-r border-b border-black'}>
-        <SigBlock heading="Approved By," role="Manager" name={approver?.name} at={approver?.at} align="center" />
-        <SigBlock heading="Verified by :" role="QSHE/Head Chef" name={verifier?.name} at={verifier?.at} align="center" />
+        <SigBlock heading="Approved By," role="Manager" name={approver?.name} at={approver?.at} align="center" step="approvedBy" stamp={approver} />
+        <SigBlock heading="Verified by :" role="QSHE/Head Chef" name={verifier?.name} at={verifier?.at} align="center" step="verifiedBy" stamp={verifier} />
       </div>
     </PrintPage>
   );

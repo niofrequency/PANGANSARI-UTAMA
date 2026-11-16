@@ -1,7 +1,10 @@
-import { ComponentType, ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle2, ChevronLeft, CornerUpLeft, Pencil, Printer, Send, Stamp, Trash2, XCircle, ZoomIn, ZoomOut } from 'lucide-react';
+import { ComponentType, ReactNode, useEffect, useRef, useState, useMemo } from 'react';
+import { AlertTriangle, CheckCircle2, ChevronLeft, CornerUpLeft, Pencil, Printer, Send, Stamp, Trash2, XCircle } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { useTranslation } from '../../i18n/LanguageContext';
+import { withStampRoles } from './print/paperShared';
+import { PaperViewer } from './PaperViewer';
+import { SignatureStampDialog } from './SignatureStampDialog';
 import { Submission } from '../../types';
 import { titleKeyForChainType } from '../../data/opsLogsCatalog';
 import { DAILY_FOOD_HANDLER_ALL_CRITERIA } from '../../data/dailyFoodHandlerData';
@@ -55,51 +58,6 @@ const LANDSCAPE_SHEETS = new Set<Submission['type']>([
   'MESS_HALL_HYGIENE', 'COOKING_SERVICE', 'HOT_PACKED_MEAL', 'THAWING', 'STAFF_READY', 'LAUNDRY_SHOP', 'RESTROOM', 'DAILY_FOOD_HANDLER',
 ]);
 
-// Shows a paper sheet at its natural width (A4 proportions), scaled down to
-// fit the screen; "Zoom" switches to full size with sideways scrolling.
-function PaperOnScreen({ landscape, children }: { landscape: boolean; children: ReactNode }) {
-  const { t } = useTranslation();
-  const width = landscape ? 1100 : 780;
-  const outer = useRef<HTMLDivElement>(null);
-  const inner = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(1);
-  const [height, setHeight] = useState<number | undefined>(undefined);
-  const [zoomed, setZoomed] = useState(false);
-
-  useLayoutEffect(() => {
-    const measure = () => {
-      if (!outer.current || !inner.current) return;
-      const sc = Math.min(1, outer.current.clientWidth / width);
-      setScale(sc);
-      setHeight(inner.current.offsetHeight * sc);
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    if (outer.current) ro.observe(outer.current);
-    if (inner.current) ro.observe(inner.current);
-    return () => ro.disconnect();
-  }, [width]);
-
-  const fits = scale >= 0.999;
-  return (
-    <div className="card !p-3 md:!p-4 space-y-2 print:hidden">
-      {!fits && (
-        <div className="flex justify-end">
-          <button type="button" onClick={() => setZoomed(z => !z)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-psu-gray/5 text-psu-gray text-[10px] font-black uppercase tracking-widest">
-            {zoomed ? <ZoomOut size={13} /> : <ZoomIn size={13} />} {zoomed ? t('ops.paper.fit') : t('ops.paper.zoom')}
-          </button>
-        </div>
-      )}
-      <div ref={outer} className={cn('w-full', zoomed ? 'overflow-x-auto' : 'overflow-hidden')} style={zoomed ? undefined : { height }}>
-        <div ref={inner} style={{ width, transform: zoomed ? undefined : `scale(${scale})`, transformOrigin: 'top left' }}>
-          {children}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // A Food Safety Technician's daily log includes a wellness / hygiene / PPE
 // self-check; any "Not Good" there means they may not be fit to handle food.
 export const isNotReadyToWork = (s: Submission) =>
@@ -117,7 +75,9 @@ export function useBackToClose(open: boolean, close: () => void) {
     const marker = `psu-detail-${Date.now()}`;
     window.history.pushState({ psuDetail: marker }, '');
     window.scrollTo({ top: 0 });
-    const onPop = () => closeRef.current();
+    // Ignore a Back that only closed something layered on top (e.g. the
+    // paper viewer's full screen) and landed back on this page's entry.
+    const onPop = () => { if (window.history.state?.psuDetail !== marker) closeRef.current(); };
     window.addEventListener('popstate', onPop);
     return () => {
       window.removeEventListener('popstate', onPop);
@@ -172,7 +132,7 @@ export function SubmissionDetailPage({ store, submission, onBack, canStamp, onSt
   submission: Submission;
   onBack: () => void;
   canStamp?: boolean;
-  onStamp?: () => void;
+  onStamp?: (signature?: string) => void;
   onReject?: (reason: string) => void;
   onEdit?: () => void;
 }) {
@@ -180,8 +140,12 @@ export function SubmissionDetailPage({ store, submission, onBack, canStamp, onSt
   const { currentUser, submissions, returnSubmission, deleteSubmission, resubmitAfterRejection } = store;
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [signing, setSigning] = useState(false);
   // Always show the live copy, so a stamp / return updates the page in place.
-  const s = submissions.find(x => x.id === submission.id) || submission;
+  const live = submissions.find(x => x.id === submission.id) || submission;
+  // Older stamps were saved without the reviewer's role — fill it in from
+  // the user list so every paper stamp reads e.g. "APPROVED BY SUPERVISOR".
+  const s = useMemo(() => withStampRoles(live, store.users || []), [live, store.users]);
   const titleKey = titleKeyForChainType(s.type);
   const PrintSheet = OPS_PRINT_COMPONENTS[s.type];
   const isOwner = s.userId === currentUser?.id;
@@ -250,10 +214,16 @@ export function SubmissionDetailPage({ store, submission, onBack, canStamp, onSt
           {(canStamp || canReturn || superior || canFix) && (
             <div className="space-y-3">
               {canStamp && onStamp && (
-                <button onClick={onStamp}
+                <button onClick={() => setSigning(true)}
                   className="w-full flex items-center justify-center gap-2 py-4 bg-psu-green text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-psu-green/20 active:scale-95 transition-all">
                   <Stamp size={16} /> {t('ops.stampButton')} — {t(`ops.signoff.${nextSignoffStep(s)}`)}
                 </button>
+              )}
+              {canStamp && onStamp && (
+                <SignatureStampDialog open={signing} userId={currentUser?.id}
+                  stepLabel={t(`ops.signoff.${nextSignoffStep(s)}`)}
+                  onCancel={() => setSigning(false)}
+                  onConfirm={(sig) => { setSigning(false); onStamp(sig); }} />
               )}
               {canStamp && onReject && <div className="flex"><RejectButton onReject={onReject} /></div>}
               {canReturn && (
@@ -290,9 +260,9 @@ export function SubmissionDetailPage({ store, submission, onBack, canStamp, onSt
 
         {PrintSheet ? (
           <>
-            <PaperOnScreen landscape={LANDSCAPE_SHEETS.has(s.type)}>
+            <PaperViewer landscape={LANDSCAPE_SHEETS.has(s.type)}>
               <PrintSheet submission={s} allSubmissions={submissions.filter(x => !x.deletedAt)} />
-            </PaperOnScreen>
+            </PaperViewer>
             {s.items.some(i => i.photoUrl) && (
               <div className="card space-y-3">
                 <p className="text-[10px] font-black text-psu-gray/40 uppercase tracking-widest">{t('ops.paper.photos')}</p>

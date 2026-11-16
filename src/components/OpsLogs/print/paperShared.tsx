@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { Submission } from '../../../types';
+import { Submission, UserRole } from '../../../types';
 
 // Building blocks for the paper-replica print sheets — each Ops Log form
 // prints in the same layout as the PSU paper pad it replaces (photos of
@@ -71,7 +71,14 @@ export function ControlledCopy() {
 
 // "Mengetahui, ____ Pengawas/Process Owner" style signature block. `name`
 // fills the line with whoever stamped that step in the app, if anyone has.
-export function SigBlock({ heading, role, name, at, align = 'left' }: {
+export function SigBlock({ heading, role, name, at, align = 'left', stamp, step, stamps }: {
+  // Several steps sharing one signature line (e.g. Temp Control's single
+  // "Mengetahui" line holds both the Supervisor's and Manager's stamps).
+  stamps?: [SignStep, StampData | undefined][];
+  // When a reviewer has stamped this step, show their rubber stamp on
+  // the signature line instead of the plain name text.
+  stamp?: StampData;
+  step?: SignStep;
   heading?: string;
   role?: string;
   name?: string;
@@ -81,9 +88,15 @@ export function SigBlock({ heading, role, name, at, align = 'left' }: {
   return (
     <div style={{ textAlign: align, minWidth: 140 }}>
       {heading && <div>{heading}</div>}
-      <div style={{ height: 26, fontSize: '8px' }} className="flex items-end" >
+      <div style={{ minHeight: 26, fontSize: '8px' }} className="flex items-end" >
         <span className="w-full" style={{ textAlign: align }}>
-          {name || ''}{at ? ` · ${new Date(at).toLocaleDateString('en-GB')}` : ''}
+          {stamps && stamps.some(([, x]) => x?.name)
+            ? <span className="inline-flex gap-1.5 pb-0.5 flex-wrap" style={{ justifyContent: align === 'center' ? 'center' : align === 'right' ? 'flex-end' : 'flex-start' }}>
+                {stamps.map(([st, x]) => x?.name ? <span key={st}><StampMark step={st} stamp={x} /></span> : null)}
+              </span>
+            : stamp?.name && step
+            ? <span className="inline-block pb-0.5"><StampMark step={step} stamp={stamp} /></span>
+            : <>{name || ''}{at ? ` · ${new Date(at).toLocaleDateString('en-GB')}` : ''}</>}
         </span>
       </div>
       <div className="border-t border-black inline-block" style={{ minWidth: 140 }}>{role || ' '}</div>
@@ -143,4 +156,83 @@ export function PrintPage({ landscape, children, fontSize = 8 }: { landscape?: b
       {children}
     </div>
   );
+}
+
+// ---------------------------------------------------------------------
+// Review stamp — the "rubber stamp" a reviewer leaves on the paper once
+// they Stamp a log in the app: the step (CHECKED / APPROVED / VERIFIED),
+// the reviewer's job title, their name and the date. Every sheet's
+// signature lines render one of these as soon as that step is in, for
+// every level of the chain (Supervisor, Manager, GM, Admin).
+export type SignStep = 'checkedBy' | 'approvedBy' | 'verifiedBy';
+export type StampData = { userId?: string; name: string; at: string; role?: UserRole; signature?: string };
+
+const STEP_WORD: Record<SignStep, string> = { checkedBy: 'CHECKED', approvedBy: 'APPROVED', verifiedBy: 'VERIFIED' };
+
+export const ROLE_TITLE: Record<UserRole, string> = {
+  ADMIN: 'Admin',
+  GENERAL_MANAGER: 'General Manager',
+  HOUSEKEEPING_MANAGER: 'Housekeeping Manager',
+  FOOD_SAFETY_MANAGER: 'Food Safety Manager',
+  HOUSEKEEPING_SUPERVISOR: 'Housekeeping Supervisor',
+  FOOD_SAFETY_SUPERVISOR: 'Food Safety Supervisor',
+  HOUSEKEEPING_LEADHAND: 'Housekeeping Leadhand',
+  FOOD_SAFETY_LEADHAND: 'Food Safety Leadhand',
+  HOUSEKEEPER: 'Housekeeper',
+  HOUSEKEEPING_LAUNDRY: 'Laundry',
+  HOUSEKEEPING_JANITOR: 'Janitor',
+  FOOD_SAFETY_TECHNICIAN: 'Food Safety Technician',
+};
+
+export function StampMark({ step, stamp, small = false }: { step: SignStep; stamp?: StampData; small?: boolean }) {
+  if (!stamp?.name) return null;
+  const color = step === 'checkedBy' ? '#1d4ed8' : step === 'approvedBy' ? '#047857' : '#7c3aed';
+  const date = stamp.at ? new Date(stamp.at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+  const title = stamp.role ? ROLE_TITLE[stamp.role] : '';
+  return (
+    <span
+      className="inline-block text-center align-middle"
+      style={{
+        border: `${small ? 1.5 : 2}px solid ${color}`,
+        outline: `1px solid ${color}`,
+        outlineOffset: small ? 1 : 2,
+        color,
+        borderRadius: 4,
+        padding: small ? '1px 4px' : '2px 8px',
+        transform: 'rotate(-4deg)',
+        lineHeight: 1.15,
+        fontSize: small ? '6.5px' : '8px',
+        background: 'rgba(255,255,255,0.85)',
+        whiteSpace: 'nowrap',
+        printColorAdjust: 'exact',
+        WebkitPrintColorAdjust: 'exact',
+      }}
+    >
+      <span className="block font-black tracking-widest" style={{ fontSize: small ? '7.5px' : '10px' }}>
+        ✓ {STEP_WORD[step]}{title ? ` BY ${title.toUpperCase()}` : ''}
+      </span>
+      {stamp.signature && (
+        <img src={stamp.signature} alt="" className="block mx-auto" style={{ height: small ? 16 : 24, maxWidth: small ? 90 : 130, objectFit: 'contain', margin: '1px auto' }} />
+      )}
+      <span className="block font-bold">{stamp.name}</span>
+      {date && <span className="block">{date}</span>}
+    </span>
+  );
+}
+
+// Fills in the job title on stamps saved before the role was recorded
+// on the stamp itself, from the current user list.
+export function withStampRoles(s: Submission, users: { id: string; role: UserRole }[]): Submission {
+  const so = s.meta?.signoff;
+  if (!so) return s;
+  const next: Record<string, unknown> = { ...so };
+  let changed = false;
+  for (const step of ['checkedBy', 'approvedBy', 'verifiedBy'] as SignStep[]) {
+    const st = so[step] as StampData | undefined;
+    if (st && !st.role && st.userId) {
+      const u = users.find((x) => x.id === st.userId);
+      if (u) { next[step] = { ...st, role: u.role }; changed = true; }
+    }
+  }
+  return changed ? { ...s, meta: { ...s.meta, signoff: next as NonNullable<Submission['meta']>['signoff'] } } : s;
 }

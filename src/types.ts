@@ -217,9 +217,11 @@ export interface Submission {
     // all four slots.
     signoff?: {
       draftedBy?: { userId: string; name: string; staffCode?: string; at: string };
-      checkedBy?: { userId: string; name: string; at: string };
-      approvedBy?: { userId: string; name: string; at: string };
-      verifiedBy?: { userId: string; name: string; at: string };
+      // `role` = the stamper's role at the time (shown on the paper stamp).
+      // `signature` = optional e-signature (small PNG data URL) drawn when stamping.
+      checkedBy?: { userId: string; name: string; at: string; role?: UserRole; signature?: string };
+      approvedBy?: { userId: string; name: string; at: string; role?: UserRole; signature?: string };
+      verifiedBy?: { userId: string; name: string; at: string; role?: UserRole; signature?: string };
     };
 
     // Chain of command: a Supervisor or higher sent this log back for

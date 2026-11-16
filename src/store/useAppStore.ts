@@ -726,9 +726,9 @@ export function useAppStore() {
   // The old single-step Approve/Reject this replaced, updateSubmission
   // Status(), is gone: rejectSignoff() below covers what Reject used to
   // do, and every Approve is now a stamp on some step.
-  const addSignoffStamp = (submissionId: string, step: 'checkedBy' | 'approvedBy' | 'verifiedBy') => {
+  const addSignoffStamp = (submissionId: string, step: 'checkedBy' | 'approvedBy' | 'verifiedBy', signature?: string) => {
     if (!currentUser) return;
-    const stamp = { userId: currentUser.id, name: currentUser.name, at: new Date().toISOString() };
+    const stamp = { userId: currentUser.id, name: currentUser.name, role: currentUser.role, at: new Date().toISOString(), ...(signature ? { signature } : {}) };
 
     if (isFirebaseConfigured) {
       const target = submissions.find(s => s.id === submissionId);

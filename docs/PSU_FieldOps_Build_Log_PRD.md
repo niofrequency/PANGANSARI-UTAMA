@@ -3,7 +3,7 @@
 **Product:** PSU FieldOps (PT Pangansari Utama) — field operations app for checklists, sign-offs, issue reports, chat and staff management across PSU's work locations.
 **Repo:** `niofrequency/PANGANSARI-UTAMA` · **Live:** https://pangansari-utama.vercel.app · **Firebase project:** `pangansari-utama`
 **Covers:** the work merged in PRs #79 – #97 (13 – 16 November 2026), plus the state of the system a follow-up session needs to know about.
-**Workstreams so far:** features & roles (#79–#91), storage, monitoring & reporting (#93–#96, see §9.2a), chain of command for logs (#97, see §3.3).
+**Workstreams so far:** features & roles (#79–#91), storage, monitoring & reporting (#93–#96, see §9.2a), chain of command for logs (#97, see §3.3), paper-form review with stamps and e-signatures (#99 – #100, see §3.4).
 **Last updated:** 16 November 2026.
 
 ---
@@ -86,6 +86,8 @@ Chain of command (rank) for returning and deleting logs: Admin 6 › General Man
 | #95 | Install banner hides itself after one minute. | `PWAInstallPrompt.tsx` |
 | #96 | **Print form fills in what's been entered** on the audit forms too (Food Safety Inspection, Gemba Walk, Daily Food Handler); Room Cleaning sheet prints Y / T / blank correctly; the Technician log no longer prints "false". | `Inspections/*`, `OpsLogs/print/*` |
 | #97 | **Chain of command for logs**: every chain ends with a Manager step; Supervisor and above can **Return for correction** (any status) and **delete** logs of people ranked below them; "Sent back — waiting for fix" list; filer can "Fixed — send back for review"; a log opens as a **full page** (not a popup) with Back / browser Back. See §3.3. | `OpsLogs/SubmissionDetailPage.tsx`, `lib/submissionAuthority.ts`, `OpsLogsTab.tsx`, `Admin/AdminPortal.tsx`, `firestore.rules` |
+| #99 | **Review on the paper form**: the review page shows the filled-in PSU paper sheet (the Print layout) instead of answer cards, for every form, at every level. See §3.4. | `OpsLogs/SubmissionDetailPage.tsx` |
+| #100 | **Stamps, e-signatures and a better viewer**: a rubber stamp (step, job title, name, date) on the sheet's signature line for every reviewer; optional e-signature when stamping; zoom / pinch / full-screen / rotate viewer for phone and desktop. See §3.4. | `OpsLogs/PaperViewer.tsx`, `OpsLogs/SignatureStampDialog.tsx`, `OpsLogs/print/*`, `store/useAppStore.ts` |
 
 ### 3.1 Chat rules (summary)
 - Admin ↔ everyone. Manager ↔ Supervisor/Leadhand, Manager. Supervisor/Leadhand ↔ Manager, Supervisor/Leadhand, frontline. Frontline ↔ Supervisor/Leadhand only.
@@ -108,6 +110,12 @@ Chain of command (rank) for returning and deleting logs: Admin 6 › General Man
 - **Navigation:** the detail is a page on every screen size (Ops Logs and Admin → Activity). `useBackToClose()` pushes a history entry, so the phone/browser Back returns to the list.
 - **Limitation:** Temperature Control / Dishwashing are one sheet per asset per day; a frontline filer can only reopen **today's** form. A returned sheet from an earlier day is resolved with "Fixed — send back for review" plus an explanation, or deleted by a superior.
 
+### 3.4 Review on the paper form, stamps and e-signatures (#99 – #100)
+- **Paper form on screen (#99):** the review page renders the same PSU paper sheet used for Print (`OPS_PRINT_COMPONENTS`), filled with what the worker entered, for every form type and at every level of the chain. Photos are listed under the sheet.
+- **Viewer (`OpsLogs/PaperViewer.tsx`, #100):** opens fit-to-width; − / + with a % readout, **Fit**, pinch-to-zoom and double-tap on phones, Ctrl/⌘ + scroll (or trackpad pinch) and double-click on desktop. **Full screen** fills the screen and pans both ways; on a portrait phone a landscape form is turned sideways automatically (Rotate button toggles). Esc or the phone's Back closes full screen without leaving the log.
+- **Stamps on the paper (#100):** once a step is stamped, its signature line shows a coloured rubber stamp — "✓ CHECKED / APPROVED / VERIFIED BY <job title>", name, date (blue / green / purple). Every sheet's signature lines use it (`StampMark` in `print/paperShared.tsx`; `OpsPrintSignoff` for Room Cleaning, Technician log and Gemba Walk). Temperature Control and Dishwashing show both stamps on their single "Mengetahui" line. New stamps store `role`; older stamps get the job title filled in from the user list (`withStampRoles`).
+- **E-signature (optional, #100):** pressing Stamp opens **Sign & stamp** (`OpsLogs/SignatureStampDialog.tsx`): draw with finger / stylus / mouse, reuse the saved signature, or **Stamp without signature**. The signature is cropped and shrunk to ≤ 300×100 PNG (~10 KB) and saved on the stamp as `meta.signoff.<step>.signature`; it appears inside the stamp on screen and in print. "Remember on this device" keeps it in that browser's localStorage only (not synced between devices). No rules change was needed (reviewers may already change `meta`).
+
 ---
 
 ## 4. Data model (Firestore collections)
@@ -116,7 +124,7 @@ Chain of command (rank) for returning and deleting logs: Admin 6 › General Man
 |---|---|---|---|---|
 | `users/{email}` | profile: name, role, site, assignedSites, uid, staffCode, isActive, requirePassword | Admin/Manager, self-signup, import fn | **Whole collection, every signed-in user** | ~1,400 docs |
 | `staffCodes/{CODE}` | `{ email }` | Admin/Manager, import fn | single `get` (public) | Staff ID → email index |
-| `submissions/{id}` | type, items[], meta{… signoff, returned, fixNote}, status, timestamps | frontline/supervisors; superiors (return / delete) | Last 60 days + PENDING, user's sites (older on demand) | Grows daily; soft-delete only (`deletedAt`) |
+| `submissions/{id}` | type, items[], meta{… signoff (each step: userId, name, at, role, signature?), returned, fixNote}, status, timestamps | frontline/supervisors; superiors (return / delete) | Last 60 days + PENDING, user's sites (older on demand) | Grows daily; soft-delete only (`deletedAt`) |
 | `warnings/{id}` | supervisor warnings | supervisors | whole collection | |
 | `fieldReports/{id}` | wrench-icon issue reports (+ photo URL) | anyone | whole collection | |
 | `correctiveActions/{id}` | CAPA items | supervisors/managers | whole collection | |

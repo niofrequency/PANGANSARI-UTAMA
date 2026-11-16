@@ -23,7 +23,8 @@ export function TempControlPrintSheet({ submission, allSubmissions = [] }: Print
     if (!d || !d.startsWith(month)) continue;
     byDay.set(Number(d.slice(8, 10)), s);
   }
-  const reviewer = submission.meta?.signoff?.checkedBy || submission.meta?.signoff?.approvedBy || submission.meta?.signoff?.verifiedBy;
+  const so = submission.meta?.signoff;
+  const reviewer = so?.checkedBy || so?.approvedBy || so?.verifiedBy;
 
   return (
     <PrintPage fontSize={8.5}>
@@ -104,7 +105,7 @@ export function TempControlPrintSheet({ submission, allSubmissions = [] }: Print
           </table>
 
           <div className="flex justify-between px-10 pt-3 pb-1">
-            <SigBlock heading="Mengetahui," role="Pengawas/Process Owner" name={reviewer?.name} at={reviewer?.at} align="center" />
+            <SigBlock heading="Mengetahui," role="Pengawas/Process Owner" name={reviewer?.name} at={reviewer?.at} align="center" stamps={[['checkedBy', so?.checkedBy], ['approvedBy', so?.approvedBy], ['verifiedBy', so?.verifiedBy]]} />
             <SigBlock heading="Yang mengerjakan," role={' '} name={submission.meta?.signoff?.draftedBy?.name || submission.userName} align="center" />
           </div>
         </div>

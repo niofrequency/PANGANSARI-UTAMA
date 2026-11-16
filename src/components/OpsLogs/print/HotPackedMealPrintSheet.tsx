@@ -144,8 +144,8 @@ export function HotPackedMealPrintSheet({ submission }: PrintSheetProps) {
 
       <div className={B + ' border-t-0 flex items-start justify-between px-3 pt-2 pb-2 gap-4'}>
         <div className="pt-4"><ControlledCopy /></div>
-        <SigBlock heading="Approved by," name={sign?.approvedBy?.name || sign?.verifiedBy?.name} at={sign?.approvedBy?.at || sign?.verifiedBy?.at} align="center" />
-        <SigBlock heading="Reviewed by," name={sign?.checkedBy?.name} at={sign?.checkedBy?.at} align="center" />
+        <SigBlock heading="Approved by," name={sign?.approvedBy?.name || sign?.verifiedBy?.name} at={sign?.approvedBy?.at || sign?.verifiedBy?.at} align="center" step={sign?.approvedBy ? 'approvedBy' : 'verifiedBy'} stamp={sign?.approvedBy || sign?.verifiedBy} />
+        <SigBlock heading="Reviewed by," name={sign?.checkedBy?.name} at={sign?.checkedBy?.at} align="center" step="checkedBy" stamp={sign?.checkedBy} />
         <div className={B + ' px-2 py-1'} style={{ width: '30%' }}>
           1. Temperature for cooked meals must be greater than 75 °C<br />
           2. Do the organoleptic Test&nbsp; by √ IF OK or X if not OK. ( APPEARANCE, COLOR, TEXTUR, AROMA, TASTE)

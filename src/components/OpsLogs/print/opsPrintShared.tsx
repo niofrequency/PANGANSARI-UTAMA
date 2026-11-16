@@ -1,5 +1,6 @@
 import { Submission } from '../../../types';
 import { SIGNOFF_CHAINS, SignoffChainType, SignoffStep } from '../../../data/opsLogsCatalog';
+import { StampMark } from './paperShared';
 
 // Shared building blocks for every Ops Log print sheet (see
 // OpsLogsTab.tsx's Print button). Unlike the 3 audit forms (Gemba Walk,
@@ -99,9 +100,9 @@ export function OpsPrintSignoff({ submission }: { submission: Submission }) {
   const signoff = submission.meta?.signoff;
   const draftedBy = signoff?.draftedBy;
 
-  const slots: { label: string; name?: string; at?: string }[] = [
+  const slots: { label: string; name?: string; at?: string; step?: SignoffStep }[] = [
     { label: 'Drafted', name: draftedBy?.name || submission.userName, at: draftedBy?.at || submission.timestamp },
-    ...chain.map((step) => ({ label: STEP_LABEL[step], name: signoff?.[step]?.name, at: signoff?.[step]?.at })),
+    ...chain.map((step) => ({ label: STEP_LABEL[step], name: signoff?.[step]?.name, at: signoff?.[step]?.at, step })),
   ];
 
   return (
@@ -111,11 +112,19 @@ export function OpsPrintSignoff({ submission }: { submission: Submission }) {
           {slots.map((s) => (
             <td key={s.label} className="align-top px-2" style={{ width: `${100 / slots.length}%` }}>
               <p style={{ fontSize: '8px' }} className="font-bold">{s.label}</p>
-              <div className="border-b border-black" style={{ height: '28px' }} />
-              <p style={{ fontSize: '7px' }}>
-                {s.name || ''}
-                {s.at ? <><br />{new Date(s.at).toLocaleString('en-GB')}</> : ''}
-              </p>
+              {s.step && signoff?.[s.step] ? (
+                <div className="border-b border-black flex items-end justify-center" style={{ minHeight: '28px', paddingBottom: 3 }}>
+                  <StampMark step={s.step} stamp={signoff[s.step]} />
+                </div>
+              ) : (
+                <>
+                  <div className="border-b border-black" style={{ height: '28px' }} />
+                  <p style={{ fontSize: '7px' }}>
+                    {s.name || ''}
+                    {s.at ? <><br />{new Date(s.at).toLocaleString('en-GB')}</> : ''}
+                  </p>
+                </>
+              )}
             </td>
           ))}
         </tr>

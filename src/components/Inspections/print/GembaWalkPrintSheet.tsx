@@ -1,5 +1,6 @@
 import { Fragment } from 'react';
 import { Submission } from '../../../types';
+import { OpsPrintSignoff } from '../../OpsLogs/print/opsPrintShared';
 import {
   GEMBA_SECTIONS,
   GEMBA_DOC_HEADER,
@@ -185,6 +186,7 @@ export function GembaWalkPrintSheet({ submission }: { submission: Submission }) 
           </tbody>
         </table>
       )}
+      <OpsPrintSignoff submission={submission} />
     </div>
   );
 }
