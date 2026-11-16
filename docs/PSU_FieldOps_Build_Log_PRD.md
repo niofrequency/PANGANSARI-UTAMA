@@ -2,8 +2,9 @@
 
 **Product:** PSU FieldOps (PT Pangansari Utama) — field operations app for checklists, sign-offs, issue reports, chat and staff management across PSU's work locations.
 **Repo:** `niofrequency/PANGANSARI-UTAMA` · **Live:** https://pangansari-utama.vercel.app · **Firebase project:** `pangansari-utama`
-**Covers:** the work merged in PRs #79 – #91 (13 November 2026), plus the state of the system a follow-up session needs to know about.
-**Next workstream:** storage capacity (see §9, which collects every storage-relevant fact in one place).
+**Covers:** the work merged in PRs #79 – #97 (13 – 16 November 2026), plus the state of the system a follow-up session needs to know about.
+**Workstreams so far:** features & roles (#79–#91), storage, monitoring & reporting (#93–#96, see §9.2a), chain of command for logs (#97, see §3.3).
+**Last updated:** 16 November 2026.
 
 ---
 
@@ -14,7 +15,7 @@
 | Web app | React 19 + Vite + Tailwind 4, PWA (service worker `public/sw.js`) | `src/`, deployed by **Vercel** from `main` |
 | Auth | Firebase Auth (email/password, Google, custom tokens for Staff ID) | `src/services/authService.ts` |
 | Database | Cloud Firestore (default DB), **no persistent local cache** | `src/lib/firebase.ts`, `src/services/*Service.ts` |
-| Photos | **Cloudinary** (new uploads) · Firebase Storage (legacy photos only) | `src/services/cloudinaryPhotoService.ts`, `storage.rules` |
+| Photos | **Firebase Storage** (new uploads since #93, 1024 px WebP) · Cloudinary (photos uploaded before #93 keep working) | `storage.rules`, `src/services/cloudinaryPhotoService.ts` |
 | Server | Cloud Functions, **Node.js 22**, `us-central1` | `functions/src/index.ts` |
 | Push | Firebase Cloud Messaging (web push) | `src/lib/pushNotifications.ts`, `public/sw.js` |
 | Offline | Dexie (IndexedDB) outbox for submissions | `src/lib/outboxDb.ts` |
@@ -38,7 +39,18 @@ State lives in one hook, `useAppStore` (`src/store/useAppStore.ts`): live Firest
 | **Leadhand** (new) | `HOUSEKEEPING_LEADHAND` | `FOOD_SAFETY_LEADHAND` | `SupervisorPortal` (Checked-by only; no Inspections / Actions / Warnings) |
 | Frontline | `HOUSEKEEPER` (Room Cleaning), `HOUSEKEEPING_JANITOR` (Restroom), `HOUSEKEEPING_LAUNDRY` (Laundryshop) | `FOOD_SAFETY_TECHNICIAN` (kitchen staff) | Technician / Housekeeper / Janitor / LaundryStaff portals |
 
-Sign-off chain per form: `SIGNOFF_CHAINS` in `src/data/opsLogsCatalog.ts` — frontline fills → Leadhand/Supervisor **Checked by** → Manager **Approved / Verified by**.
+Sign-off chain per form: `SIGNOFF_CHAINS` in `src/data/opsLogsCatalog.ts` — frontline fills → Leadhand/Supervisor **Checked by** → Manager **Approved / Verified by**. Since #97 **every chain ends with a Manager step**:
+
+| Form | Chain |
+|---|---|
+| Temperature Control (UF.10000), Dishwashing (UN.00.51), Restroom (UN.00.45) | Checked → **Approved** (Approved added in #97) |
+| Cooking & Service, Hot Packed Meal, Laundryshop, Technician daily log, Room Cleaning | Checked → Approved |
+| Mess Hall Hygiene | Checked → Approved → Verified |
+| Thawing | Checked → Verified |
+| Staff Ready (filed by a Supervisor) | Approved → Verified |
+| Gemba Walk (filed by a Supervisor) | Approved |
+
+Chain of command (rank) for returning and deleting logs: Admin 6 › General Manager 5 › Manager 4 › Supervisor 3 › Leadhand 2 › Frontline 1 (`src/lib/submissionAuthority.ts`, mirrored in `firestore.rules`).
 
 ### 2.2 Locations (`SITES`, `src/data/mockData.ts`)
 - **51 real work locations** from the HR list (LOKASI KERJA), each with `area` (Townsite, 32, 38, 66, 68, 72, 74, PS, BC, KK, HL, LL, GRS, Hotel) and `kind` (kitchen, camp, laundry, cleaning, hotel, sport, warehouse, maintenance, library, office, other).
@@ -65,6 +77,15 @@ Sign-off chain per form: `SIGNOFF_CHAINS` in `src/data/opsLogsCatalog.ts` — fr
 | #89 | **51 locations as sites** + **Leadhand roles**. | `mockData.ts`, `SiteOptions.tsx`, `types.ts` |
 | #90 | **Bulk staff import** from the HR employee list (Admin → Import). Staff ID + password login for imported accounts. | `Admin/ImportStaffPanel.tsx`, `lib/employeeImport.ts`, `lib/spreadsheetReader.ts`, function `bulkImportStaff`, `StaffIdGate.tsx` |
 | #91 | **Personnel**: two-column cards, filter by location/role, sort, Staff ID search, "Show more" paging, **possible-duplicates** finder. | `Admin/UserManagementPanel.tsx` |
+| #92 | This document. | `docs/PSU_FieldOps_Build_Log_PRD.md` |
+| #93 | **Storage & speed**: submissions scoped to the last 60 days + PENDING + the user's sites ("Load older records" on demand); persistent Firestore cache (cleared on logout); daily/weekly Firestore backups; new photos to Firebase Storage at 1024 px WebP. Details §9.2a. | `services/submissionsService.ts`, `LoadOlderHistory.tsx`, `firestore.indexes.json`, `lib/firebase.ts` |
+| #93 | **Missed-check alerts**: check schedules per site/asset (Admin/Manager → Checks); `checkMissedChecks` runs every 30 min, records misses and pushes alerts to the site's supervisors, leadhands and managers. Also fixed forms saving before-09:00 WIT entries on the previous day (UTC date bug). | `functions/src/missedChecks.ts`, `checkSchedules` / `missedChecks` |
+| #93 | **Export to Excel/CSV** for any date range (Admin → Activity, Manager/Supervisor History): Submissions + Answers sheets. | `Export/ExportPanel.tsx`, `lib/xlsxWriter.ts` |
+| #93 | **Automated security-rules tests** (`npm run test:rules`, Firestore emulator); run on PRs touching rules and before every rules deploy. | `tests/rules/firestore.rules.test.mjs`, `.github/workflows/rules-tests.yml` |
+| #94 | **Monitoring**: app + server errors reported to `appErrors`; hourly `errorDigest` groups them, alerts Admins and deletes reports older than 30 days; Admin → Analytics "App health". **Trend analytics**: problem rate and missed checks by site and month (3/6/12 months). | `functions/src/monitoring.ts`, `lib/problemRate.ts` |
+| #95 | Install banner hides itself after one minute. | `PWAInstallPrompt.tsx` |
+| #96 | **Print form fills in what's been entered** on the audit forms too (Food Safety Inspection, Gemba Walk, Daily Food Handler); Room Cleaning sheet prints Y / T / blank correctly; the Technician log no longer prints "false". | `Inspections/*`, `OpsLogs/print/*` |
+| #97 | **Chain of command for logs**: every chain ends with a Manager step; Supervisor and above can **Return for correction** (any status) and **delete** logs of people ranked below them; "Sent back — waiting for fix" list; filer can "Fixed — send back for review"; a log opens as a **full page** (not a popup) with Back / browser Back. See §3.3. | `OpsLogs/SubmissionDetailPage.tsx`, `lib/submissionAuthority.ts`, `OpsLogsTab.tsx`, `Admin/AdminPortal.tsx`, `firestore.rules` |
 
 ### 3.1 Chat rules (summary)
 - Admin ↔ everyone. Manager ↔ Supervisor/Leadhand, Manager. Supervisor/Leadhand ↔ Manager, Supervisor/Leadhand, frontline. Frontline ↔ Supervisor/Leadhand only.
@@ -77,6 +98,16 @@ Sign-off chain per form: `SIGNOFF_CHAINS` in `src/data/opsLogsCatalog.ts` — fr
 - `bulkImportStaff` (admin only, ≤100 rows/call): synthetic email `<id>@staff.psu.local`, random 8-char password, writes `users/{email}` + `staffCodes/{ID}` **before** creating the Auth user, sets `requirePassword: true`. Existing IDs are skipped → re-runs are safe. Passwords returned once → CSV download.
 - Result of the 5 Nov 2026 list: **1,589 rows → 1,381 imported, 208 skipped** (no matching role). Import was run successfully in production.
 
+### 3.3 Chain of command for logs (how it behaves, #97)
+- **Who:** a Supervisor, Manager, General Manager or Admin, on a log filed by someone ranked **below** them, in their **own department** (Admin and GM: both) and within their site access. Peers and Leadhands can't. Enforced in `firestore.rules` (`outranksSubmitter()`); site access is checked in the app only.
+- **Review:** the log opens as its own page showing everything the filer entered (readings, Pass/Fail, remarks, photos, who / where / when, sign-off progress, the "not fit to work" warning) plus **Print**. The next reviewer in the chain gets **Stamp** / **Reject**.
+- **Return for correction:** works from any status, even APPROVED, and needs a note. Sets `status: REJECTED`, `rejectionReason`, `meta.returned = { name, role, at, note, fromStatus }` and clears every sign-off stamp except `draftedBy`, so after the fix the log climbs the **whole chain again**.
+- **Resolve:** the filer sees the note (and the notification bell) and either uses **Edit & resubmit** (Restroom, Laundryshop and the frontline portals' own edit flows) or **"Fixed — send back for review"** with a note (`meta.fixNote`), which puts it back to PENDING at the first step. Once re-approved, the page shows "Was sent back by … — fixed" as a record.
+- **Visibility:** Ops Logs (Supervisor / Manager / GM) shows **"Sent back — waiting for fix"** with every returned log in scope until it's resolved.
+- **Delete:** superiors can soft-delete (`deletedAt` / `deletedBy`) behind the type-DELETE confirmation. Records stay in Firestore.
+- **Navigation:** the detail is a page on every screen size (Ops Logs and Admin → Activity). `useBackToClose()` pushes a history entry, so the phone/browser Back returns to the list.
+- **Limitation:** Temperature Control / Dishwashing are one sheet per asset per day; a frontline filer can only reopen **today's** form. A returned sheet from an earlier day is resolved with "Fixed — send back for review" plus an explanation, or deleted by a superior.
+
 ---
 
 ## 4. Data model (Firestore collections)
@@ -85,13 +116,17 @@ Sign-off chain per form: `SIGNOFF_CHAINS` in `src/data/opsLogsCatalog.ts` — fr
 |---|---|---|---|---|
 | `users/{email}` | profile: name, role, site, assignedSites, uid, staffCode, isActive, requirePassword | Admin/Manager, self-signup, import fn | **Whole collection, every signed-in user** | ~1,400 docs |
 | `staffCodes/{CODE}` | `{ email }` | Admin/Manager, import fn | single `get` (public) | Staff ID → email index |
-| `submissions/{id}` | type, items[], meta{…}, status, timestamps, signoff | frontline/supervisors | **Whole collection, every signed-in user** | Grows daily; soft-delete only (`deletedAt`) |
+| `submissions/{id}` | type, items[], meta{… signoff, returned, fixNote}, status, timestamps | frontline/supervisors; superiors (return / delete) | Last 60 days + PENDING, user's sites (older on demand) | Grows daily; soft-delete only (`deletedAt`) |
 | `warnings/{id}` | supervisor warnings | supervisors | whole collection | |
 | `fieldReports/{id}` | wrench-icon issue reports (+ photo URL) | anyone | whole collection | |
 | `correctiveActions/{id}` | CAPA items | supervisors/managers | whole collection | |
 | `trainings/{id}` | modules + `completedBy[]` | admin / self | whole collection | |
 | `messages/{id}` | chat message | sender | **only own** (`participants array-contains uid`) | Never deleted (hidden/blanked instead) |
 | `pushTokens/{token}` | `{ uid, email, userAgent, updatedAt }` | own device | none (function only) | Dead tokens pruned by `notifyChatMessage` |
+| `checkSchedules/{id}` | which form is due when, per site / asset / section | Admin, Managers | signed-in | Drives missed-check alerts |
+| `missedChecks/{id}` | a past-due slot (and "done late") | `checkMissedChecks` only | signed-in | |
+| `appErrors/{id}` | app / server error reports | any signed-in user (create-only, capped) | Admin only | Deleted after 30 days by `errorDigest` |
+| `errorFingerprints/{id}` | grouped error kinds | `errorDigest` only | Admin only | |
 
 Rules: `firestore.rules` (deployed automatically by CI). Storage rules: `storage.rules` (legacy uploads only).
 
@@ -109,6 +144,8 @@ Rules: `firestore.rules` (deployed automatically by CI). Storage rules: `storage
 | `mintCloudinaryUploadSignature` | callable v2 | Signed Cloudinary uploads (secret stays server-side) |
 | `notifyChatMessage` | Firestore onCreate `messages/{id}` (1st gen) | FCM push to recipient's devices |
 | `bulkImportStaff` | callable v2 (540 s, 512 MiB) | HR list import |
+| `checkMissedChecks` | scheduled, every 30 min (WIT) | Records missed checks, pushes alerts (`missedChecks.ts`) |
+| `errorDigest` | scheduled, hourly | Groups errors, alerts Admins, prunes reports older than 30 days (`monitoring.ts`) |
 
 ---
 
@@ -128,6 +165,9 @@ Rules: `firestore.rules` (deployed automatically by CI). Storage rules: `storage
 - **Open gap:** accounts that existed before the import still allow **Staff ID-only** login; 11 of them have their HR number as Staff ID (e.g. managers). Proposed fix: require a password on Staff ID login for any account that has one.
 - Managers cannot create/edit/delete ADMIN accounts or point a Staff ID at an Admin (rules + `adminResetCredentials`).
 - Chat pairs and the 15-min edit window are enforced in `firestore.rules`, not just the UI.
+- Returning or deleting someone else's log requires outranking the filer in the same department (`outranksSubmitter()`); a superior can't change the answers while sending a log back. Covered by rules tests.
+- **Rules tests** (`npm run test:rules`; 21 tests at #97) run in CI on rule changes and before every rules deploy.
+- **Known weakness (pre-existing):** the reviewer branch of the submissions rule lets **any** signed-in non-filer stamp or reject a PENDING submission; the role/step check lives in the app only. Worth tightening with the same rank helpers.
 
 ---
 
@@ -142,6 +182,10 @@ Rules: `firestore.rules` (deployed automatically by CI). Storage rules: `storage
 7. **68 SGH** is mixed (kitchen + camp); treat kitchen jobs → FS, camp jobs → HK.
 8. Paper forms still missing: **UN.00.65 Room Cleaning**, **Technician daily log**, clear photo of **UN.00.45** title; Temperature Control / Dishwash assets only cover Melati.
 9. Personnel "possible duplicates" check and Staff ID-only security gap (§7).
+10. **Document Control (SOPs) and Inventory Management**: requested; waiting for PSU to describe their current system (numbering, approval, revisions; items, stores, counts, requests and reorders) before building.
+11. **Staff notification**: email drafted 15 Nov 2026 for Mark to send (imported / not-imported Excel lists, how to log in, Print form, Document Control / Inventory request).
+12. Tighten the submissions reviewer rule (§7 known weakness) and enforce site access for return / delete server-side.
+13. A returned Temperature Control / Dishwashing sheet from an earlier day can't be reopened by the filer (§3.3 limitation).
 
 ---
 
@@ -190,4 +234,5 @@ Rules: `firestore.rules` (deployed automatically by CI). Storage rules: `storage
 ## 10. Verification notes
 - Every PR passed `vite build`; no new TypeScript errors vs. the pre-existing baseline (the repo has pre-existing `ListCard` generic typing errors).
 - Features were exercised in **demo mode** with Playwright (screenshots/PDF renders). Production-only paths (FCM delivery, `bulkImportStaff`) were verified by successful deploys and the user's live import.
-- Firestore rules are compiled by the CI deploy before publishing; there are no automated rules tests (emulator not used).
+- Firestore rules: automated tests since #93 (`npm run test:rules`, emulator; 21/21 passing at #97), run in CI before every rules deploy. They also run in the cloud dev environment (Java + emulator available).
+- #97 was exercised in demo mode on a phone-size screen: page view, browser Back, Stamp, Return for correction, "Sent back" list, Manager delete. Its deploy run (rules tests + rules publish) passed.
