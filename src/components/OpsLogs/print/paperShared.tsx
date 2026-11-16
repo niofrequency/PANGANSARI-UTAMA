@@ -95,12 +95,12 @@ export function SigBlock({ heading, role, name, at, align = 'left', stamp, step,
                 <span className="inline-flex gap-1.5 flex-wrap" style={{ justifyContent: align === 'center' ? 'center' : align === 'right' ? 'flex-end' : 'flex-start' }}>
                   {stamps.map(([st, x]) => x?.name ? <span key={st}><StampMark step={st} stamp={x} /></span> : null)}
                 </span>
-                <span className="font-bold mt-1" style={{ fontSize: '8.5px' }}>{stamps.map(([, x]) => x?.name).filter(Boolean).join(' / ')}</span>
+                <span className="font-bold mt-1" style={{ fontSize: '8.5px' }}>{stamps.map(([, x]) => x?.name?.toUpperCase()).filter(Boolean).join(' / ')}</span>
               </span>
             : stamp?.name && step
             ? <span className="inline-flex flex-col pb-0.5" style={{ alignItems: align === 'center' ? 'center' : align === 'right' ? 'flex-end' : 'flex-start' }}>
                 <StampMark step={step} stamp={stamp} />
-                <span className="font-bold mt-1.5" style={{ fontSize: '8.5px' }}>{stamp.name}</span>
+                <span className="font-bold mt-1.5" style={{ fontSize: '8.5px' }}>{stamp.name.toUpperCase()}</span>
               </span>
             : <>{name || ''}{at ? ` · ${new Date(at).toLocaleDateString('en-GB')}` : ''}</>}
         </span>
@@ -222,7 +222,7 @@ export function StampMark({ step, stamp, small = false }: { step: SignStep; stam
       {stamp.signature && (
         <img src={stamp.signature} alt="" className="block mx-auto" style={{ height: small ? 16 : 24, maxWidth: small ? 90 : 130, objectFit: 'contain', margin: '1px auto' }} />
       )}
-      <span className="block font-bold">{stamp.name}</span>
+      <span className="block font-bold">{stamp.name.toUpperCase()}</span>
       {date && <span className="block">{date}</span>}
     </span>
   );

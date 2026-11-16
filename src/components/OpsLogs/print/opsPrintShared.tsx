@@ -117,7 +117,7 @@ export function OpsPrintSignoff({ submission }: { submission: Submission }) {
               <div className="flex items-center justify-center" style={{ height: 62 }}>
                 {s.stamp?.name ? <StampMark step={s.step} stamp={s.stamp} /> : null}
               </div>
-              <div className="border-b border-black pb-0.5 font-bold" style={{ fontSize: '9px', minHeight: 14 }}>{s.stamp?.name || ''}</div>
+              <div className="border-b border-black pb-0.5 font-bold" style={{ fontSize: '9px', minHeight: 14 }}>{s.stamp?.name?.toUpperCase() || ''}</div>
               <p style={{ fontSize: '7px' }} className="pt-0.5">
                 {s.stamp?.at ? new Date(s.stamp.at).toLocaleString('en-GB') : ''}
               </p>
