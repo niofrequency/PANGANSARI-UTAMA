@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useFixEditor } from '../../lib/fixEditors';
 import { useAppStore } from '../../store/useAppStore';
 import { PhotoCapture } from '../PhotoCapture';
 import { TrainingsTab } from '../TrainingsTab';
@@ -109,6 +110,7 @@ export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob 
   // same as every other merged-in submission type.
   const [editingId, setEditingId] = useState<string | null>(null);
   const editingSubmission = editingId ? myHistory.find(s => s.id === editingId) : undefined;
+  useFixEditor((s) => s.type === 'FOOD_SAFETY' && s.userId === currentUser?.id, (s) => setEditingId(s.id));
   // "Type DELETE to confirm" fail-safe (ConfirmDeleteModal) in front of
   // permanently removing one of their own History entries — see
   // deleteSubmission in useAppStore.ts.

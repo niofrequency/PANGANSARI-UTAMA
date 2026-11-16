@@ -784,17 +784,32 @@ export function useAppStore() {
       : s));
   };
 
+  // Reject at a sign-off step sends the log back DOWN the chain to the
+  // person who filed it — same as "Return for correction": records who
+  // rejected it and why (meta.returned), clears every stamp except
+  // draftedBy so the fixed log climbs the whole chain again, and the
+  // notifySubmissionReturned Cloud Function pushes it to the filer (and
+  // to anyone below who'd already stamped it).
   const rejectSignoff = (submissionId: string, reason: string) => {
+    const target = submissions.find(s => s.id === submissionId);
+    if (!currentUser || !target || !reason.trim()) return;
+    const returned = { userId: currentUser.id, name: currentUser.name, role: currentUser.role, at: new Date().toISOString(), note: reason.trim(), fromStatus: target.status };
+    const signoff = target.meta?.signoff?.draftedBy ? { draftedBy: target.meta.signoff.draftedBy } : {};
     if (isFirebaseConfigured) {
-      updateSubmissionDoc(submissionId, { status: 'REJECTED', rejectionReason: reason.trim() })
-        .catch((err) => console.error('rejectSignoff failed:', err));
+      updateSubmissionDoc(submissionId, {
+        status: 'REJECTED',
+        rejectionReason: reason.trim(),
+        'meta.returned': returned,
+        'meta.signoff': signoff,
+      }).catch((err) => console.error('rejectSignoff failed:', err));
       return;
     }
     setSubmissions(prev => prev.map(s => s.id === submissionId
-      ? { ...s, status: 'REJECTED' as const, rejectionReason: reason.trim() }
+      ? { ...s, status: 'REJECTED' as const, rejectionReason: reason.trim(), meta: { ...s.meta, returned, signoff } }
       : s
     ));
   };
+
 
   // The submitter fixes and resubmits the SAME record — not a new one —
   // so its original id/timestamp/history stay intact. Restarts the chain

@@ -1,4 +1,5 @@
 import { useState, ComponentType } from 'react';
+import { useFixEditor } from '../../lib/fixEditors';
 import { useAppStore } from '../../store/useAppStore';
 import { ListCard } from '../ListCard';
 import { SubmissionHistoryList } from '../SubmissionHistoryList';
@@ -127,6 +128,7 @@ export function OpsLogsTab({
     setSelected(null);
     setEditing(s);
   };
+  useFixEditor((s) => s.userId === currentUser?.id && EDITABLE_OPS_LOG_TYPES.includes(s.type as OpsLogType), handleEdit);
 
   if (openType) {
     const FormComponent = FORM_COMPONENTS[openType];

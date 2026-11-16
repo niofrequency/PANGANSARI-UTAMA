@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useFixEditor } from '../../lib/fixEditors';
 import { ClipboardList, Plus, ChevronRight, ClipboardCheck, Footprints, Users, Pencil, Trash2 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { useTranslation } from '../../i18n/LanguageContext';
@@ -133,6 +134,7 @@ export function InspectionsTab({ store, department }: { store: ReturnType<typeof
   // form has editingSubmission wiring, so this only ever matters for
   // Gemba Walk.
   const editingSubmission = editingId ? myAudits.find(s => s.id === editingId) : undefined;
+  useFixEditor((s) => s.type === 'GEMBA_WALK' && s.userId === currentUser?.id, (s) => { setEditingId(s.id); setView('NEW_GEMBA'); });
 
   const commonSubmissionFields = (type: AuditType) => ({
     userId: currentUser!.id,

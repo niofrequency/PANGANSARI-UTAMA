@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useFixEditor } from '../../lib/fixEditors';
 import { useAppStore } from '../../store/useAppStore';
 import { PhotoCapture } from '../PhotoCapture';
 import { TrainingsTab } from '../TrainingsTab';
@@ -92,6 +93,7 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
   // Supervisor's step (resubmitAfterRejection in useAppStore.ts).
   const [editingId, setEditingId] = useState<string | null>(null);
   const editingSubmission = editingId ? myHistory.find(s => s.id === editingId) : undefined;
+  useFixEditor((s) => s.type === 'HOUSEKEEPING' && s.userId === currentUser?.id, (s) => setEditingId(s.id));
   // "Type DELETE to confirm" fail-safe (ConfirmDeleteModal) in front of
   // permanently removing one of their own History entries — see
   // deleteSubmission in useAppStore.ts.
