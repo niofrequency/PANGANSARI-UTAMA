@@ -100,7 +100,7 @@ self.addEventListener('notificationclick', (event) => {
       for (const c of clients) {
         if ('focus' in c) {
           if (fix) c.postMessage({ type: 'OPEN_FIX', id: fix });
-          else if (tab) c.postMessage({ type: tab === 'checks' ? 'OPEN_CHECKS' : 'OPEN_CHAT' });
+          else if (tab) c.postMessage({ type: tab === 'checks' ? 'OPEN_CHECKS' : tab === 'opslogs' ? 'OPEN_OPSLOGS' : 'OPEN_CHAT' });
           return c.focus();
         }
       }

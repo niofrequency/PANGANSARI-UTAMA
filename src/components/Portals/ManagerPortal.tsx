@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useBadgedIcon, useOpenOpsLogsSignal } from '../BadgedIcon';
 import { useAppStore } from '../../store/useAppStore';
 import { AnalyticsDashboard } from '../Dashboard/AnalyticsDashboard';
 import { LayoutDashboard, ClipboardCheck, ClipboardList, History, ListTodo, Users, MessageCircle, MessageSquareWarning } from 'lucide-react';
@@ -40,6 +41,8 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
   const chatTab = useChatTab(store);
   useOpenChatSignal(() => setActiveTab('CHAT'));
   useOpenChecksSignal(() => setActiveTab('CHECKS'));
+  useOpenOpsLogsSignal(() => setActiveTab('OPS_LOGS'));
+  const opsLogsIcon = useBadgedIcon(ClipboardList, store.reviewQueueCount);
   // GM covers both departments; the department Managers only see their own.
   const checksDepartment = isGeneralManager ? undefined : currentUser?.role === 'FOOD_SAFETY_MANAGER' ? 'FOOD_SAFETY' as const : 'HOUSEKEEPING' as const;
 
@@ -60,7 +63,7 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
 
   const tabs = [
     { id: 'DASHBOARD' as const, icon: LayoutDashboard, label: t('manager.tabAnalytics') },
-    { id: 'OPS_LOGS' as const, icon: ClipboardList, label: t('ops.tabTitle') },
+    { id: 'OPS_LOGS' as const, icon: opsLogsIcon, label: t('ops.tabTitle') },
     { id: 'CHECKS' as const, icon: AlarmClock, label: t('checks.tabTitle') },
     { id: 'HISTORY' as const, icon: History, label: t('ops.historySectionTitle') },
     { id: 'ACTIONS' as const, icon: ListTodo, label: t('correctiveAction.tabTitle') },

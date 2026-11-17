@@ -681,6 +681,83 @@ export const notifySubmissionReturned = functionsV1.firestore
     }
   }));
 
+// ── New logs reach the next reviewer ────────────────────────────────
+// Whenever a log arrives at a sign-off step — a technician submits it,
+// a Supervisor stamps it so it moves up to the Manager, or a fixed log
+// is resubmitted — push everyone who can stamp that step: Leadhands /
+// Supervisors for "Checked by", Managers for "Approved / Verified by",
+// in the log's department, covering its site (same reach as the app's
+// review queue, src/lib/logLifecycle.ts's reviewQueueFor). Never the
+// filer, never someone who already stamped another step of it. One
+// collapsing notification per site and department, so a busy morning
+// doesn't stack dozens.
+const CHAINS: Record<string, string[]> = {
+  TEMP_CONTROL: ['checkedBy', 'approvedBy'], DISHWASH_TEMP: ['checkedBy', 'approvedBy'],
+  MESS_HALL_HYGIENE: ['checkedBy', 'approvedBy', 'verifiedBy'], COOKING_SERVICE: ['checkedBy', 'approvedBy'],
+  HOT_PACKED_MEAL: ['checkedBy', 'approvedBy'], THAWING: ['checkedBy', 'verifiedBy'], STAFF_READY: ['approvedBy', 'verifiedBy'],
+  LAUNDRY_SHOP: ['checkedBy', 'approvedBy'], RESTROOM: ['checkedBy', 'approvedBy'], FOOD_SAFETY: ['checkedBy', 'approvedBy'],
+  HOUSEKEEPING: ['checkedBy', 'approvedBy'], GEMBA_WALK: ['approvedBy'],
+};
+const HK_TYPES = new Set(['HOUSEKEEPING', 'RESTROOM', 'LAUNDRY_SHOP']);
+
+function logDept(s: any): 'HOUSEKEEPING' | 'FOOD_SAFETY' {
+  if (s.type === 'GEMBA_WALK') return String(s.role || '').startsWith('HOUSEKEEPING') ? 'HOUSEKEEPING' : 'FOOD_SAFETY';
+  return HK_TYPES.has(s.type) ? 'HOUSEKEEPING' : 'FOOD_SAFETY';
+}
+function nextStep(s: any): string | undefined {
+  const so = s?.meta?.signoff || {};
+  return (CHAINS[s?.type] || []).find((k) => !so[k]);
+}
+function roleWords(r?: string): string {
+  return String(r || '').toLowerCase().split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+function coversSite(u: any, siteId: string): boolean {
+  if (u.isActive === false || !u.uid) return false;
+  const a = u.assignedSites;
+  if (a === 'ALL') return true;
+  if (Array.isArray(a) && a.length > 0) return a.includes(siteId);
+  return u.site === siteId;
+}
+
+export const notifyReviewers = functionsV1.firestore
+  .document('submissions/{submissionId}')
+  .onWrite((change, ctx) => monitored('notifyReviewers', async () => {
+    const after = change.after.exists ? (change.after.data() as any) : null;
+    const before = change.before.exists ? (change.before.data() as any) : null;
+    if (!after || after.status !== 'PENDING' || after.deletedAt) return;
+    const step = nextStep(after);
+    if (!step) return;
+    // Nothing new for reviewers: same step, still pending.
+    if (before && before.status === 'PENDING' && !before.deletedAt && nextStep(before) === step) return;
+    // Sent back to one specific reviewer — notifySubmissionReturned tells them.
+    const r = after.meta?.returned;
+    if (r?.to === 'reviewer' && !r.resolved) return;
+
+    const dept = logDept(after);
+    const roles = step === 'checkedBy'
+      ? [`${dept}_SUPERVISOR`, `${dept}_LEADHAND`]
+      : [`${dept}_MANAGER`];
+    const so = after.meta?.signoff || {};
+    const stampers = new Set(['checkedBy', 'approvedBy', 'verifiedBy'].map((k) => so[k]?.userId).filter(Boolean));
+    const snap = await admin.firestore().collection('users').where('role', 'in', roles).get();
+    const uids = snap.docs.map((d) => d.data() as any)
+      .filter((u) => coversSite(u, after.siteId) && u.uid !== after.userId && !stampers.has(u.uid))
+      .map((u) => u.uid as string);
+    if (!uids.length) return;
+
+    const label = LOG_LABELS[after.type] || 'Log';
+    const site = after.siteName || after.siteId || '';
+    const who = `${after.userName || 'Someone'} (${roleWords(after.role)})`;
+    await pushTo(uids, {
+      title: step === 'checkedBy' ? `New log to check: ${label}` : `Ready for your approval: ${label}`,
+      body: step === 'checkedBy'
+        ? `${who} · ${site} — tap to review.`
+        : `Checked by ${so.checkedBy?.name || 'the supervisor'} · ${site} — tap to review.`,
+      url: '/?tab=opslogs',
+      tag: `review-${dept}-${after.siteId}-${step}`,
+    });
+  }));
+
 // ── Bulk employee import ─────────────────────────────────────────────
 // Admin Portal → Import Staff (src/components/Admin/ImportStaffPanel.tsx)
 // sends rows already mapped to a site + role (src/lib/employeeImport.ts),

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useBadgedIcon, useOpenOpsLogsSignal } from '../BadgedIcon';
 import { useAppStore } from '../../store/useAppStore';
 import { AlertTriangle, ClipboardCheck, History, ListChecks, ListTodo, MessageSquareWarning, MessageCircle } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
@@ -45,6 +46,8 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled }: Supervi
   const chatTab = useChatTab(store);
   useOpenChatSignal(() => setActiveTab('CHAT'));
   useOpenChecksSignal(() => setActiveTab('CHECKS'));
+  useOpenOpsLogsSignal(() => setActiveTab('OPS_LOGS'));
+  const opsLogsIcon = useBadgedIcon(ListChecks, store.reviewQueueCount);
   const department = isFoodSafety ? 'FOOD_SAFETY' as const : 'HOUSEKEEPING' as const;
   const [showWarningDialog, setShowWarningDialog] = useState(false);
   const [warningData, setWarningData] = useState({ userId: '', reason: '', severity: 'LOW' as any });
@@ -78,7 +81,7 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled }: Supervi
   };
 
   const tabs = [
-    { id: 'OPS_LOGS' as const, icon: ListChecks, label: t('ops.tabTitle') },
+    { id: 'OPS_LOGS' as const, icon: opsLogsIcon, label: t('ops.tabTitle') },
     { id: 'HISTORY' as const, icon: History, label: t('ops.historySectionTitle') },
     { id: 'CHECKS' as const, icon: AlarmClock, label: t('checks.tabTitle') },
     { id: 'REPORTS' as const, icon: MessageSquareWarning, label: t('fieldReport.tabTitle') },

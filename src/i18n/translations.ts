@@ -835,6 +835,14 @@ export const translations = {
       remarkPlaceholder: 'Optional notes...',
       slotLabel: 'Slot',
       mealPeriodsLabel: 'Meal periods cooked today',
+      queue: {
+        newToday: '{count} new today',
+        newChip: 'New today',
+        othersTitle: 'Waiting for another reviewer',
+        reasonOwn: 'Your own log — another reviewer at your level must stamp it.',
+        reasonStamped: 'You stamped an earlier step — another reviewer must stamp this one.',
+        badge: '{count} waiting for your stamp',
+      },
       paper: {
         zoom: 'Zoom', zoomIn: 'Zoom in', zoomOut: 'Zoom out', fit: 'Fit', photos: 'Photos', fullScreen: 'Full screen', close: 'Close', rotate: 'Rotate',
         hintPhone: 'Pinch or double-tap to zoom',
@@ -1835,6 +1843,14 @@ export const translations = {
       remarkPlaceholder: 'Catatan opsional...',
       slotLabel: 'Slot',
       mealPeriodsLabel: 'Waktu makan yang dimasak hari ini',
+      queue: {
+        newToday: '{count} baru hari ini',
+        newChip: 'Baru hari ini',
+        othersTitle: 'Menunggu peninjau lain',
+        reasonOwn: 'Log Anda sendiri — peninjau lain di level Anda harus menstempelnya.',
+        reasonStamped: 'Anda sudah menstempel tahap sebelumnya — peninjau lain harus menstempel tahap ini.',
+        badge: '{count} menunggu stempel Anda',
+      },
       paper: {
         zoom: 'Perbesar', zoomIn: 'Perbesar', zoomOut: 'Perkecil', fit: 'Pas', photos: 'Foto', fullScreen: 'Layar penuh', close: 'Tutup', rotate: 'Putar',
         hintPhone: 'Cubit atau ketuk dua kali untuk zoom',
