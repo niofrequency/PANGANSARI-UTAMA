@@ -6,27 +6,14 @@
 // live subscription plus one write function.
 
 import { collection, addDoc, onSnapshot } from 'firebase/firestore';
+import { listenMerged } from './liveQuery';
+import type { QueryConstraint } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Warning } from '../types';
 
-export function subscribeWarnings(onChange: (warnings: Warning[]) => void): () => void {
-  if (!db) {
-    onChange([]);
-    return () => {};
-  }
-  return onSnapshot(
-    collection(db, 'warnings'),
-    (snap) => {
-      const warnings: Warning[] = snap.docs.map((d) => ({
-        ...(d.data() as Omit<Warning, 'id'>),
-        id: d.id,
-      }));
-      onChange(warnings);
-    },
-    (err) => {
-      console.error('subscribeWarnings failed:', err);
-    }
-  );
+// `slices` = this person's share (lib/dataScope.ts); default = all.
+export function subscribeWarnings(onChange: (items: Warning[]) => void, slices: QueryConstraint[][] = [[]]): () => void {
+  return listenMerged<Warning>('warnings', slices, (id, data) => ({ ...(data as Omit<Warning, 'id'>), id }), onChange, 'subscribeWarnings');
 }
 
 export async function addWarningDoc(warning: Omit<Warning, 'id'>): Promise<void> {

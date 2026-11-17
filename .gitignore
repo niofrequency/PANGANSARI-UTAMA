@@ -3,3 +3,7 @@ dist/
 .env
 .env.local
 *.log
+
+# Test output
+test-results/
+playwright-report/

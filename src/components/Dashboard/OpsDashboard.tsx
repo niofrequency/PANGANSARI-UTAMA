@@ -1,9 +1,13 @@
-import { ReactNode, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { collection, getDocs, query, where } from 'firebase/firestore';
+import { db, isFirebaseConfigured } from '../../lib/firebase';
+import { fetchSubmissionsInRange } from '../../services/exportService';
+import { sitesForScope } from '../../lib/siteScope';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
 import { AlertTriangle, AlarmClock, ArrowDownRight, ArrowUpRight, CheckCircle2, ChevronRight, ClipboardList, Clock, FileWarning, ListTodo, Timer, TrendingUp } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { useTranslation } from '../../i18n/LanguageContext';
-import { Submission } from '../../types';
+import { MissedCheck, Submission } from '../../types';
 import { departmentOf, titleKeyForChainType } from '../../data/opsLogsCatalog';
 import { userCanSeeSite } from '../../lib/siteScope';
 import { hasProblem } from '../../lib/problemRate';
@@ -54,6 +58,46 @@ export function OpsDashboard({ store, onNavigate, onlySiteId, onlyDept }: {
   const { t } = useTranslation();
   const { currentUser, submissions, sites, fieldReports, correctiveActions, missedChecks } = store;
   const [period, setPeriod] = useState<Period>(7);
+  // The app keeps only a recent window live (lib/dataScope.ts). When the
+  // chosen period + the previous one reach further back, fetch just the
+  // missing days once (and the missed checks for them) instead of keeping
+  // weeks of every site's logs on every phone.
+  const [extra, setExtra] = useState<{ subs: Submission[]; missed: MissedCheck[]; truncated: boolean; from: string } | null>(null);
+  const [loadingExtra, setLoadingExtra] = useState(false);
+  useEffect(() => {
+    if (!isFirebaseConfigured || !db || !currentUser) return;
+    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+    const needFrom = new Date(todayStart.getTime() - (2 * period - 1) * DAY).toISOString();
+    const liveFrom = store.olderHistory.loadedFrom;
+    if (needFrom >= liveFrom || (extra && extra.from <= needFrom)) return;
+    let alive = true;
+    setLoadingExtra(true);
+    Promise.all([
+      fetchSubmissionsInRange(sitesForScope(currentUser), needFrom, liveFrom),
+      getDocs(query(collection(db, 'missedChecks'), where('date', '>=', localDateISO(new Date(needFrom))))),
+    ]).then(([r, snap]) => {
+      if (!alive) return;
+      setExtra({ subs: r.submissions, truncated: r.truncated, from: needFrom,
+        missed: snap.docs.map((d) => ({ ...(d.data() as Omit<MissedCheck, 'id'>), id: d.id })) });
+    }).catch((err) => console.error('dashboard history fetch failed:', err))
+      .finally(() => { if (alive) setLoadingExtra(false); });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [period, currentUser?.id]);
+  const allSubs = useMemo(() => {
+    if (!extra) return submissions;
+    const byId = new Map<string, Submission>();
+    for (const x of extra.subs) byId.set(x.id, x);
+    for (const x of submissions) byId.set(x.id, x);
+    return Array.from(byId.values());
+  }, [submissions, extra]);
+  const allMissed = useMemo(() => {
+    if (!extra) return missedChecks;
+    const byId = new Map<string, MissedCheck>();
+    for (const x of extra.missed) byId.set(x.id, x);
+    for (const x of missedChecks) byId.set(x.id, x);
+    return Array.from(byId.values());
+  }, [missedChecks, extra]);
 
   const d = useMemo(() => {
     const me = currentUser;
@@ -61,7 +105,7 @@ export function OpsDashboard({ store, onNavigate, onlySiteId, onlyDept }: {
       .filter(x => !onlyDept || x === onlyDept);
     const inScope = (siteId: string, dept?: string) => !!me && userCanSeeSite(me, siteId) && (!onlySiteId || siteId === onlySiteId)
       && !!dept && depts.includes(dept);
-    const logs = submissions.filter(s => !s.deletedAt && inScope(s.siteId, departmentOf(s)));
+    const logs = allSubs.filter(s => !s.deletedAt && inScope(s.siteId, departmentOf(s)));
 
     const now = Date.now();
     const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
@@ -86,7 +130,7 @@ export function OpsDashboard({ store, onNavigate, onlySiteId, onlyDept }: {
 
     const fromDate = localDateISO(new Date(start));
     const prevFromDate = localDateISO(new Date(prevStart));
-    const missedScoped = missedChecks.filter(m => inScope(m.siteId, m.department));
+    const missedScoped = allMissed.filter(m => inScope(m.siteId, m.department));
     const missedCur = missedScoped.filter(m => m.date >= fromDate);
     const missedPrev = missedScoped.filter(m => m.date >= prevFromDate && m.date < fromDate);
     const todayISO = localDateISO(new Date());
@@ -142,7 +186,7 @@ export function OpsDashboard({ store, onNavigate, onlySiteId, onlyDept }: {
       openIssues: openIssues.length, unackIssues: unackIssues.length, overdueActions: overdueActions.length,
       daily, bySite, silentSites, byForm, problemsToday,
     };
-  }, [currentUser, submissions, sites, fieldReports, correctiveActions, missedChecks, period, onlySiteId, onlyDept]);
+  }, [currentUser, allSubs, sites, fieldReports, correctiveActions, allMissed, period, onlySiteId, onlyDept]);
 
   const fmtH = (h: number | null) => h === null ? '—' : h < 1 ? `${Math.round(h * 60)}m` : h < 48 ? `${h.toFixed(1)}h` : `${(h / 24).toFixed(1)}d`;
   const pct = (r: number | null) => r === null ? '—' : `${Math.round(r)}%`;
@@ -161,7 +205,11 @@ export function OpsDashboard({ store, onNavigate, onlySiteId, onlyDept }: {
     <div className="space-y-6">
       {/* Period */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <p className="text-xs font-bold text-psu-gray/50">{t('dash.scope', { period: periodLabel })}</p>
+        <p className="text-xs font-bold text-psu-gray/50">
+          {t('dash.scope', { period: periodLabel })}
+          {loadingExtra && <span className="ml-2 text-psu-blue">· {t('dash.loading')}</span>}
+          {extra?.truncated && <span className="ml-2 text-amber-700">· {t('dash.truncated')}</span>}
+        </p>
         <div className="flex bg-white rounded-xl p-1 border border-psu-gray/10">
           {([1, 7, 30] as Period[]).map(p => (
             <button key={p} type="button" onClick={() => setPeriod(p)}

@@ -226,8 +226,11 @@ export const translations = {
       silentSites: '{count} site(s) with no logs · {period}',
       noLogs: 'No logs in this period.',
       late: 'late',
+      loading: 'loading older days…',
+      truncated: 'very large period — figures based on the most recent 20,000 logs',
       col: { form: 'Form', site: 'Site', logs: 'Logs', problems: 'Problems', waiting: 'Waiting', missed: 'Missed', last: 'Last log' },
     },
+    update: { ready: 'A new version of PSU FieldOps is ready.', reload: 'Update' },
     layout: {
       printForm: 'Print form',
       installApp: 'Install App',
@@ -1280,8 +1283,11 @@ export const translations = {
       silentSites: '{count} lokasi tanpa log · {period}',
       noLogs: 'Tidak ada log pada periode ini.',
       late: 'terlambat',
+      loading: 'memuat hari sebelumnya…',
+      truncated: 'periode sangat besar — angka berdasarkan 20.000 log terbaru',
       col: { form: 'Formulir', site: 'Lokasi', logs: 'Log', problems: 'Masalah', waiting: 'Menunggu', missed: 'Terlewat', last: 'Log terakhir' },
     },
+    update: { ready: 'Versi baru PSU FieldOps sudah siap.', reload: 'Perbarui' },
     layout: {
       printForm: 'Cetak formulir',
       installApp: 'Pasang Aplikasi',

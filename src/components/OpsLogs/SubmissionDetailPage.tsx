@@ -1,4 +1,6 @@
 import { ComponentType, ReactNode, useEffect, useRef, useState, useMemo } from 'react';
+import { isFirebaseConfigured } from '../../lib/firebase';
+import { fetchMonthSheets } from '../../services/submissionsService';
 import { AlertTriangle, CheckCircle2, ChevronLeft, CornerUpLeft, Pencil, Printer, Send, Stamp, Trash2, XCircle } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { useTranslation } from '../../i18n/LanguageContext';
@@ -54,6 +56,8 @@ export const OPS_PRINT_COMPONENTS: Partial<Record<Submission['type'], ComponentT
   FOOD_SAFETY_INSPECTION: InspectionPrintSheet,
   DAILY_FOOD_HANDLER: DailyFoodHandlerPrintSheet,
 };
+
+const MONTHLY_SHEETS = new Set<Submission['type']>(['TEMP_CONTROL', 'DISHWASH_TEMP', 'MESS_HALL_HYGIENE']);
 
 // Sheets laid out on landscape A4; the rest are portrait.
 const LANDSCAPE_SHEETS = new Set<Submission['type']>([
@@ -250,6 +254,27 @@ export function SubmissionDetailPage({ store, submission, onBack, canStamp, onSt
   // Older stamps were saved without the reviewer's role — fill it in from
   // the user list so every paper stamp reads e.g. "APPROVED BY SUPERVISOR".
   const s = useMemo(() => withStampRoles(live, store.users || []), [live, store.users]);
+  // Monthly sheets show every day of the month; days outside this
+  // person's live window are fetched for this site + form only.
+  const [monthExtra, setMonthExtra] = useState<Submission[]>([]);
+  useEffect(() => {
+    if (!isFirebaseConfigured || !MONTHLY_SHEETS.has(s.type)) return;
+    const d = new Date(s.meta?.date ? `${s.meta.date}T12:00:00` : s.timestamp);
+    const from = new Date(d.getFullYear(), d.getMonth(), 1);
+    from.setDate(from.getDate() - 1); // a day's margin for timezone edges
+    const to = new Date(d.getFullYear(), d.getMonth() + 1, 2);
+    let alive = true;
+    fetchMonthSheets(s.siteId, s.type, from.toISOString(), to.toISOString())
+      .then((xs) => { if (alive) setMonthExtra(xs); })
+      .catch((err) => console.error('fetchMonthSheets failed:', err));
+    return () => { alive = false; };
+  }, [s.id, s.siteId, s.type]);
+  const sheetSubmissions = useMemo(() => {
+    const byId = new Map<string, Submission>();
+    for (const x of monthExtra) if (!x.deletedAt) byId.set(x.id, x);
+    for (const x of submissions) if (!x.deletedAt) byId.set(x.id, x);
+    return Array.from(byId.values());
+  }, [submissions, monthExtra]);
   const titleKey = titleKeyForChainType(s.type);
   const PrintSheet = OPS_PRINT_COMPONENTS[s.type];
   const isOwner = s.userId === currentUser?.id;
@@ -276,7 +301,7 @@ export function SubmissionDetailPage({ store, submission, onBack, canStamp, onSt
         )}
       </div>
 
-      {PrintSheet && <div className="hidden print:block"><PrintSheet submission={s} allSubmissions={submissions.filter(x => !x.deletedAt)} /></div>}
+      {PrintSheet && <div className="hidden print:block"><PrintSheet submission={s} allSubmissions={sheetSubmissions} /></div>}
 
       <div className="print:hidden space-y-6">
         <div className="card space-y-4">
@@ -402,7 +427,7 @@ export function SubmissionDetailPage({ store, submission, onBack, canStamp, onSt
         {PrintSheet ? (
           <>
             <PaperViewer landscape={LANDSCAPE_SHEETS.has(s.type)}>
-              <PrintSheet submission={s} allSubmissions={submissions.filter(x => !x.deletedAt)} />
+              <PrintSheet submission={s} allSubmissions={sheetSubmissions} />
             </PaperViewer>
             {s.items.some(i => i.photoUrl) && (
               <div className="card space-y-3">

@@ -22,6 +22,7 @@
 // localStorage-backed demo mode instead of crashing — see useAppStore.ts.
 
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 import { getAuth, setPersistence, browserLocalPersistence, type Auth } from 'firebase/auth';
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
@@ -49,6 +50,23 @@ export const isFirebaseConfigured = Boolean(
 export const app: FirebaseApp | null = isFirebaseConfigured
   ? (getApps().length ? getApps()[0]! : initializeApp(firebaseConfig))
   : null;
+
+// Firebase App Check: proves requests come from this app (not a script
+// or bot holding the public config), so the database, storage and Cloud
+// Functions can refuse everything else. Switched on only when
+// VITE_APPCHECK_SITE_KEY (a reCAPTCHA Enterprise site key) is set; turn
+// on *enforcement* in the Firebase console only after the App Check
+// dashboard shows nearly all traffic as verified — see
+// docs/SECURITY_AND_OPERATIONS.md.
+const appCheckKey = import.meta.env.VITE_APPCHECK_SITE_KEY as string | undefined;
+if (app && appCheckKey && typeof window !== 'undefined') {
+  // Before auth / Firestore make their first request, so every request carries a token.
+  try {
+    initializeAppCheck(app, { provider: new ReCaptchaEnterpriseProvider(appCheckKey), isTokenAutoRefreshEnabled: true });
+  } catch (err) {
+    console.error('App Check init failed:', err);
+  }
+}
 
 export const auth: Auth | null = app ? getAuth(app) : null;
 // ignoreUndefinedProperties matters here specifically: form code all over
