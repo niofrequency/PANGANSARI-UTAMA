@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Delete, AlertCircle, LogIn } from 'lucide-react';
+import { Delete, AlertCircle, LogIn, ClipboardPaste } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext';
 import { DeepLinkJob, parseDeepLinkFromUrl } from '../lib/deepLink';
 import { Site } from '../types';
@@ -31,6 +31,13 @@ const ACTION_LABEL_KEY: Record<DeepLinkJob['action'], string> = {
 
 const MAX_STAFF_ID_LENGTH = 12;
 const MIN_STAFF_ID_LENGTH = 3;
+// Staff IDs are A–Z / 0–9, upper-case, ≤ 12 characters (see staffCodes in
+// firestore.rules) — typing or pasting anything else is cleaned to that.
+export function cleanStaffId(raw: string): string {
+  return raw.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, MAX_STAFF_ID_LENGTH);
+}
+// Touch phones keep the on-screen keypad as the way in.
+const coarsePointer = typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches;
 
 const LETTER_ROWS = ['ABCDEF', 'GHIJKL', 'MNOPQR', 'STUVWX', 'YZ'];
 
@@ -95,6 +102,42 @@ export function StaffIdGate({ pendingJob, sites, loginByStaffCode, onSuccess, on
     onSuccess();
   };
 
+  const setFromText = (raw: string) => {
+    if (isSubmitting) return;
+    const v = cleanStaffId(raw);
+    if (!v) return;
+    setError('');
+    setNeedPassword(false);
+    setPassword('');
+    setStaffCode(v);
+  };
+
+  // Ctrl/⌘+V anywhere on this screen pastes the ID — even if the cursor
+  // isn't in the ID box (e.g. after tapping the keypad). The password box
+  // keeps its own paste.
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target instanceof HTMLInputElement && (target.type === 'password' || target.dataset.staffId === 'true')) return;
+      const text = e.clipboardData?.getData('text') || '';
+      if (!cleanStaffId(text)) return;
+      e.preventDefault();
+      setFromText(text);
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSubmitting]);
+
+  const canPasteButton = !coarsePointer && typeof navigator !== 'undefined' && !!navigator.clipboard?.readText;
+  const pasteFromClipboard = async () => {
+    try {
+      setFromText(await navigator.clipboard.readText());
+    } catch {
+      setError(t('staffIdGate.pasteBlocked'));
+    }
+  };
+
   const pressDigit = (d: string) => {
     if (isSubmitting) return;
     setError('');
@@ -143,14 +186,42 @@ export function StaffIdGate({ pendingJob, sites, loginByStaffCode, onSuccess, on
         <label className="block text-[10px] font-black text-psu-gray/40 uppercase tracking-widest mb-2 text-center">
           {t('staffIdGate.staffIdLabel')}
         </label>
-        <div
+        {/* A real text field: on a computer you can click, type or paste
+            (Ctrl/⌘+V) the ID — letters and numbers. Pasted text is cleaned
+            to A–Z / 0–9 and upper-cased ("tech-01 " → "TECH01"). On
+            touch phones the on-screen keypad below stays the way in
+            (inputMode none keeps the phone keyboard from covering it). */}
+        <input
+          type="text"
+          value={staffCode}
+          onChange={(e) => {
+            if (isSubmitting) return;
+            setError('');
+            setNeedPassword(false);
+            setPassword('');
+            setStaffCode(cleanStaffId(e.target.value));
+          }}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(); }}
+          data-staff-id="true"
+          autoFocus={!coarsePointer}
+          inputMode={coarsePointer ? 'none' : 'text'}
+          autoComplete="username"
+          autoCapitalize="characters"
+          spellCheck={false}
+          aria-label={t('staffIdGate.staffIdLabel')}
+          placeholder={t('staffIdGate.staffIdPlaceholder')}
           className={
-            "w-full min-h-[64px] flex items-center justify-center text-center text-3xl font-black tracking-[0.2em] py-3 mb-6 bg-psu-bg border-2 rounded-2xl transition-all " +
+            "w-full min-h-[64px] text-center text-3xl font-black tracking-[0.2em] py-3 mb-6 bg-psu-bg border-2 rounded-2xl transition-all " +
+            "placeholder:text-psu-gray/20 placeholder:text-lg placeholder:tracking-normal placeholder:font-black focus:outline-none focus:ring-2 focus:ring-psu-green/20 " +
             (error ? "border-psu-rejected" : "border-psu-gray/10")
           }
-        >
-          {staffCode || <span className="text-psu-gray/20 text-lg tracking-normal">{t('staffIdGate.staffIdPlaceholder')}</span>}
-        </div>
+        />
+        {canPasteButton && (
+          <button type="button" onClick={pasteFromClipboard}
+            className="-mt-4 mb-5 w-full flex items-center justify-center gap-2 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest text-psu-blue bg-psu-blue/5 hover:bg-psu-blue/10">
+            <ClipboardPaste size={14} /> {t('staffIdGate.pasteButton')}
+          </button>
+        )}
 
         {/* 123/ABC toggle — a Staff ID can mix digits and letters (e.g.
             "TECH01"), so the keypad switches character sets instead of

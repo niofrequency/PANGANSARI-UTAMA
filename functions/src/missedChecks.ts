@@ -154,6 +154,8 @@ function userCoversSite(u: UserDoc, siteId: string): boolean {
   const a = u.assignedSites;
   if (a === 'ALL') return true;
   if (Array.isArray(a) && a.length > 0) return a.includes(siteId);
+  // Managers / GM / Admin: every site unless narrowed (src/lib/siteScope.ts).
+  if (['GENERAL_MANAGER', 'ADMIN', 'HOUSEKEEPING_MANAGER', 'FOOD_SAFETY_MANAGER'].includes(u.role || '')) return true;
   return u.site === siteId;
 }
 

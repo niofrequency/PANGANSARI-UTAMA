@@ -36,41 +36,8 @@ export function RestroomForm({ store, onCancel, onSubmitted, editingSubmission }
   const today = localDateISO();
   const allItems = RESTROOM_GROUPS.flatMap(g => g.items);
 
-  // --- Editing a past rejected entry: unchanged single-slot behavior ---
-  if (editingSubmission) {
-    return (
-      <RestroomSlotEditor
-        title={t('ops.restroom.title')}
-        siteName={currentSiteName}
-        userName={currentUser?.name || ''}
-        staffCode={currentUser?.staffCode}
-        availableSites={availableSites}
-        onSiteChange={setWorkingSiteId}
-        section={editingSubmission.meta?.section || ''}
-        onSectionChange={() => {}}
-        sectionLocked
-        slot={editingSubmission.meta?.slot || '08'}
-        onSlotChange={() => {}}
-        marks={(() => {
-          const initial: Record<string, string> = {};
-          editingSubmission.items.forEach(i => { initial[i.id] = String(i.answer); });
-          return initial;
-        })()}
-        onSave={(marks) => {
-          const items = allItems.map(i => ({ id: i.id, question: `${i.labelId} (${i.labelEn})`, answer: marks[i.id] }));
-          resubmitAfterRejection(editingSubmission.id, {
-            items,
-            meta: { ...editingSubmission.meta, section: editingSubmission.meta?.section, slot: editingSubmission.meta?.slot },
-          });
-          onSubmitted();
-        }}
-        onCancel={onCancel}
-        savedBadge={false}
-        resubmitBanner
-      />
-    );
-  }
-
+  // Hooks for the fresh-fill mode live up here, above the editing mode's
+  // early return, so every render calls the same hooks in the same order.
   // --- Fresh fill: one sheet for today, slot chips, upsert per slot ---
   const [section, setSection] = useState(() => localStorage.getItem(RESTROOM_LAST_SECTION_KEY) || '');
   const trimmedSection = section.trim();
@@ -118,6 +85,42 @@ export function RestroomForm({ store, onCancel, onSubmitted, editingSubmission }
   // for the editingSubmission (fix-a-past-entry) flow below, where
   // jumping back to History afterward is still the right call.
   const [savedFlashSlot, setSavedFlashSlot] = useState<RestroomSlot | null>(null);
+
+  // --- Editing a past rejected entry: unchanged single-slot behavior ---
+  if (editingSubmission) {
+    return (
+      <RestroomSlotEditor
+        title={t('ops.restroom.title')}
+        siteName={currentSiteName}
+        userName={currentUser?.name || ''}
+        staffCode={currentUser?.staffCode}
+        availableSites={availableSites}
+        onSiteChange={setWorkingSiteId}
+        section={editingSubmission.meta?.section || ''}
+        onSectionChange={() => {}}
+        sectionLocked
+        slot={editingSubmission.meta?.slot || '08'}
+        onSlotChange={() => {}}
+        marks={(() => {
+          const initial: Record<string, string> = {};
+          editingSubmission.items.forEach(i => { initial[i.id] = String(i.answer); });
+          return initial;
+        })()}
+        onSave={(marks) => {
+          const items = allItems.map(i => ({ id: i.id, question: `${i.labelId} (${i.labelEn})`, answer: marks[i.id] }));
+          resubmitAfterRejection(editingSubmission.id, {
+            items,
+            meta: { ...editingSubmission.meta, section: editingSubmission.meta?.section, slot: editingSubmission.meta?.slot },
+          });
+          onSubmitted();
+        }}
+        onCancel={onCancel}
+        savedBadge={false}
+        resubmitBanner
+      />
+    );
+  }
+
 
   const handleSlotSave = (slot: RestroomSlot, marks: Record<string, string>) => {
     if (!currentUser || !trimmedSection) return;

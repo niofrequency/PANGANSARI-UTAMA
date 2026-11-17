@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { ALWAYS_UNSCOPED_ROLES } from '../../lib/siteScope';
 import { useAppStore } from '../../store/useAppStore';
 import {
   Users, UserPlus, Trash2, Search, AlertTriangle, Copy, Check, Eye, EyeOff, RefreshCw, KeyRound, Hash,
@@ -52,9 +53,13 @@ function generatePassword(length = 10): string {
 
 type SiteAccessValue = string[] | 'ALL' | undefined;
 
-function siteAccessMode(value: SiteAccessValue): 'home' | 'all' | 'custom' {
-  if (value === 'ALL') return 'all';
-  if (Array.isArray(value)) return 'custom';
+// Unset = the role's default: every site for Managers / GM / Admin, home
+// site for everyone else (lib/siteScope.ts). For those wide-by-default
+// roles, "Home Site" is stored as just [homeSite] so it really narrows.
+function siteAccessMode(value: SiteAccessValue, role: UserRole | undefined, homeSite: string): 'home' | 'all' | 'custom' {
+  const wide = !!role && ALWAYS_UNSCOPED_ROLES.includes(role);
+  if (value === 'ALL' || (value == null && wide)) return 'all';
+  if (Array.isArray(value)) return wide && value.length === 1 && value[0] === homeSite ? 'home' : 'custom';
   return 'home';
 }
 
@@ -63,15 +68,17 @@ function siteAccessMode(value: SiteAccessValue): 'home' | 'all' | 'custom' {
 // both get the exact same 3-way picker (Home Site / All Sites / Custom)
 // instead of two hand-rolled copies drifting apart.
 function SiteAccessPicker({
-  sites, homeSite, value, onChange,
+  sites, homeSite, value, onChange, role,
 }: {
+  role?: UserRole;
   sites: Site[];
   homeSite: string; // fallback for "Custom" starting point, and the last-site guard below
   value: SiteAccessValue;
   onChange: (next: SiteAccessValue) => void;
 }) {
   const { t } = useTranslation();
-  const mode = siteAccessMode(value);
+  const mode = siteAccessMode(value, role, homeSite);
+  const wide = !!role && ALWAYS_UNSCOPED_ROLES.includes(role);
   const customSites = Array.isArray(value) ? value : [homeSite];
 
   const pillClass = (active: boolean) => cn(
@@ -83,7 +90,7 @@ function SiteAccessPicker({
     <div>
       <label className="block text-[9px] font-black text-psu-gray/30 uppercase tracking-widest mb-1.5">{t('admin.siteAccessLabel')}</label>
       <div className="flex gap-1.5">
-        <button type="button" onClick={() => onChange(undefined)} className={pillClass(mode === 'home')}>{t('admin.siteAccessHome')}</button>
+        <button type="button" onClick={() => onChange(wide ? [homeSite] : undefined)} className={pillClass(mode === 'home')}>{t('admin.siteAccessHome')}</button>
         <button type="button" onClick={() => onChange('ALL')} className={pillClass(mode === 'all')}>{t('admin.siteAccessAll')}</button>
         <button type="button" onClick={() => onChange(mode === 'custom' ? customSites : [homeSite])} className={pillClass(mode === 'custom')}>{t('admin.siteAccessCustom')}</button>
       </div>
@@ -504,6 +511,7 @@ export function UserManagementPanel({
                       either way. */}
                   {canEdit(user) && (
                     <SiteAccessPicker
+                      role={user.role}
                       sites={sites}
                       homeSite={user.site}
                       value={user.assignedSites}
@@ -676,6 +684,7 @@ export function UserManagementPanel({
                     </div>
 
                     <SiteAccessPicker
+                      role={newUser.role}
                       sites={sites}
                       homeSite={newUser.site}
                       value={newUser.assignedSites}

@@ -31,6 +31,8 @@ jobs:
         working-directory: functions
       - name: Type check
         run: npm run typecheck
+      - name: Rules of Hooks (a hook after an early return crashes the screen)
+        run: npm run lint:hooks
       - name: Unit tests
         run: npm test
       - name: Build

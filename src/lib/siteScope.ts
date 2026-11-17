@@ -18,7 +18,11 @@ import { User, UserRole } from '../types';
 // unscoped; Admin's Personnel/Activity/Analytics tabs default to every
 // site). Keeping that as the fallback means neither account's behavior
 // changes just because this field shipped.
-const ALWAYS_UNSCOPED_ROLES: UserRole[] = ['GENERAL_MANAGER', 'ADMIN'];
+// Department Managers too (since #112): they oversee their department at
+// every site, and their home site is usually an office where no logs are
+// filed — scoped to it, they never saw the logs waiting for their
+// approval. Admin can still narrow a Manager with Custom / Home Site.
+export const ALWAYS_UNSCOPED_ROLES: UserRole[] = ['GENERAL_MANAGER', 'ADMIN', 'HOUSEKEEPING_MANAGER', 'FOOD_SAFETY_MANAGER'];
 
 export function sitesForScope(user: User): string[] | 'ALL' {
   // An empty array is treated the same as unset rather than "sees
