@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useBadgedIcon, useOpenTabSignal } from '../BadgedIcon';
 import { Undo2 as RejectedIcon } from 'lucide-react';
 import { RejectedLogsTab, useRejectedCount } from './RejectedLogsTab';
 import { useFixEditor } from '../../lib/fixEditors';
@@ -70,6 +71,9 @@ export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob 
   const { currentUser, submissions, addSubmission, trainings, completeTraining, warnings, sites } = store;
   const [activeTab, setActiveTab] = useState<'TASKS' | 'HISTORY' | 'REJECTED' | 'CHAT' | 'TRAINING'>('TASKS');
   const rejectedCount = useRejectedCount(store);
+  // Open action items assigned to me live at the bottom of History.
+  const historyIcon = useBadgedIcon(History, store.myOpenActionsCount);
+  useOpenTabSignal('actions', () => setActiveTab('HISTORY'));
   const chatTab = useChatTab(store);
   useOpenChatSignal(() => setActiveTab('CHAT'));
   // Additional Checks (PSU_Paper_Speed_Forms_PRD.md) — UF.10000/UN.00.51
@@ -277,7 +281,7 @@ export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob 
       <div className="flex bg-white rounded-2xl p-1.5 shadow-sm border border-psu-gray/5 md:max-w-3xl md:mx-auto">
         {[
           { id: 'TASKS', icon: ClipboardCheck, label: t('technician.tabChecks') },
-          { id: 'HISTORY', icon: History, label: t('technician.tabHistory') },
+          { id: 'HISTORY', icon: historyIcon, label: t('technician.tabHistory') },
           { id: 'REJECTED', icon: RejectedIcon, label: t('rejectedTab.tab') },
           { id: 'CHAT', icon: chatTab.icon, label: chatTab.label },
           { id: 'TRAINING', icon: GraduationCap, label: t('technician.tabTraining') },

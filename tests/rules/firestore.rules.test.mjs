@@ -202,6 +202,29 @@ test('the assignee can mark an action done but cannot verify it themselves', asy
   await assertSucceeds(updateDoc(doc(as(people.fsSupervisor), 'correctiveActions', 'ca-1'), { status: 'VERIFIED', verifiedAt: 'now' }));
 });
 
+test('only an active supervisor+ in that department can assign action items or issue warnings', async () => {
+  const ca = (by) => ({ createdById: by.uid, assignedToId: people.tech.uid, status: 'OPEN', department: 'FOOD_SAFETY', comment: 'x', action: 'y' });
+  await assertFails(addDoc(collection(as(people.tech), 'correctiveActions'), ca(people.tech)));
+  await assertFails(addDoc(collection(as(people.housekeeper), 'correctiveActions'), { ...ca(people.housekeeper) }));
+  await assertSucceeds(addDoc(collection(as(people.fsSupervisor), 'correctiveActions'), ca(people.fsSupervisor)));
+  await assertSucceeds(addDoc(collection(as(people.fsManager), 'correctiveActions'), ca(people.fsManager)));
+  const w = (by) => ({ supervisorId: by.uid, technicianId: people.tech2.uid, reason: 'late', severity: 'LOW' });
+  await assertFails(addDoc(collection(as(people.tech), 'warnings'), w(people.tech)));
+  await assertSucceeds(addDoc(collection(as(people.fsSupervisor), 'warnings'), w(people.fsSupervisor)));
+  await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), 'users', people.fsSupervisor.email), { isActive: false }));
+  await assertFails(addDoc(collection(as(people.fsSupervisor), 'warnings'), w(people.fsSupervisor)));
+});
+
+test('reported issues are acknowledged / resolved only by leadhand+ in that department', async () => {
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'fieldReports', 'fr-1'), {
+    userId: people.tech.uid, department: 'FOOD_SAFETY', siteId: 'site-a', status: 'OPEN', message: 'Chiller broken',
+  }));
+  const ack = { status: 'ACKNOWLEDGED', acknowledgedBy: 'x', acknowledgedAt: 'now' };
+  await assertFails(updateDoc(doc(as(people.tech2), 'fieldReports', 'fr-1'), ack));
+  await assertFails(updateDoc(doc(as(people.housekeeper), 'fieldReports', 'fr-1'), ack));
+  await assertSucceeds(updateDoc(doc(as(people.fsSupervisor), 'fieldReports', 'fr-1'), ack));
+});
+
 // ── chat ───────────────────────────────────────────────────────────
 function msg(from, to, extra = {}) {
   return {

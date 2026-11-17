@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useBadgedIcon, useOpenOpsLogsSignal } from '../BadgedIcon';
+import { useBadgedIcon, useOpenOpsLogsSignal, useOpenTabSignal } from '../BadgedIcon';
 import { useAppStore } from '../../store/useAppStore';
 import { AlertTriangle, ClipboardCheck, History, ListChecks, ListTodo, MessageSquareWarning, MessageCircle } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
@@ -47,6 +47,10 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled }: Supervi
   useOpenChatSignal(() => setActiveTab('CHAT'));
   useOpenChecksSignal(() => setActiveTab('CHECKS'));
   useOpenOpsLogsSignal(() => setActiveTab('OPS_LOGS'));
+  useOpenTabSignal('reports', () => setActiveTab('REPORTS'));
+  useOpenTabSignal('actions', () => setActiveTab(isLeadhand ? 'OPS_LOGS' : 'ACTIONS'));
+  const reportsIcon = useBadgedIcon(MessageSquareWarning, store.openReportsCount);
+  const actionsIcon = useBadgedIcon(ListTodo, store.actionsToVerifyCount);
   const opsLogsIcon = useBadgedIcon(ListChecks, store.reviewQueueCount);
   const department = isFoodSafety ? 'FOOD_SAFETY' as const : 'HOUSEKEEPING' as const;
   const [showWarningDialog, setShowWarningDialog] = useState(false);
@@ -84,9 +88,9 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled }: Supervi
     { id: 'OPS_LOGS' as const, icon: opsLogsIcon, label: t('ops.tabTitle') },
     { id: 'HISTORY' as const, icon: History, label: t('ops.historySectionTitle') },
     { id: 'CHECKS' as const, icon: AlarmClock, label: t('checks.tabTitle') },
-    { id: 'REPORTS' as const, icon: MessageSquareWarning, label: t('fieldReport.tabTitle') },
+    { id: 'REPORTS' as const, icon: reportsIcon, label: t('fieldReport.tabTitle') },
     ...(isLeadhand ? [] : [
-      { id: 'ACTIONS' as const, icon: ListTodo, label: t('correctiveAction.tabTitle') },
+      { id: 'ACTIONS' as const, icon: actionsIcon, label: t('correctiveAction.tabTitle') },
       // Housekeeping Supervisor gets this too now, restricted to Gemba
       // Walk's Section A only — see InspectionsTab.tsx.
       { id: 'INSPECTIONS' as const, icon: ClipboardCheck, label: t('inspection.tabTitle') },
