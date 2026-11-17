@@ -6,6 +6,8 @@ import { SubmissionHistoryList } from '../SubmissionHistoryList';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { cn } from '../../utils/cn';
 import { motion, AnimatePresence } from 'motion/react';
+import { toast } from 'sonner';
+import { stampProblem } from '../../lib/logLifecycle';
 import { ClipboardList, ChevronRight, CheckCircle2, XCircle, Clock, Pencil, AlertTriangle, CornerUpLeft } from 'lucide-react';
 import { Submission, OpsLogType } from '../../types';
 import { OPS_LOG_DEFS, OpsDepartment, departmentOf, titleKeyForChainType } from '../../data/opsLogsCatalog';
@@ -100,19 +102,26 @@ export function OpsLogsTab({
   // for a Manager's. A form whose chain skips straight to approvedBy
   // (e.g. STAFF_READY, Gemba Walk) never shows up in the Supervisor's
   // queue at all.
-  const queue = submissions.filter(s => {
-    if (s.status !== 'PENDING' || !inScope(s)) return false;
+  // Only logs this person can actually stamp: not their own, and not one
+  // where they already stamped another step (one person never signs two
+  // steps of the same log — see lib/logLifecycle.ts's stampProblem).
+  const tierStep = (step?: string) => tier === 'supervisor' ? step === 'checkedBy' : step === 'approvedBy' || step === 'verifiedBy';
+  const canStampLog = (s: Submission) => {
     const step = nextSignoffStep(s);
-    if (!step) return false;
-    return tier === 'supervisor' ? step === 'checkedBy' : step === 'approvedBy' || step === 'verifiedBy';
-  }).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    return !!step && !!currentUser && tierStep(step) && !stampProblem(s, currentUser.id, step);
+  };
+  const queue = submissions.filter(s => inScope(s) && canStampLog(s)).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
   const history = submissions.filter(inScope).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-  const handleStamp = (s: Submission, signature?: string) => {
+  const handleStamp = async (s: Submission, signature?: string) => {
     const step = nextSignoffStep(s);
-    if (step) addSignoffStamp(s.id, step, signature);
-    setSelected(null);
+    if (!step) return;
+    const result = await addSignoffStamp(s.id, step, signature);
+    if (result) {
+      toast.success(t(result === 'approved' ? 'logOk.approved' : 'logOk.stamped'));
+      closeDetail();
+    }
   };
 
   const handleReject = (s: Submission, reason: string) => {
@@ -191,8 +200,8 @@ export function OpsLogsTab({
   // the page's button or the phone/browser's — returns to this list.
   if (selected) {
     const step = nextSignoffStep(selected);
-    const canStamp = selected.status === 'PENDING' && !!step && selected.userId !== currentUser?.id
-      && (tier === 'supervisor' ? step === 'checkedBy' : step === 'approvedBy' || step === 'verifiedBy');
+    const live = submissions.find(x => x.id === selected.id) || selected;
+    const canStamp = canStampLog(live) && !!step;
     const editable = selected.userId === currentUser?.id && EDITABLE_OPS_LOG_TYPES.includes(selected.type as OpsLogType);
     return (
       <SubmissionDetailPage

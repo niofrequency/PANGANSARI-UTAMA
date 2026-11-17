@@ -3,6 +3,8 @@ import { AlertTriangle, CheckCircle2, ChevronLeft, CornerUpLeft, Pencil, Printer
 import { useAppStore } from '../../store/useAppStore';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { withStampRoles } from './print/paperShared';
+import { toast } from 'sonner';
+import { LogEvent, logTimeline } from '../../lib/logLifecycle';
 import { PaperViewer } from './PaperViewer';
 import { SignatureStampDialog } from './SignatureStampDialog';
 import { Submission } from '../../types';
@@ -125,7 +127,7 @@ function NoteAction({ label, icon, placeholder, confirmLabel, tone, onConfirm }:
 type SendBackTarget = 'filer' | SignoffStep;
 function SendBackAction({ s, me, label, tone, onConfirm }: {
   s: Submission; me?: string; label: string; tone: 'reject' | 'warn';
-  onConfirm: (note: string, target: SendBackTarget) => void;
+  onConfirm: (note: string, target: SendBackTarget, name: string) => void;
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -176,11 +178,46 @@ function SendBackAction({ s, me, label, tone, onConfirm }: {
       )}
       <div className="flex gap-3">
         <button type="button" onClick={() => { setOpen(false); setNote(''); setError(false); }} className="flex-1 py-3 text-psu-gray/40 font-black text-[10px] uppercase tracking-widest">{t('common.cancel')}</button>
-        <button type="button" onClick={() => { if (!note.trim()) { setError(true); return; } onConfirm(note.trim(), target); setOpen(false); setNote(''); }}
+        <button type="button" onClick={() => { if (!note.trim()) { setError(true); return; } onConfirm(note.trim(), target, options.find(o => o.target === target)?.name || ''); setOpen(false); setNote(''); }}
           className={cn('flex-[2] py-3 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest', tone === 'reject' ? 'bg-psu-rejected' : 'bg-psu-warning')}>
           {t('ops.chain.sendBackTo', { name: options.find(o => o.target === target)?.name || '' })}
         </button>
       </div>
+    </div>
+  );
+}
+
+// The log's full history, oldest first: submitted, stamped, sent back
+// (to whom, with the note), fixed, edited — lib/logLifecycle.ts.
+function LogActivity({ s }: { s: Submission }) {
+  const { t } = useTranslation();
+  const events = logTimeline(s);
+  const icon = (a: LogEvent['action']) =>
+    a === 'stamped' ? <CheckCircle2 size={14} className="text-psu-green" />
+    : a === 'sent_back' ? <CornerUpLeft size={14} className="text-psu-rejected" />
+    : a === 'resolved' ? <Send size={14} className="text-psu-blue" />
+    : a === 'edited' ? <Pencil size={14} className="text-psu-gray/60" />
+    : <Stamp size={14} className="text-psu-gray/60" />;
+  const role = (r?: string) => r ? ` (${t(`rolesShort.${r}`)})` : '';
+  return (
+    <div className="card !p-4 md:!p-5 space-y-3 print:hidden">
+      <p className="text-[10px] font-black text-psu-gray/40 uppercase tracking-widest">{t('logTimeline.title')}</p>
+      <ol className="relative border-l-2 border-psu-gray/10 ml-2 space-y-4">
+        {events.map((e, i) => (
+          <li key={i} className="ml-4">
+            <span className="absolute -left-[9px] mt-0.5 w-4 h-4 rounded-full bg-white flex items-center justify-center">{icon(e.action)}</span>
+            <p className="text-xs font-bold text-psu-gray">
+              {t(`logTimeline.${e.action}`, {
+                name: e.by.name + role(e.by.role),
+                step: e.step ? t(`ops.signoff.${e.step}`) : '',
+                to: e.to ? e.to.name + role(e.to.role) : '',
+              })}
+            </p>
+            <p className="text-[10px] font-bold text-psu-gray/40">{new Date(e.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+            {e.note && <p className="text-xs text-psu-gray/70 mt-1 bg-psu-gray/[0.03] rounded-lg px-3 py-2">“{e.note}”</p>}
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }
@@ -311,7 +348,7 @@ export function SubmissionDetailPage({ store, submission, onBack, canStamp, onSt
                 <SignatureStampDialog open={resolveNote !== null} userId={currentUser?.id}
                   stepLabel={ret?.toStep ? t(`ops.signoff.${ret.toStep}`) : ''}
                   onCancel={() => setResolveNote(null)}
-                  onConfirm={(sig) => { resolveReturned(s.id, resolveNote || '', sig); setResolveNote(null); onBack(); }} />
+                  onConfirm={async (sig) => { const note = resolveNote || ''; setResolveNote(null); if (await resolveReturned(s.id, note, sig)) { toast.success(t('logOk.resolved', { name: ret?.name || '' })); onBack(); } }} />
               )}
               {canStamp && onStamp && !backToReviewer && (
                 <button onClick={() => setSigning(true)}
@@ -327,11 +364,11 @@ export function SubmissionDetailPage({ store, submission, onBack, canStamp, onSt
               )}
               {canStamp && onReject && (
                 <SendBackAction s={s} me={currentUser?.id} tone="reject" label={t('ops.signoff.rejectButton')}
-                  onConfirm={(note, target) => { sendBack(s.id, note, target); onBack(); }} />
+                  onConfirm={async (note, target, name) => { if ((await sendBack(s.id, note, target)) !== null) { toast.success(t('logOk.sentBack', { name })); onBack(); } }} />
               )}
               {canReturn && (
                 <SendBackAction s={s} me={currentUser?.id} tone="warn" label={t('ops.chain.returnButton')}
-                  onConfirm={(note, target) => sendBack(s.id, note, target)} />
+                  onConfirm={async (note, target, name) => { if ((await sendBack(s.id, note, target)) !== null) toast.success(t('logOk.sentBack', { name })); }} />
               )}
               {canFix && onEdit && (
                 <button onClick={onEdit}
@@ -342,7 +379,7 @@ export function SubmissionDetailPage({ store, submission, onBack, canStamp, onSt
               {canFix && (
                 <NoteAction tone="blue" icon={<Send size={16} />} label={t('ops.chain.fixedButton')}
                   placeholder={t('ops.chain.fixedPlaceholder')} confirmLabel={t('ops.chain.fixedConfirm')}
-                  onConfirm={(note) => resubmitAfterRejection(s.id, { meta: { ...s.meta, fixNote: note } })} />
+                  onConfirm={async (note) => { if ((await resubmitAfterRejection(s.id, { meta: { ...s.meta, fixNote: note } })) !== null) toast.success(t('logOk.resent')); }} />
               )}
               {superior && (
                 <button onClick={() => setConfirmDelete(true)}
@@ -359,6 +396,8 @@ export function SubmissionDetailPage({ store, submission, onBack, canStamp, onSt
             </button>
           )}
         </div>
+
+        <LogActivity s={s} />
 
         {PrintSheet ? (
           <>
@@ -408,7 +447,7 @@ export function SubmissionDetailPage({ store, submission, onBack, canStamp, onSt
         title={t('ops.chain.deleteTitle')}
         body={t('ops.chain.deleteBody', { name: s.userName })}
         onCancel={() => setConfirmDelete(false)}
-        onConfirm={() => { deleteSubmission(s.id); setConfirmDelete(false); onBack(); }}
+        onConfirm={async () => { setConfirmDelete(false); if ((await deleteSubmission(s.id)) !== null) { toast.success(t('logOk.deleted')); onBack(); } }}
       />
       <Lightbox src={lightboxUrl} onClose={() => setLightboxUrl(null)} />
     </div>
