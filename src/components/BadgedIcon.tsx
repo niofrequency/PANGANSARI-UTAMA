@@ -36,3 +36,22 @@ export function useOpenOpsLogsSignal(open: () => void) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 }
+
+// Generic version for any tab: /?tab=<name> on open, or an OPEN_TAB
+// message from the service worker when a notification is tapped
+// (public/sw.js) — used for reported issues and action items.
+export function useOpenTabSignal(tab: string, open: () => void) {
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('tab') === tab) {
+      open();
+      params.delete('tab');
+      const q = params.toString();
+      window.history.replaceState(null, '', window.location.pathname + (q ? `?${q}` : ''));
+    }
+    const onMessage = (e: MessageEvent) => { if (e.data?.type === 'OPEN_TAB' && e.data.tab === tab) open(); };
+    navigator.serviceWorker?.addEventListener('message', onMessage);
+    return () => navigator.serviceWorker?.removeEventListener('message', onMessage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+}

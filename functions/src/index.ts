@@ -761,6 +761,49 @@ export const notifyReviewers = functionsV1.firestore
     });
   }));
 
+// ── Reported issues (wrench) ─────────────────────────────────────────
+// A worker reports something broken: push the Leadhands, Supervisors and
+// Managers of that department who cover the site — same reach as the
+// app's Reports / Issues tab. Tap opens that tab (/?tab=reports).
+export const notifyFieldReport = functionsV1.firestore
+  .document('fieldReports/{reportId}')
+  .onCreate((snap) => monitored('notifyFieldReport', async () => {
+    const r = snap.data() as any;
+    if (!r?.department || !r.siteId) return;
+    const roles = [`${r.department}_LEADHAND`, `${r.department}_SUPERVISOR`, `${r.department}_MANAGER`];
+    const users = await admin.firestore().collection('users').where('role', 'in', roles).get();
+    const uids = users.docs.map((d) => d.data() as any)
+      .filter((u) => coversSite(u, r.siteId) && u.uid !== r.userId)
+      .map((u) => u.uid as string);
+    await pushTo(uids, {
+      title: `Issue reported · ${r.siteName || r.siteId}`,
+      body: `${r.userName || 'Someone'} (${roleWords(r.role)}): ${String(r.message || '').slice(0, 160)}`,
+      url: '/?tab=reports',
+      tag: `report-${snap.id}`,
+    });
+  }));
+
+// ── Action items ──────────────────────────────────────────────────────
+// Assigned → push the assignee. Marked done → push whoever assigned it,
+// to verify. Sent back (DONE → OPEN) → push the assignee again.
+export const notifyActionItem = functionsV1.firestore
+  .document('correctiveActions/{actionId}')
+  .onWrite((change, ctx) => monitored('notifyActionItem', async () => {
+    const before = change.before.exists ? (change.before.data() as any) : null;
+    const a = change.after.exists ? (change.after.data() as any) : null;
+    if (!a) return;
+    const what = String(a.action || a.comment || '').slice(0, 140);
+    const due = a.dueDate ? ` · due ${a.dueDate}` : '';
+    const tag = `action-${ctx.params.actionId}`;
+    if (!before && a.status === 'OPEN') {
+      await pushTo([a.assignedToId], { title: `New action item from ${a.createdByName || 'your supervisor'}`, body: `${what}${due}`, url: '/?tab=actions', tag });
+    } else if (before?.status === 'OPEN' && a.status === 'DONE') {
+      await pushTo([a.createdById], { title: `Action item done — please verify`, body: `${a.assignedToName || 'Staff'}: ${String(a.completionNote || what).slice(0, 140)}`, url: '/?tab=actions', tag });
+    } else if (before?.status === 'DONE' && a.status === 'OPEN') {
+      await pushTo([a.assignedToId], { title: `Action item sent back`, body: `${String(a.reopenedNote || what).slice(0, 140)}${due}`, url: '/?tab=actions', tag });
+    }
+  }));
+
 // ── Bulk employee import ─────────────────────────────────────────────
 // Admin Portal → Import Staff (src/components/Admin/ImportStaffPanel.tsx)
 // sends rows already mapped to a site + role (src/lib/employeeImport.ts),

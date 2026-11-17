@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useBadgedIcon, useOpenTabSignal } from '../BadgedIcon';
 import { Undo2 as RejectedIcon } from 'lucide-react';
 import { RejectedLogsTab, useRejectedCount } from './RejectedLogsTab';
 import { useFixEditor } from '../../lib/fixEditors';
@@ -63,6 +64,9 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
   const { currentUser, submissions, addSubmission, trainings, completeTraining, sites } = store;
   const [activeTab, setActiveTab] = useState<'TASKS' | 'HISTORY' | 'REJECTED' | 'CHAT' | 'TRAINING'>('TASKS');
   const rejectedCount = useRejectedCount(store);
+  // Open action items assigned to me live at the bottom of History.
+  const historyIcon = useBadgedIcon(History, store.myOpenActionsCount);
+  useOpenTabSignal('actions', () => setActiveTab('HISTORY'));
   const chatTab = useChatTab(store);
   useOpenChatSignal(() => setActiveTab('CHAT'));
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -252,7 +256,7 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
       <div className="flex bg-white rounded-2xl p-1.5 shadow-sm border border-psu-gray/5 md:max-w-3xl md:mx-auto">
         {[
           { id: 'TASKS', icon: ClipboardList, label: t('housekeeper.tabTasks') },
-          { id: 'HISTORY', icon: History, label: t('housekeeper.tabHistory') },
+          { id: 'HISTORY', icon: historyIcon, label: t('housekeeper.tabHistory') },
           { id: 'REJECTED', icon: RejectedIcon, label: t('rejectedTab.tab') },
           { id: 'CHAT', icon: chatTab.icon, label: chatTab.label },
           { id: 'TRAINING', icon: GraduationCap, label: t('housekeeper.tabTraining') },

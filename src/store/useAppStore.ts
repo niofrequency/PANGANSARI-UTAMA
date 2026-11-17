@@ -18,8 +18,9 @@ import { subscribeUsers, updateUserRoleDoc, updateUserSiteDoc, updateUserAssigne
 import { createStaffAccountDirect } from '../services/adminCreateAccount';
 import { resetStaffCredentials } from '../services/adminResetCredentials';
 import { subscribeSubmissions, fetchOlderSubmissions, liveWindowStartISO, addSubmissionDoc, updateSubmissionDoc, stampSubmissionTx, appendHistory, CLEAR_FIELD, type SubmissionScope } from '../services/submissionsService';
-import { LogEvent, chainOf, eventBy, stampProblem, reviewQueueFor } from '../lib/logLifecycle';
+import { LogEvent, chainOf, eventBy, stampProblem, reviewQueueFor, reviewTierOf, reviewDepartments } from '../lib/logLifecycle';
 import { reportLogError } from '../lib/logMessages';
+import { userCanSeeSite } from '../lib/siteScope';
 import { sitesForScope } from '../lib/siteScope';
 import { subscribeCheckSchedules, subscribeMissedChecks, addCheckScheduleDoc, updateCheckScheduleDoc, deleteCheckScheduleDoc } from '../services/checksService';
 import { localDateISO } from '../utils/localDate';
@@ -395,7 +396,7 @@ export function useAppStore() {
   const addCheckSchedule = (sched: Omit<CheckSchedule, 'id' | 'createdAt' | 'createdBy'>) => {
     const full = { ...sched, createdAt: new Date().toISOString(), createdBy: currentUser?.id };
     if (isFirebaseConfigured) {
-      addCheckScheduleDoc(full).catch((err) => console.error('addCheckSchedule failed:', err));
+      addCheckScheduleDoc(full).catch(reportLogError);
       return;
     }
     setCheckSchedules((prev) => [...prev, { ...full, id: `cs-${Date.now()}` }]);
@@ -403,7 +404,7 @@ export function useAppStore() {
 
   const updateCheckSchedule = (id: string, patch: Partial<Omit<CheckSchedule, 'id'>>) => {
     if (isFirebaseConfigured) {
-      updateCheckScheduleDoc(id, patch).catch((err) => console.error('updateCheckSchedule failed:', err));
+      updateCheckScheduleDoc(id, patch).catch(reportLogError);
       return;
     }
     setCheckSchedules((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
@@ -411,7 +412,7 @@ export function useAppStore() {
 
   const deleteCheckSchedule = (id: string) => {
     if (isFirebaseConfigured) {
-      deleteCheckScheduleDoc(id).catch((err) => console.error('deleteCheckSchedule failed:', err));
+      deleteCheckScheduleDoc(id).catch(reportLogError);
       return;
     }
     setCheckSchedules((prev) => prev.filter((c) => c.id !== id));
@@ -499,9 +500,28 @@ export function useAppStore() {
     () => reviewQueueFor(currentUser, submissions.filter(s => !s.deletedAt)).mine.length,
     [currentUser, submissions],
   );
+  // Other things waiting for this person, same idea as the review queue:
+  //   • reported issues (wrench) not yet acknowledged — Leadhand and up,
+  //     their department(s) and sites;
+  //   • action items they assigned that are marked done, waiting for
+  //     them to verify;
+  //   • action items assigned to them that are still open.
+  const openReportsCount = useMemo(() => {
+    if (!currentUser || !reviewTierOf(currentUser.role)) return 0;
+    const depts = reviewDepartments(currentUser.role);
+    return fieldReports.filter(r => r.status === 'OPEN' && depts.includes(r.department) && userCanSeeSite(currentUser, r.siteId)).length;
+  }, [currentUser, fieldReports]);
+  const actionsToVerifyCount = useMemo(
+    () => currentUser ? correctiveActions.filter(a => a.createdById === currentUser.id && a.status === 'DONE').length : 0,
+    [currentUser, correctiveActions],
+  );
+  const myOpenActionsCount = useMemo(
+    () => currentUser ? correctiveActions.filter(a => a.assignedToId === currentUser.id && a.status === 'OPEN').length : 0,
+    [currentUser, correctiveActions],
+  );
   useEffect(() => {
-    setAppBadgeCount(unreadChatCount + reviewQueueCount);
-  }, [unreadChatCount, reviewQueueCount]);
+    setAppBadgeCount(unreadChatCount + reviewQueueCount + openReportsCount + actionsToVerifyCount + myOpenActionsCount);
+  }, [unreadChatCount, reviewQueueCount, openReportsCount, actionsToVerifyCount, myOpenActionsCount]);
 
   useEffect(() => {
     if (isFirebaseConfigured) return;
@@ -982,7 +1002,7 @@ export function useAppStore() {
     const target = users.find(u => u.id === userId);
     if (target && target.email.toLowerCase() === SUPER_ADMIN_EMAIL) return;
     if (isFirebaseConfigured) {
-      if (target) updateUserRoleDoc(target.email, role);
+      if (target) updateUserRoleDoc(target.email, role).catch(reportLogError);
       return;
     }
     setUsers(prev => prev.map(u => (u.id === userId ? { ...u, role } : u)));
@@ -991,7 +1011,7 @@ export function useAppStore() {
   const updateUserSite = (userId: string, site: string) => {
     if (isFirebaseConfigured) {
       const target = users.find(u => u.id === userId);
-      if (target) updateUserSiteDoc(target.email, site);
+      if (target) updateUserSiteDoc(target.email, site).catch(reportLogError);
       return;
     }
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, site } : u));
@@ -1003,7 +1023,7 @@ export function useAppStore() {
   const updateUserAssignedSites = (userId: string, assignedSites: string[] | 'ALL' | null) => {
     if (isFirebaseConfigured) {
       const target = users.find(u => u.id === userId);
-      if (target) updateUserAssignedSitesDoc(target.email, assignedSites);
+      if (target) updateUserAssignedSitesDoc(target.email, assignedSites).catch(reportLogError);
       return;
     }
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, assignedSites: assignedSites ?? undefined } : u));
@@ -1059,7 +1079,7 @@ export function useAppStore() {
   const toggleUserActive = (userId: string) => {
     if (isFirebaseConfigured) {
       const target = users.find(u => u.id === userId);
-      if (target) toggleUserActiveDoc(target.email, target.isActive);
+      if (target) toggleUserActiveDoc(target.email, target.isActive).catch(reportLogError);
       return;
     }
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, isActive: !u.isActive } : u));
@@ -1069,7 +1089,7 @@ export function useAppStore() {
     const target = users.find(u => u.id === userId);
     if (!target || target.email.toLowerCase() === SUPER_ADMIN_EMAIL) return; // super-admin can never be deleted
     if (isFirebaseConfigured) {
-      deleteUserDoc(target.email, target.staffCode);
+      deleteUserDoc(target.email, target.staffCode).catch(reportLogError);
       return;
     }
     setUsers(prev => prev.filter(u => u.id !== userId));
@@ -1077,7 +1097,7 @@ export function useAppStore() {
 
   const addWarning = (warning: Omit<Warning, 'id'>) => {
     if (isFirebaseConfigured) {
-      addWarningDoc(warning).catch((err) => console.error('addWarning failed:', err));
+      addWarningDoc(warning).catch(reportLogError);
       return;
     }
     const newWarning = { ...warning, id: `w-${Date.now()}` };
@@ -1099,7 +1119,7 @@ export function useAppStore() {
       read: false,
     };
     if (isFirebaseConfigured) {
-      addMessageDoc(message).catch((err) => console.error('sendChatMessage failed:', err));
+      addMessageDoc(message).catch(reportLogError);
       return true;
     }
     setMessages(prev => [...prev, { ...message, id: `m-${Date.now()}` }]);
@@ -1112,7 +1132,7 @@ export function useAppStore() {
     const m = messages.find(x => x.id === id);
     if (!currentUser || !m || m.fromId !== currentUser.id || m.deleted || !body || !canStillEdit(m.createdAt)) return false;
     if (isFirebaseConfigured) {
-      editMessageDoc(id, body.slice(0, 2000)).catch((err) => console.error('editChatMessage failed:', err));
+      editMessageDoc(id, body.slice(0, 2000)).catch(reportLogError);
       return true;
     }
     setMessages(prev => prev.map(x => x.id === id ? { ...x, text: body.slice(0, 2000), editedAt: new Date().toISOString() } : x));
@@ -1125,7 +1145,7 @@ export function useAppStore() {
     const m = messages.find(x => x.id === id);
     if (!currentUser || !m || m.fromId !== currentUser.id) return;
     if (isFirebaseConfigured) {
-      deleteMessageForEveryoneDoc(id).catch((err) => console.error('deleteChatMessageForEveryone failed:', err));
+      deleteMessageForEveryoneDoc(id).catch(reportLogError);
       return;
     }
     setMessages(prev => prev.map(x => x.id === id ? { ...x, deleted: true, text: '', deletedAt: new Date().toISOString() } : x));
@@ -1136,7 +1156,7 @@ export function useAppStore() {
   const hideChatMessagesForMe = (ids: string[]) => {
     if (!currentUser || ids.length === 0) return;
     if (isFirebaseConfigured) {
-      ids.forEach(id => hideMessageForMeDoc(id, currentUser.id).catch((err) => console.error('hideChatMessagesForMe failed:', err)));
+      ids.forEach(id => hideMessageForMeDoc(id, currentUser.id).catch(reportLogError));
       return;
     }
     const set = new Set(ids);
@@ -1158,7 +1178,7 @@ export function useAppStore() {
 
   const addFieldReport = (report: Omit<FieldReport, 'id' | 'status'>) => {
     if (isFirebaseConfigured) {
-      addFieldReportDoc({ ...report, status: 'OPEN' }).catch((err) => console.error('addFieldReport failed:', err));
+      addFieldReportDoc({ ...report, status: 'OPEN' }).catch(reportLogError);
       return;
     }
     const newReport: FieldReport = { ...report, id: `fr-${Date.now()}`, status: 'OPEN' };
@@ -1170,7 +1190,7 @@ export function useAppStore() {
     if (!currentUser) return;
     const patch = { status: 'ACKNOWLEDGED', acknowledgedBy: currentUser.name, acknowledgedAt: new Date().toISOString() };
     if (isFirebaseConfigured) {
-      updateFieldReportDoc(id, patch).catch((err) => console.error('acknowledgeFieldReport failed:', err));
+      updateFieldReportDoc(id, patch).catch(reportLogError);
       return;
     }
     setFieldReports(prev => prev.map(r => r.id === id
@@ -1185,7 +1205,7 @@ export function useAppStore() {
     if (!currentUser) return;
     const patch = { status: 'RESOLVED', resolvedBy: currentUser.name, resolvedAt: new Date().toISOString(), resolutionNote: note.trim() };
     if (isFirebaseConfigured) {
-      updateFieldReportDoc(id, patch).catch((err) => console.error('resolveFieldReport failed:', err));
+      updateFieldReportDoc(id, patch).catch(reportLogError);
       return;
     }
     setFieldReports(prev => prev.map(r => r.id === id
@@ -1197,7 +1217,7 @@ export function useAppStore() {
   const addCorrectiveAction = (action: Omit<CorrectiveAction, 'id' | 'status' | 'createdAt'>) => {
     const full = { ...action, status: 'OPEN' as const, createdAt: new Date().toISOString() };
     if (isFirebaseConfigured) {
-      addCorrectiveActionDoc(full).catch((err) => console.error('addCorrectiveAction failed:', err));
+      addCorrectiveActionDoc(full).catch(reportLogError);
       return;
     }
     setCorrectiveActions(prev => [{ ...full, id: `ca-${Date.now()}` }, ...prev]);
@@ -1208,7 +1228,7 @@ export function useAppStore() {
   const markCorrectiveActionDone = (id: string, note: string) => {
     const patch = { status: 'DONE', completedAt: new Date().toISOString(), completionNote: note.trim() };
     if (isFirebaseConfigured) {
-      updateCorrectiveActionDoc(id, patch).catch((err) => console.error('markCorrectiveActionDone failed:', err));
+      updateCorrectiveActionDoc(id, patch).catch(reportLogError);
       return;
     }
     setCorrectiveActions(prev => prev.map(a => a.id === id
@@ -1221,7 +1241,7 @@ export function useAppStore() {
   const verifyCorrectiveAction = (id: string) => {
     const patch = { status: 'VERIFIED', verifiedAt: new Date().toISOString() };
     if (isFirebaseConfigured) {
-      updateCorrectiveActionDoc(id, patch).catch((err) => console.error('verifyCorrectiveAction failed:', err));
+      updateCorrectiveActionDoc(id, patch).catch(reportLogError);
       return;
     }
     setCorrectiveActions(prev => prev.map(a => a.id === id
@@ -1238,7 +1258,7 @@ export function useAppStore() {
   const reopenCorrectiveAction = (id: string, note: string) => {
     const patch = { status: 'OPEN', reopenedAt: new Date().toISOString(), reopenedNote: note.trim() };
     if (isFirebaseConfigured) {
-      updateCorrectiveActionDoc(id, patch).catch((err) => console.error('reopenCorrectiveAction failed:', err));
+      updateCorrectiveActionDoc(id, patch).catch(reportLogError);
       return;
     }
     setCorrectiveActions(prev => prev.map(a => a.id === id
@@ -1249,7 +1269,7 @@ export function useAppStore() {
 
   const completeTraining = (userId: string, moduleId: string) => {
     if (isFirebaseConfigured) {
-      completeTrainingDoc(moduleId, userId).catch((err) => console.error('completeTraining failed:', err));
+      completeTrainingDoc(moduleId, userId).catch(reportLogError);
       return;
     }
     setTrainings(prev => prev.map(t =>
@@ -1285,6 +1305,9 @@ export function useAppStore() {
     messages: visibleMessages,
     unreadChatCount,
     reviewQueueCount,
+    openReportsCount,
+    actionsToVerifyCount,
+    myOpenActionsCount,
     sendChatMessage,
     editChatMessage,
     deleteChatMessageForEveryone,

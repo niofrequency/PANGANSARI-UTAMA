@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useBadgedIcon, useOpenTabSignal } from '../BadgedIcon';
 import { Undo2 as RejectedIcon } from 'lucide-react';
 import { RejectedLogsTab, useRejectedCount } from './RejectedLogsTab';
 import { useFixEditor } from '../../lib/fixEditors';
@@ -40,6 +41,9 @@ export function JanitorPortal({ store, fromQr, onDeepLinkHandled, onScanJob }: J
   const { currentUser, submissions, trainings, completeTraining, sites } = store;
   const [activeTab, setActiveTab] = useState<'TASKS' | 'HISTORY' | 'REJECTED' | 'CHAT' | 'TRAINING'>('TASKS');
   const rejectedCount = useRejectedCount(store);
+  // Open action items assigned to me live at the bottom of History.
+  const historyIcon = useBadgedIcon(History, store.myOpenActionsCount);
+  useOpenTabSignal('actions', () => setActiveTab('HISTORY'));
   const chatTab = useChatTab(store);
   useOpenChatSignal(() => setActiveTab('CHAT'));
   const myHistory = submissions.filter(s => s.userId === currentUser?.id);
@@ -73,7 +77,7 @@ export function JanitorPortal({ store, fromQr, onDeepLinkHandled, onScanJob }: J
       <div className="flex bg-white rounded-2xl p-1.5 shadow-sm border border-psu-gray/5 md:max-w-3xl md:mx-auto">
         {[
           { id: 'TASKS' as const, icon: ClipboardList, label: t('housekeeper.tabTasks') },
-          { id: 'HISTORY' as const, icon: History, label: t('housekeeper.tabHistory') },
+          { id: 'HISTORY' as const, icon: historyIcon, label: t('housekeeper.tabHistory') },
           { id: 'REJECTED' as const, icon: RejectedIcon, label: t('rejectedTab.tab') },
           { id: 'CHAT' as const, icon: chatTab.icon, label: chatTab.label },
           { id: 'TRAINING' as const, icon: GraduationCap, label: t('housekeeper.tabTraining') },

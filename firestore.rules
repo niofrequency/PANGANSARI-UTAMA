@@ -213,6 +213,21 @@ service cloud.firestore {
         && (roleDept(myRole) == 'ALL' || roleDept(myRole) == roleDept(resource.data.role));
     }
 
+    // Caller's own standing, for the supervisory actions below (warnings,
+    // issue reports, action items): active, at least rank `n`, and — for
+    // department-bound records — in that department (Admin / GM: any).
+    function activeAtLeast(n) {
+      return isSuperAdmin() || (
+        isSignedIn()
+        && get(/databases/$(database)/documents/users/$(email())).data.get('isActive', true) != false
+        && roleRank(get(/databases/$(database)/documents/users/$(email())).data.role) >= n
+      );
+    }
+    function coversDept(d) {
+      let r = isSuperAdmin() ? 'ADMIN' : get(/databases/$(database)/documents/users/$(email())).data.role;
+      return roleDept(r) == 'ALL' || roleDept(r) == (d == 'HOUSEKEEPING' ? 'HK' : 'FS');
+    }
+
     // ── submissions ─────────────────────────────────────────────────
     match /submissions/{submissionId} {
       allow read: if isSignedIn();
@@ -280,8 +295,10 @@ service cloud.firestore {
     match /warnings/{warningId} {
       allow read: if isSignedIn();
 
+      // Only an active Supervisor or above issues a warning, as themselves.
       allow create: if isSignedIn()
-        && request.resource.data.supervisorId == request.auth.uid;
+        && request.resource.data.supervisorId == request.auth.uid
+        && activeAtLeast(3);
 
       allow update: if false;
       allow delete: if false;
@@ -302,8 +319,11 @@ service cloud.firestore {
 
       // A reviewer (not the filer) acknowledging or resolving — never
       // rewrites the original message/photo.
+      // An active Leadhand or above in the report's department.
       allow update: if isSignedIn()
         && request.auth.uid != resource.data.userId
+        && activeAtLeast(2)
+        && coversDept(resource.data.get('department', ''))
         && onlyChanged(['status', 'acknowledgedBy', 'acknowledgedAt', 'resolvedBy', 'resolvedAt', 'resolutionNote']);
 
       allow delete: if false;
@@ -321,9 +341,12 @@ service cloud.firestore {
     match /correctiveActions/{actionId} {
       allow read: if isSignedIn();
 
+      // Assigned by an active Supervisor or above, in that department.
       allow create: if isSignedIn()
         && request.resource.data.createdById == request.auth.uid
-        && request.resource.data.status == 'OPEN';
+        && request.resource.data.status == 'OPEN'
+        && activeAtLeast(3)
+        && coversDept(request.resource.data.get('department', ''));
 
       // Three distinct actions share this collection's update path — see
       // useAppStore.ts's markCorrectiveActionDone/verifyCorrectiveAction/

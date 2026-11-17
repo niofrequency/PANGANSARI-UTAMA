@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useBadgedIcon, useOpenOpsLogsSignal } from '../BadgedIcon';
+import { useBadgedIcon, useOpenOpsLogsSignal, useOpenTabSignal } from '../BadgedIcon';
 import { useAppStore } from '../../store/useAppStore';
 import { AnalyticsDashboard } from '../Dashboard/AnalyticsDashboard';
 import { LayoutDashboard, ClipboardCheck, ClipboardList, History, ListTodo, Users, MessageCircle, MessageSquareWarning } from 'lucide-react';
@@ -42,6 +42,10 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
   useOpenChatSignal(() => setActiveTab('CHAT'));
   useOpenChecksSignal(() => setActiveTab('CHECKS'));
   useOpenOpsLogsSignal(() => setActiveTab('OPS_LOGS'));
+  useOpenTabSignal('reports', () => setActiveTab('ISSUES'));
+  useOpenTabSignal('actions', () => setActiveTab('ACTIONS'));
+  const reportsIcon = useBadgedIcon(MessageSquareWarning, store.openReportsCount);
+  const actionsIcon = useBadgedIcon(ListTodo, store.actionsToVerifyCount);
   const opsLogsIcon = useBadgedIcon(ClipboardList, store.reviewQueueCount);
   // GM covers both departments; the department Managers only see their own.
   const checksDepartment = isGeneralManager ? undefined : currentUser?.role === 'FOOD_SAFETY_MANAGER' ? 'FOOD_SAFETY' as const : 'HOUSEKEEPING' as const;
@@ -66,10 +70,10 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
     { id: 'OPS_LOGS' as const, icon: opsLogsIcon, label: t('ops.tabTitle') },
     { id: 'CHECKS' as const, icon: AlarmClock, label: t('checks.tabTitle') },
     { id: 'HISTORY' as const, icon: History, label: t('ops.historySectionTitle') },
-    { id: 'ACTIONS' as const, icon: ListTodo, label: t('correctiveAction.tabTitle') },
+    { id: 'ACTIONS' as const, icon: actionsIcon, label: t('correctiveAction.tabTitle') },
     // Issues reported from the wrench icon (ReportIssueButton) — the same
     // queue Supervisors work, so Managers see every reported problem too.
-    { id: 'ISSUES' as const, icon: MessageSquareWarning, label: t('fieldReport.tabTitle') },
+    { id: 'ISSUES' as const, icon: reportsIcon, label: t('fieldReport.tabTitle') },
     { id: 'CHAT' as const, icon: chatTab.icon, label: chatTab.label },
     ...(isFoodSafety ? [{ id: 'INSPECTIONS' as const, icon: ClipboardCheck, label: t('inspection.tabTitle') }] : []),
     // Personnel management — same tool as the Admin Portal's Personnel

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { logTimeline } from '../../lib/logLifecycle';
 import { Download, FileSpreadsheet } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
 import { useTranslation } from '../../i18n/LanguageContext';
@@ -45,11 +46,16 @@ function answerCell(a: Submission['items'][number]['answer']): Cell {
   return a !== '' && Number.isFinite(n) && /^-?\d+(\.\d+)?$/.test(String(a).trim()) ? n : a;
 }
 
-export function buildExportSheets(subs: Submission[], formName: (s: Submission) => string): { summary: Cell[][]; answers: Cell[][] } {
+export function buildExportSheets(subs: Submission[], formName: (s: Submission) => string): { summary: Cell[][]; answers: Cell[][]; activity: Cell[][] } {
   const summary: Cell[][] = [[
     'Date', 'Time', 'Site', 'Form', 'Form ID', 'Asset / Section / Room', 'Filed by', 'Role', 'Status',
     'Score', 'Out of range', 'Checked by', 'Checked at', 'Approved by', 'Approved at', 'Verified by', 'Verified at',
-    'Rejection reason', 'Remarks', 'Photo', 'Submission ID',
+    'Rejection reason', 'Sent back by', 'Sent back to', 'Sent back note', 'Fix note', 'Remarks', 'Photo', 'Submission ID',
+  ]];
+  // Audit trail: one row per event in each log's activity history
+  // (lib/logLifecycle.ts) — submitted, stamped, sent back, fixed, edited.
+  const activity: Cell[][] = [[
+    'Date', 'Time', 'Site', 'Form', 'Filed by', 'Event', 'Step', 'By', 'By role', 'To', 'Note', 'Submission ID',
   ]];
   const answers: Cell[][] = [[
     'Date', 'Time', 'Site', 'Form', 'Asset / Section / Room', 'Filed by', 'Question', 'Answer', 'Remarks', 'Photo', 'Submission ID',
@@ -66,9 +72,16 @@ export function buildExportSheets(subs: Submission[], formName: (s: Submission) 
       m.date || date, time, s.siteName, form, m.formId || '', where, s.userName, s.role, s.status,
       s.score ?? '', m.outOfRange ? 'Yes' : '',
       ...stampCols(sign.checkedBy), ...stampCols(sign.approvedBy), ...stampCols(sign.verifiedBy),
-      s.rejectionReason || '', [m.dayRemarks, s.notes].filter(Boolean).join(' · '),
+      s.rejectionReason || '',
+      m.returned?.name || '', m.returned ? (m.returned.to === 'reviewer' ? (m.returned.toName || '') : s.userName) : '', m.returned?.note || '',
+      m.returned?.resolved?.note || m.fixNote || '',
+      [m.dayRemarks, s.notes].filter(Boolean).join(' · '),
       m.photoUrl && !m.photoUrl.startsWith('data:') ? m.photoUrl : '', s.id,
     ]);
+    for (const e of logTimeline(s)) {
+      const at = localDateTime(e.at);
+      activity.push([at.date, at.time, s.siteName, form, s.userName, e.action.replace('_', ' '), e.step || '', e.by.name, e.by.role || '', e.to?.name || '', e.note || '', s.id]);
+    }
     for (const it of s.items || []) {
       answers.push([
         m.date || date, time, s.siteName, form, where, s.userName,
@@ -77,7 +90,7 @@ export function buildExportSheets(subs: Submission[], formName: (s: Submission) 
       ]);
     }
   }
-  return { summary, answers };
+  return { summary, answers, activity };
 }
 
 const inputCls = 'w-full px-3 py-2.5 bg-white border border-psu-gray/10 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-psu-blue/20';
@@ -124,11 +137,11 @@ export function ExportPanel({ store, department }: { store: Store; department?: 
         && (type === 'ALL' || s.type === type)
         && (!department || departmentOf(s) === department)
       );
-      const { summary, answers } = buildExportSheets(subs, formName);
+      const { summary, answers, activity } = buildExportSheets(subs, formName);
       const site = siteId === 'ALL' ? 'all-sites' : (sites.find((x) => x.id === siteId)?.name || siteId);
       const base = `PSU_${type === 'ALL' ? 'submissions' : type}_${site}_${from}_to_${to}`.replace(/[^\w.-]+/g, '_');
       if (format === 'xlsx') {
-        downloadBytes(buildXlsx([{ name: 'Submissions', rows: summary }, { name: 'Answers', rows: answers }]), `${base}.xlsx`,
+        downloadBytes(buildXlsx([{ name: 'Submissions', rows: summary }, { name: 'Answers', rows: answers }, { name: 'Activity', rows: activity }]), `${base}.xlsx`,
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       } else {
         downloadBytes(toCsv(answers), `${base}.csv`, 'text/csv;charset=utf-8');
