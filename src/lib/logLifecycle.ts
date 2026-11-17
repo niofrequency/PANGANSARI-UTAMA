@@ -1,5 +1,6 @@
 import { Submission, User, UserRole } from '../types';
-import { SIGNOFF_CHAINS, SignoffChainType, SignoffStep } from '../data/opsLogsCatalog';
+import { SIGNOFF_CHAINS, SignoffChainType, SignoffStep, OpsDepartment, departmentOf } from '../data/opsLogsCatalog';
+import { userCanSeeSite } from './siteScope';
 
 // One place for the rules of a log's life — who may stamp which step,
 // and the activity history every log keeps. Used by the store (demo
@@ -68,4 +69,69 @@ export function logTimeline(s: Submission): LogEvent[] {
     if (st) out.push({ action: 'stamped', step, at: st.at, by: { userId: st.userId, name: st.name, role: st.role } });
   }
   return out.sort((a, b) => a.at.localeCompare(b.at));
+}
+
+// ── Review queue: who receives a log next ──────────────────────────────
+// A log moves up the chain step by step. Leadhands / Supervisors receive
+// the "Checked by" step; Managers / the General Manager receive "Approved
+// by" / "Verified by". Department by the reviewer's role (GM: both), and
+// only logs from sites in their access (lib/siteScope.ts).
+export type ReviewTier = 'supervisor' | 'manager';
+
+export function reviewTierOf(role?: UserRole): ReviewTier | null {
+  if (!role) return null;
+  if (/_LEADHAND$|_SUPERVISOR$/.test(role)) return 'supervisor';
+  if (/_MANAGER$/.test(role)) return 'manager';
+  return null;
+}
+
+export function tierSteps(tier: ReviewTier): SignoffStep[] {
+  return tier === 'supervisor' ? ['checkedBy'] : ['approvedBy', 'verifiedBy'];
+}
+
+export function reviewDepartments(role?: UserRole): OpsDepartment[] {
+  if (role === 'GENERAL_MANAGER') return ['HOUSEKEEPING', 'FOOD_SAFETY'];
+  if (role?.startsWith('HOUSEKEEPING')) return ['HOUSEKEEPING'];
+  if (role?.startsWith('FOOD_SAFETY')) return ['FOOD_SAFETY'];
+  return [];
+}
+
+export function nextStepOf(s: Submission): SignoffStep | undefined {
+  return chainOf(s).find(k => !s.meta?.signoff?.[k]);
+}
+
+export interface ReviewQueue {
+  // Logs this person can stamp right now.
+  mine: Submission[];
+  // Waiting at this person's level, but someone else has to stamp them
+  // (their own log, or they already stamped an earlier step).
+  others: { s: Submission; reason: StampProblem }[];
+}
+
+export function reviewQueueFor(user: User | null | undefined, submissions: Submission[], department?: OpsDepartment): ReviewQueue {
+  const out: ReviewQueue = { mine: [], others: [] };
+  const tier = reviewTierOf(user?.role);
+  if (!user || !tier) return out;
+  const depts = department ? [department] : reviewDepartments(user.role);
+  const steps = tierSteps(tier);
+  for (const s of submissions) {
+    if (s.status !== 'PENDING' || s.deletedAt) continue;
+    const dept = departmentOf(s);
+    if (!dept || !depts.includes(dept) || !userCanSeeSite(user, s.siteId)) continue;
+    const step = nextStepOf(s);
+    if (!step || !steps.includes(step)) continue;
+    const problem = stampProblem(s, user.id, step);
+    if (!problem) out.mine.push(s);
+    else if (problem === 'own-log' || problem === 'stamped-other-step') out.others.push({ s, reason: problem });
+  }
+  const newest = (a: Submission, b: Submission) => b.timestamp.localeCompare(a.timestamp);
+  out.mine.sort(newest);
+  out.others.sort((a, b) => newest(a.s, b.s));
+  return out;
+}
+
+export function isToday(iso: string): boolean {
+  const d = new Date(iso);
+  const n = new Date();
+  return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate();
 }

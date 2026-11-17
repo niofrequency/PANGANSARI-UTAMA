@@ -7,7 +7,7 @@ import { useTranslation } from '../../i18n/LanguageContext';
 import { cn } from '../../utils/cn';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
-import { stampProblem } from '../../lib/logLifecycle';
+import { stampProblem, reviewQueueFor, isToday } from '../../lib/logLifecycle';
 import { ClipboardList, ChevronRight, CheckCircle2, XCircle, Clock, Pencil, AlertTriangle, CornerUpLeft } from 'lucide-react';
 import { Submission, OpsLogType } from '../../types';
 import { OPS_LOG_DEFS, OpsDepartment, departmentOf, titleKeyForChainType } from '../../data/opsLogsCatalog';
@@ -110,7 +110,15 @@ export function OpsLogsTab({
     const step = nextSignoffStep(s);
     return !!step && !!currentUser && tierStep(step) && !stampProblem(s, currentUser.id, step);
   };
-  const queue = submissions.filter(s => inScope(s) && canStampLog(s)).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  // What's waiting at this person's level (lib/logLifecycle.ts's
+  // reviewQueueFor — the same function behind the tab / app-icon badge and
+  // the push notifications): `queue` = theirs to stamp; `othersWaiting` =
+  // at their level but someone else must stamp it (their own log, or they
+  // stamped an earlier step) — listed so nothing silently disappears.
+  const rq = reviewQueueFor(currentUser, submissions, department);
+  const queue = rq.mine.filter(s => tierStep(nextSignoffStep(s)));
+  const othersWaiting = rq.others;
+  const newToday = queue.filter(s => isToday(s.timestamp)).length;
 
   const history = submissions.filter(inScope).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
@@ -253,8 +261,15 @@ export function OpsLogsTab({
               {t('ops.queueSectionTitle')}
               <ChevronRight size={14} className={cn("transition-transform", queueOpen && "rotate-90")} />
             </span>
-            <span className="bg-psu-blue/10 text-psu-blue px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
-              {queue.length} {t('supervisorHK.pendingCount')}
+            <span className="flex items-center gap-2">
+              {newToday > 0 && (
+                <span className="bg-psu-green/10 text-psu-green px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
+                  {t('ops.queue.newToday', { count: newToday })}
+                </span>
+              )}
+              <span className="bg-psu-blue/10 text-psu-blue px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
+                {queue.length} {t('supervisorHK.pendingCount')}
+              </span>
             </span>
           </button>
           <AnimatePresence>
@@ -267,7 +282,9 @@ export function OpsLogsTab({
                   rowClassName={(s) => isNotReadyToWork(s) || s.wasApprovedBeforeEdit ? "bg-psu-rejected/5" : undefined}
                   onRowClick={setSelected}
                   desktopColumns={[
-                    { header: t('common.time'), width: '90px', render: (s) => new Date(s.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) },
+                    { header: t('common.time'), width: '90px', render: (s) => isToday(s.timestamp)
+                      ? <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-psu-green bg-psu-green/10 px-2 py-0.5 rounded-full">{t('ops.queue.newChip')}</span>
+                      : new Date(s.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) },
                     { header: t('common.site'), width: '1fr', render: (s) => s.siteName },
                     { header: t('common.type'), width: '1.4fr', render: (s) => { const k = titleKeyFor(s); return k ? t(k) : s.type; } },
                     { header: t('common.person'), width: '1fr', render: (s) => s.userName },
@@ -319,6 +336,11 @@ export function OpsLogsTab({
                               <CornerUpLeft size={10} /> {t('ops.chain.sentBackToReviewerChip', { name: s.meta.returned.name })}
                             </span>
                           )}
+                          {isToday(s.timestamp) && (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-psu-green bg-psu-green/10 px-2 py-0.5 rounded-full mt-1.5 mr-1">
+                              {t('ops.queue.newChip')}
+                            </span>
+                          )}
                           <div className="mt-2"><SignoffProgress submission={s} /></div>
                         </div>
                         <ChevronRight size={16} className="text-psu-gray/20 shrink-0" />
@@ -329,6 +351,32 @@ export function OpsLogsTab({
               </motion.div>
             )}
           </AnimatePresence>
+        </div>
+      )}
+
+      {mode !== 'historyOnly' && othersWaiting.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="flex items-center justify-between px-2 text-[10px] font-black text-psu-gray/40 uppercase tracking-[0.2em]">
+            <span className="flex items-center gap-1.5"><Clock size={14} /> {t('ops.queue.othersTitle')}</span>
+            <span className="bg-psu-gray/5 px-3 py-1 rounded-full">{othersWaiting.length}</span>
+          </h3>
+          <div className="card !p-0 overflow-hidden divide-y divide-psu-gray/5">
+            {othersWaiting.map(({ s: r, reason }) => {
+              const k = titleKeyFor(r);
+              return (
+                <button key={r.id} onClick={() => setSelected(r)} className="w-full text-left px-5 py-4 flex items-center justify-between gap-3 hover:bg-psu-bg">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-psu-gray truncate">{k ? t(k) : r.type}</p>
+                    <p className="text-[10px] text-psu-gray/40 font-black uppercase tracking-widest mt-0.5 truncate">
+                      {r.userName} · {r.siteName} · {new Date(r.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                    </p>
+                    <p className="text-[11px] text-psu-gray/60 mt-1">{t(reason === 'own-log' ? 'ops.queue.reasonOwn' : 'ops.queue.reasonStamped')}</p>
+                  </div>
+                  <ChevronRight size={16} className="text-psu-gray/20 shrink-0" />
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { User, Submission, UserRole, Site, Warning, TrainingModule, FieldReport, FieldReportStatus, CorrectiveAction, CorrectiveActionStatus, ChatMessage, CheckSchedule, MissedCheck } from '../types';
 import { subscribeMyMessages, addMessageDoc, markMessageReadDoc, editMessageDoc, deleteMessageForEveryoneDoc, hideMessageForMeDoc } from '../services/chatService';
 import { canChatUsers, conversationId, canStillEdit } from '../lib/chatPolicy';
@@ -18,7 +18,7 @@ import { subscribeUsers, updateUserRoleDoc, updateUserSiteDoc, updateUserAssigne
 import { createStaffAccountDirect } from '../services/adminCreateAccount';
 import { resetStaffCredentials } from '../services/adminResetCredentials';
 import { subscribeSubmissions, fetchOlderSubmissions, liveWindowStartISO, addSubmissionDoc, updateSubmissionDoc, stampSubmissionTx, appendHistory, CLEAR_FIELD, type SubmissionScope } from '../services/submissionsService';
-import { LogEvent, chainOf, eventBy, stampProblem } from '../lib/logLifecycle';
+import { LogEvent, chainOf, eventBy, stampProblem, reviewQueueFor } from '../lib/logLifecycle';
 import { reportLogError } from '../lib/logMessages';
 import { sitesForScope } from '../lib/siteScope';
 import { subscribeCheckSchedules, subscribeMissedChecks, addCheckScheduleDoc, updateCheckScheduleDoc, deleteCheckScheduleDoc } from '../services/checksService';
@@ -492,9 +492,16 @@ export function useAppStore() {
   // Messages this user cleared / deleted "for me" never reach the UI.
   const visibleMessages = currentUser ? messages.filter(m => !m.hiddenFor?.includes(currentUser.id)) : messages;
   const unreadChatCount = currentUser ? visibleMessages.filter(m => m.toId === currentUser.id && !m.read && !m.deleted).length : 0;
+  // Logs waiting for this person's stamp (Supervisor / Manager / GM) —
+  // shown on the Ops Logs tab and added to the app-icon badge, so a new
+  // checklist from a technician is visible without opening the app.
+  const reviewQueueCount = useMemo(
+    () => reviewQueueFor(currentUser, submissions.filter(s => !s.deletedAt)).mine.length,
+    [currentUser, submissions],
+  );
   useEffect(() => {
-    setAppBadgeCount(unreadChatCount);
-  }, [unreadChatCount]);
+    setAppBadgeCount(unreadChatCount + reviewQueueCount);
+  }, [unreadChatCount, reviewQueueCount]);
 
   useEffect(() => {
     if (isFirebaseConfigured) return;
@@ -1277,6 +1284,7 @@ export function useAppStore() {
     fieldReports,
     messages: visibleMessages,
     unreadChatCount,
+    reviewQueueCount,
     sendChatMessage,
     editChatMessage,
     deleteChatMessageForEveryone,
