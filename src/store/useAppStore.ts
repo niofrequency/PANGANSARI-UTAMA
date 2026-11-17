@@ -784,31 +784,66 @@ export function useAppStore() {
       : s));
   };
 
-  // Reject at a sign-off step sends the log back DOWN the chain to the
-  // person who filed it — same as "Return for correction": records who
-  // rejected it and why (meta.returned), clears every stamp except
-  // draftedBy so the fixed log climbs the whole chain again, and the
-  // notifySubmissionReturned Cloud Function pushes it to the filer (and
-  // to anyone below who'd already stamped it).
-  const rejectSignoff = (submissionId: string, reason: string) => {
-    const target = submissions.find(s => s.id === submissionId);
-    if (!currentUser || !target || !reason.trim()) return;
-    const returned = { userId: currentUser.id, name: currentUser.name, role: currentUser.role, at: new Date().toISOString(), note: reason.trim(), fromStatus: target.status };
-    const signoff = target.meta?.signoff?.draftedBy ? { draftedBy: target.meta.signoff.draftedBy } : {};
+  // Reject / send back with a note, choosing WHO fixes it:
+  //   • target 'filer' — down to the person who filled it in: REJECTED,
+  //     every stamp but draftedBy cleared, so the fixed log climbs the
+  //     whole chain again.
+  //   • target = a sign-off step (e.g. 'checkedBy') — back to the reviewer
+  //     who stamped that step (e.g. a Manager sends it back to the
+  //     Supervisor): stays PENDING, stamps from that step on are cleared, so
+  //     it sits in that reviewer's queue again with the note. They fix it
+  //     and send it back up (resolveReturned), or pass it down to the filer.
+  // notifySubmissionReturned pushes whoever has to fix it.
+  const sendBack = (submissionId: string, note: string, target: 'filer' | 'checkedBy' | 'approvedBy' | 'verifiedBy' = 'filer') => {
+    const s0 = submissions.find(s => s.id === submissionId);
+    if (!currentUser || !s0 || !note.trim()) return;
+    const chain = (s0.type in SIGNOFF_CHAINS ? SIGNOFF_CHAINS[s0.type as keyof typeof SIGNOFF_CHAINS] : []) as ('checkedBy' | 'approvedBy' | 'verifiedBy')[];
+    const so = s0.meta?.signoff || {};
+    const base = { userId: currentUser.id, name: currentUser.name, role: currentUser.role, at: new Date().toISOString(), note: note.trim(), fromStatus: s0.status };
+    let fields: Record<string, unknown>;
+    let local: Partial<Submission>;
+    if (target === 'filer' || !so[target]) {
+      const returned = { ...base, to: 'filer' as const };
+      const signoff = so.draftedBy ? { draftedBy: so.draftedBy } : {};
+      fields = { status: 'REJECTED', rejectionReason: note.trim(), 'meta.returned': returned, 'meta.signoff': signoff };
+      local = { status: 'REJECTED', rejectionReason: note.trim(), meta: { ...s0.meta, returned, signoff } };
+    } else {
+      const who = so[target]!;
+      const returned = { ...base, to: 'reviewer' as const, toStep: target, toUserId: who.userId, toName: who.name, ...(who.role ? { toRole: who.role } : {}) };
+      const keep = chain.slice(0, Math.max(0, chain.indexOf(target)));
+      const signoff: Record<string, unknown> = so.draftedBy ? { draftedBy: so.draftedBy } : {};
+      for (const k of keep) if (so[k]) signoff[k] = so[k];
+      fields = { status: 'PENDING', rejectionReason: CLEAR_FIELD, 'meta.returned': returned, 'meta.signoff': signoff };
+      local = { status: 'PENDING', rejectionReason: undefined, meta: { ...s0.meta, returned, signoff: signoff as NonNullable<Submission['meta']>['signoff'] } };
+    }
     if (isFirebaseConfigured) {
-      updateSubmissionDoc(submissionId, {
-        status: 'REJECTED',
-        rejectionReason: reason.trim(),
-        'meta.returned': returned,
-        'meta.signoff': signoff,
-      }).catch((err) => console.error('rejectSignoff failed:', err));
+      updateSubmissionDoc(submissionId, fields).catch((err) => console.error('sendBack failed:', err));
       return;
     }
-    setSubmissions(prev => prev.map(s => s.id === submissionId
-      ? { ...s, status: 'REJECTED' as const, rejectionReason: reason.trim(), meta: { ...s.meta, returned, signoff } }
-      : s
-    ));
+    setSubmissions(prev => prev.map(s => s.id === submissionId ? { ...s, ...local } as Submission : s));
   };
+
+  const rejectSignoff = (submissionId: string, reason: string) => sendBack(submissionId, reason, 'filer');
+
+  // The reviewer a log was sent back to (meta.returned.to === 'reviewer')
+  // fixes it and sends it back up: re-stamps their own step (with an
+  // optional e-signature) and records what they did.
+  const resolveReturned = (submissionId: string, note: string, signature?: string) => {
+    const s0 = submissions.find(s => s.id === submissionId);
+    const r = s0?.meta?.returned;
+    if (!currentUser || !s0 || !r || r.to !== 'reviewer' || !r.toStep || r.resolved) return;
+    const resolved = { userId: currentUser.id, name: currentUser.name, at: new Date().toISOString(), note: note.trim() };
+    const nextReturned = { ...r, resolved };
+    if (isFirebaseConfigured) {
+      updateSubmissionDoc(submissionId, { 'meta.returned': nextReturned })
+        .then(() => addSignoffStamp(submissionId, r.toStep!, signature))
+        .catch((err) => console.error('resolveReturned failed:', err));
+      return;
+    }
+    setSubmissions(prev => prev.map(s => s.id === submissionId ? { ...s, meta: { ...s.meta, returned: nextReturned } } : s));
+    addSignoffStamp(submissionId, r.toStep, signature);
+  };
+
 
 
   // The submitter fixes and resubmits the SAME record — not a new one —
@@ -1232,6 +1267,8 @@ export function useAppStore() {
     returnSubmission,
     addSignoffStamp,
     rejectSignoff,
+    sendBack,
+    resolveReturned,
     resubmitAfterRejection,
     addUser,
     updateUserRole,

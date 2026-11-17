@@ -134,6 +134,22 @@ test('chain of command: a superior can send back an APPROVED log and delete it',
   await assertSucceeds(updateDoc(doc(as(people.fsManager), 'submissions', 'sub-approved'), { deletedAt: 'now', deletedBy: { name: 'M' } }));
 });
 
+test('chain of command: a manager can send an APPROVED log back to the supervisor (PENDING); a peer cannot', async () => {
+  const approved = {
+    userId: people.tech.uid, userName: 'tech', role: 'FOOD_SAFETY_TECHNICIAN', siteId: 'site-a', siteName: 'A',
+    timestamp: '2026-11-01T00:00:00.000Z', type: 'COOKING_SERVICE', status: 'APPROVED', items: [],
+    meta: { signoff: { checkedBy: { userId: 'sup', name: 'Sup' }, approvedBy: { userId: 'mgr', name: 'Mgr' } } },
+  };
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'submissions', 'sub-to-sup'), approved);
+    await setDoc(doc(ctx.firestore(), 'submissions', 'sub-filer-reopen'), approved);
+  });
+  const toSup = { status: 'PENDING', 'meta.signoff': {}, 'meta.returned': { name: 'Mgr', note: 'Recheck', to: 'reviewer', toStep: 'checkedBy', toUserId: 'sup' } };
+  await assertSucceeds(updateDoc(doc(as(people.fsManager), 'submissions', 'sub-to-sup'), toSup));
+  // A peer of the filer still can't.
+  await assertFails(updateDoc(doc(as(people.tech2), 'submissions', 'sub-filer-reopen'), toSup));
+});
+
 test('chain of command: peers, juniors and other departments cannot send back or delete', async () => {
   await env.withSecurityRulesDisabled(async (ctx) => {
     await setDoc(doc(ctx.firestore(), 'submissions', 'sub-sup'), {

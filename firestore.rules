@@ -242,9 +242,11 @@ service cloud.firestore {
           && onlyChanged(['deletedAt', 'deletedBy']))
         ||
         // 4. Chain of command: a superior sends the log back for
-        //    correction from ANY status (stamps cleared inside meta), …
+        //    correction from ANY status (stamps cleared inside meta) —
+        //    to the filer (REJECTED) or to a reviewer lower in the chain
+        //    (back to PENDING at that reviewer's step), …
         (outranksSubmitter()
-          && request.resource.data.status == 'REJECTED'
+          && request.resource.data.status in ['REJECTED', 'PENDING']
           && onlyChanged(['meta', 'status', 'rejectionReason']))
         ||
         // 5. … or soft-deletes it.
