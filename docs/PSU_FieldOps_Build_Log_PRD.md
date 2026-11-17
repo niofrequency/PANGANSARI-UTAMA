@@ -271,6 +271,14 @@ What each phone loads is now decided per role in `lib/dataScope.ts`, through `se
 - **App size:** each portal is code-split (`React.lazy`), libraries split into cached `react` / `firebase` / `vendor` / `motion` / `charts` files; first open ≈ 580 KB gzip (was ≈ 770 KB in one file) and charts (≈ 90 KB) load only with a dashboard.
 - New indexes: `submissions (userId, timestamp desc)`, `messages (participants contains, createdAt desc)`.
 
+### 9.2c Quality, monitoring and backups (#111)
+- **0 TypeScript errors** (was 68; `ListCard` typing, auth result narrowing). `npm run typecheck` (app + functions).
+- **Tests:** Vitest unit tests (`tests/unit/`, 27) for stamping rules, review routing, problem detection, data scope, chat policy; Playwright E2E (`tests/e2e/`, 20 = 10 × phone + desktop) on the production build in demo mode. CI workflow `ci.yml` runs type check, unit tests, build and E2E on every PR / push to main.
+- **Sentry** (`lib/sentry.ts`) — on when `VITE_SENTRY_DSN` is set (Vercel env); captures crashes and failed saves (not offline/expected ones); role + anonymous id only; 10% tracing.
+- **Update prompt** — open apps show "A new version is ready — Update" after a release and check for updates every 30 min.
+- **App Check** — on when `VITE_APPCHECK_SITE_KEY` (reCAPTCHA Enterprise) is set; enforce in the console only after metrics show ~all traffic verified. See `docs/SECURITY_AND_OPERATIONS.md`.
+- **Backups** — four layers set up by the deploy workflow: PITR (any minute, 7 days) + delete protection; managed daily (7d) / weekly (14w) backups; monthly full export to `gs://<project>-firestore-exports` (function `monthlyFirestoreExport`, kept 400 days); 30-day soft delete on photos. Restore steps + quarterly restore test in `docs/BACKUP_AND_RESTORE.md`.
+
 ### 9.2a Fixed (storage workstream, branch `claude/gifted-mayer-ohigvv`)
 - **Scoped submissions:** each device now live-listens only to the last 60 days plus anything still `PENDING`, limited to the user's sites (`siteId in …` when ≤30 sites). Older history loads on demand, 300 at a time, from a "Load older records" button under every history list and Admin → Activity. Composite indexes are in `firestore.indexes.json` (deployed by CI); if an index is still building, queries fall back to the unfiltered form instead of showing nothing.
 - **Persistent Firestore cache** (IndexedDB) enabled; wiped on logout so shared phones don't keep the previous person's data (logout now reloads the page).

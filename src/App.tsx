@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, lazy, Suspense } from 'react';
+import { toast } from 'sonner';
 import { useAppStore } from './store/useAppStore';
 import { Login } from './components/Auth';
 import { StaffIdGate } from './components/StaffIdGate';
@@ -215,9 +216,25 @@ export default function App() {
 
   useEffect(() => {
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(err => {
+      navigator.serviceWorker.register('/sw.js').then((reg) => {
+        // Long-open phones (a shift) still pick up new releases.
+        const timer = window.setInterval(() => { reg.update().catch(() => {}); }, 30 * 60 * 1000);
+        window.addEventListener('pagehide', () => window.clearInterval(timer), { once: true });
+      }).catch(err => {
         console.error('SW registration failed:', err);
       });
+      // A new version took over (sw.js skips waiting): the page is still
+      // running the old code — offer a one-tap reload instead of leaving
+      // staff on a stale version until they happen to close the app.
+      const hadController = !!navigator.serviceWorker.controller;
+      const onChange = () => {
+        if (!hadController) return;
+        toast(t('update.ready'), {
+          duration: Infinity,
+          action: { label: t('update.reload'), onClick: () => window.location.reload() },
+        });
+      };
+      navigator.serviceWorker.addEventListener('controllerchange', onChange);
     }
   }, []);
 

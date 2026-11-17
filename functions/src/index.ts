@@ -12,6 +12,8 @@ admin.initializeApp();
 
 // Missed-check alerts (scheduled every 30 minutes).
 export { checkMissedChecks } from './missedChecks';
+// Monthly off-site Firestore export (backup layer 3).
+export { monthlyFirestoreExport } from './backups';
 
 // Error monitoring digest (hourly) — see monitoring.ts.
 export { errorDigest } from './monitoring';

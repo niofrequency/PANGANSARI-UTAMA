@@ -105,3 +105,46 @@ jobs:
               --recurrence=weekly --day-of-week=SUN --retention=14w
           fi
           gcloud firestore backups schedules list --database='(default)' --project="$FIREBASE_PROJECT_ID"
+
+      # More backup layers (docs/BACKUP_AND_RESTORE.md). All idempotent and
+      # allowed to fail without failing the deploy — the log says why (most
+      # often a missing IAM role on the deploy service account).
+      #  - Point-in-time recovery: restore the database as it was at any
+      #    minute of the last 7 days.
+      #  - Delete protection: the database can't be deleted by accident.
+      - name: Point-in-time recovery + delete protection
+        continue-on-error: true
+        run: |
+          gcloud firestore databases update --database='(default)' --project="$FIREBASE_PROJECT_ID" \
+            --enable-pitr --delete-protection
+          gcloud firestore databases describe --database='(default)' --project="$FIREBASE_PROJECT_ID" \
+            --format='value(pointInTimeRecoveryEnablement,deleteProtectionState,earliestVersionTime)'
+
+      #  - Monthly off-site export (function monthlyFirestoreExport) lands in
+      #    gs://<project>-firestore-exports, kept 400 days by a lifecycle
+      #    rule. The Firestore service agent writes the export; the
+      #    function's service account starts it.
+      #  - Photos: Cloud Storage soft delete keeps any deleted / overwritten
+      #    photo recoverable for 30 days.
+      - name: Backup bucket, permissions, photo soft delete
+        continue-on-error: true
+        run: |
+          set -u
+          P="$FIREBASE_PROJECT_ID"
+          N="$(gcloud projects describe "$P" --format='value(projectNumber)')"
+          B="gs://${P}-firestore-exports"
+          if ! gcloud storage buckets describe "$B" --project="$P" >/dev/null 2>&1; then
+            gcloud storage buckets create "$B" --project="$P" --location=us-central1 --uniform-bucket-level-access
+          fi
+          printf '{"rule":[{"action":{"type":"Delete"},"condition":{"age":400}}]}' > /tmp/lifecycle.json
+          gcloud storage buckets update "$B" --lifecycle-file=/tmp/lifecycle.json
+          gcloud storage buckets add-iam-policy-binding "$B" \
+            --member="serviceAccount:service-${N}@gcp-sa-firestore.iam.gserviceaccount.com" --role=roles/storage.admin >/dev/null
+          gcloud projects add-iam-policy-binding "$P" \
+            --member="serviceAccount:${N}-compute@developer.gserviceaccount.com" --role=roles/datastore.importExportAdmin --condition=None >/dev/null
+          for PB in "gs://${P}.firebasestorage.app" "gs://${P}.appspot.com"; do
+            if gcloud storage buckets describe "$PB" >/dev/null 2>&1; then
+              gcloud storage buckets update "$PB" --soft-delete-duration=30d && echo "Soft delete 30d on $PB"
+            fi
+          done
+          gcloud storage buckets describe "$B" --format='value(name,location,lifecycle_config)'

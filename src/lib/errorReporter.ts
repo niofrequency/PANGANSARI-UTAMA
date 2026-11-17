@@ -11,6 +11,7 @@
 // stack, which screen, role and app version.
 
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { captureToSentry, setSentryUser } from './sentry';
 import { auth, db, isFirebaseConfigured } from './firebase';
 
 const MAX_PER_PAGE = 10;
@@ -18,8 +19,9 @@ const seen = new Set<string>();
 let sent = 0;
 let currentRole = '';
 
-export function setErrorReporterRole(role: string | undefined) {
+export function setErrorReporterRole(role: string | undefined, uid?: string) {
   currentRole = role || '';
+  setSentryUser(uid, role);
 }
 
 // Noise that isn't ours to fix (browser quirks, extensions, cross-origin
@@ -37,6 +39,7 @@ export function fingerprintOf(message: string, stack?: string): string {
 }
 
 export function reportError(err: unknown, kind: 'error' | 'rejection' | 'render' = 'error'): void {
+  captureToSentry(err);
   try {
     if (!isFirebaseConfigured || !db || !auth?.currentUser) return;
     const e = err instanceof Error ? err : new Error(typeof err === 'string' ? err : JSON.stringify(err ?? 'unknown'));

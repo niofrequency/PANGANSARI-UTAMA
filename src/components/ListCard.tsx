@@ -35,7 +35,9 @@ export interface ListCardColumn<T> {
 // untouched. Omit it (every caller before this existed, and every
 // worker-facing list that should stay simple, like MyActionItems/
 // MyFieldReports/worker History) and nothing changes at any width.
-export function ListCard<T extends { id: string }>({
+// Default `any` = when callers pass untyped (store) arrays, rows stay untyped
+// rather than collapsing to the bare `{ id }` constraint.
+export function ListCard<T extends { id: string } = any>({
   items,
   renderRow,
   rowClassName,
@@ -45,24 +47,24 @@ export function ListCard<T extends { id: string }>({
   onRowClick,
 }: {
   items: T[];
-  renderRow: (item: T) => ReactNode;
+  renderRow: (item: NoInfer<T>) => ReactNode;
   // Extra classes on a specific row's own padded wrapper — for the rare
   // row that needs to stand out within the list (e.g. a flagged "not
   // ready to work" entry), same as a highlighted table row. Applied to
   // both the mobile card and the desktop table row when both render.
-  rowClassName?: (item: T) => string | undefined;
+  rowClassName?: (item: NoInfer<T>) => string | undefined;
   // Omit both when this list is only ever rendered behind an
   // `items.length > 0` guard (e.g. a "history" section shown only once
   // there's history) — the empty branch is then unreachable, so there's
   // nothing worth asking every caller to fill in just in case.
   emptyIcon?: ReactNode;
   emptyLabel?: string;
-  desktopColumns?: ListCardColumn<T>[];
+  desktopColumns?: ListCardColumn<NoInfer<T>>[];
   // Whole-row click for the desktop table — renderRow's own onClick
   // (baked into whatever JSX it returns) isn't reusable here since a
   // table row is built from desktopColumns' render() output instead.
   // Ignored when desktopColumns is omitted.
-  onRowClick?: (item: T) => void;
+  onRowClick?: (item: NoInfer<T>) => void;
 }) {
   if (items.length === 0) {
     return (

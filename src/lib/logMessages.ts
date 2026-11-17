@@ -1,5 +1,6 @@
 import { toast } from 'sonner';
 import { translations } from '../i18n/translations';
+import { captureToSentry } from './sentry';
 
 // Turns a failed log action (stamp / send back / fix / edit / delete) into
 // a toast the person can act on, in their chosen language. Error messages
@@ -18,6 +19,9 @@ export function logErrorMessage(err: unknown): string {
 }
 
 export function reportLogError(err: unknown) {
-  console.error('log action failed:', err);
+  console.error('action failed:', err);
   toast.error(logErrorMessage(err));
+  // Being offline is expected in the field — everything else is worth a look.
+  const code = String((err as { code?: string })?.code || (err as Error)?.message || '');
+  if (!/unavailable|network|offline|deadline|already-stamped|not-pending|stamped-other-step|out-of-order|own-log/i.test(code)) captureToSentry(err);
 }

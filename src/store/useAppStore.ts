@@ -363,7 +363,7 @@ export function useAppStore() {
   // review or manage sites need them; frontline phones skip both
   // listeners entirely. Demo mode keeps schedules in localStorage so the
   // editor still works, but nothing checks them (that runs on the server).
-  useEffect(() => { setErrorReporterRole(currentUser?.role); }, [currentUser?.role]);
+  useEffect(() => { setErrorReporterRole(currentUser?.role, currentUser?.id); }, [currentUser?.role, currentUser?.id]);
 
   const canSeeChecks = !!currentUser && CHECK_VIEWER_ROLES.includes(currentUser.role);
   const [checkSchedules, setCheckSchedules] = useState<CheckSchedule[]>(() => {
@@ -539,7 +539,7 @@ export function useAppStore() {
       const result = await loginOrRegister(email, password, firstName, lastName);
       // currentUser is set by the watchAuthAndProfile subscription once
       // Firebase Auth's state updates — no need to set it here.
-      return result.ok ? null : result.error;
+      return result.ok ? null : ('error' in result ? result.error : 'unknown');
     }
 
     // Demo mode
@@ -584,7 +584,7 @@ export function useAppStore() {
   const loginWithGoogle = async (): Promise<string | null> => {
     if (!isFirebaseConfigured) return 'invalid';
     const result = await loginWithGoogleService();
-    return result.ok ? null : result.error;
+    return result.ok ? null : ('error' in result ? result.error : 'unknown');
   };
 
   // Scan-to-Job login (StaffIdGate.tsx): a Staff ID instead of email/
@@ -969,7 +969,7 @@ export function useAppStore() {
     if (isFirebaseConfigured) {
       const result = await createStaffAccountDirect({ ...user, password, staffCode: staffIdentity?.staffCode });
       if (result.ok) return { ok: true };
-      return { ok: false, error: result.error };
+      return { ok: false, error: 'error' in result ? result.error : 'unknown' };
     }
     // Demo mode has no server to enforce this, so it has to happen here —
     // without it, Add Staff would silently create a second account on an
@@ -1050,7 +1050,7 @@ export function useAppStore() {
       ...updates,
     });
     if (result.ok) return { ok: true };
-    return { ok: false, error: result.error };
+    return { ok: false, error: 'error' in result ? result.error : 'unknown' };
   };
 
   // Admin sets/changes a user's Scan-to-Job Staff ID. No PIN — the code
