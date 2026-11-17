@@ -1,11 +1,35 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig} from 'vite';
+import {defineConfig, type Plugin} from 'vite';
+import fs from 'fs';
+import crypto from 'crypto';
+
+// Writes this build's id and full file list into dist/sw.js so every
+// screen and form is cached for offline use (see public/sw.js).
+function precacheServiceWorker(): Plugin {
+  let files: string[] = [];
+  return {
+    name: 'psu-precache-sw',
+    apply: 'build',
+    generateBundle(_opts, bundle) {
+      files = Object.keys(bundle).filter((f) => /\.(js|css|woff2?|png|svg|webp)$/.test(f)).map((f) => `/${f}`);
+    },
+    writeBundle(opts) {
+      const out = path.join(opts.dir || 'dist', 'sw.js');
+      if (!fs.existsSync(out)) return;
+      const id = crypto.createHash('sha1').update(files.sort().join('|')).digest('hex').slice(0, 10);
+      const src = fs.readFileSync(out, 'utf8')
+        .replace("'__BUILD_ID__'", JSON.stringify(id))
+        .replace('/*__PRECACHE__*/[]', JSON.stringify(files));
+      fs.writeFileSync(out, src);
+    },
+  };
+}
 
 export default defineConfig(() => {
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), precacheServiceWorker()],
     // Which build an error report came from (src/lib/errorReporter.ts).
     // Vercel sets VERCEL_GIT_COMMIT_SHA at build time.
     define: {

@@ -23,6 +23,10 @@ export interface OutboxEntry {
   id: string;
   type: 'submission';
   payload: unknown;
+  // Firestore document id chosen on the phone when the form was submitted,
+  // so a retry writes the SAME document (never a duplicate log). Missing
+  // on entries queued by older app versions.
+  docId?: string;
   createdAt: string;
   status: 'pending';
 }

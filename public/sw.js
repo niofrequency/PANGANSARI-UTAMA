@@ -1,15 +1,26 @@
-const CACHE_NAME = 'psu-fieldops-v3';
+// Offline: the build (vite.config.ts → precacheServiceWorker) replaces
+// these two placeholders with this release's id and the list of EVERY
+// file the app is made of (each role's screens, every form), so a phone
+// that has been online once can open any screen and fill any form with no
+// connection. A new release changes this file, so phones install it and
+// cache the new files.
+const BUILD_ID = '__BUILD_ID__';
+const PRECACHE = /*__PRECACHE__*/[];
+const CACHE_NAME = `psu-fieldops-${BUILD_ID}`;
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
+  ...PRECACHE,
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS_TO_CACHE))
+    // One file failing (e.g. a flaky connection) mustn't abort the rest.
+    caches.open(CACHE_NAME).then((cache) =>
+      Promise.all(ASSETS_TO_CACHE.map((url) => cache.add(url).catch(() => {}))))
   );
   self.skipWaiting();
 });
@@ -23,11 +34,19 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+// Lookups ignore `Vary`: files are precached without the page's Origin
+// header, so a server that answers with `Vary: Origin` would otherwise
+// make every offline lookup miss (blank screen offline). Asset names are
+// content-hashed, so one copy per URL is always right.
 // Network-first for navigations/API-like requests so staff always get the
 // latest checklist logic when online; fall back to cache when offline.
 // Cache-first for static assets (icons, fonts) since those rarely change.
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return; // never intercept POST/PUT etc.
+  // Only the app's own files. Firebase (live data, auth, photos) and other
+  // services handle their own connections and offline queue — caching
+  // their responses here could serve stale or broken data.
+  if (new URL(event.request.url).origin !== self.location.origin) return;
 
   const isNavigation = event.request.mode === 'navigate';
 
@@ -39,13 +58,13 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_NAME).then((c) => c.put(event.request, clone));
           return res;
         })
-        .catch(() => caches.match(event.request).then((r) => r || caches.match('/index.html')))
+        .catch(() => caches.match(event.request, { ignoreVary: true }).then((r) => r || caches.match('/index.html', { ignoreVary: true })))
     );
     return;
   }
 
   event.respondWith(
-    caches.match(event.request).then((cached) => {
+    caches.match(event.request, { ignoreVary: true }).then((cached) => {
       if (cached) return cached;
       return fetch(event.request).then((res) => {
         const clone = res.clone();

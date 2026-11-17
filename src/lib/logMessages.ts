@@ -25,3 +25,8 @@ export function reportLogError(err: unknown) {
   const code = String((err as { code?: string })?.code || (err as Error)?.message || '');
   if (!/unavailable|network|offline|deadline|already-stamped|not-pending|stamped-other-step|out-of-order|own-log/i.test(code)) captureToSentry(err);
 }
+
+// Submitted with no connection: reassure, so nobody submits twice.
+export function notifySavedOffline() {
+  toast.success((translations[lang()].logOk as Record<string, string>).savedOffline);
+}

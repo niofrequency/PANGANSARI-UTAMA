@@ -27,7 +27,7 @@
 
 import { listenMerged } from './liveQuery';
 import {
-  collection, doc, addDoc, updateDoc, deleteField, onSnapshot, getDocs, runTransaction, arrayUnion,
+  collection, doc, addDoc, setDoc, updateDoc, deleteField, onSnapshot, getDocs, getDocFromServer, runTransaction, arrayUnion,
   query, where, orderBy, limit, type QueryConstraint,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -99,9 +99,24 @@ export async function fetchOlderSubmissions(
   return { submissions: toSubmissions(snap.docs), hasMore: snap.size === pageSize };
 }
 
-export async function addSubmissionDoc(submission: Omit<Submission, 'id'>): Promise<void> {
+// A log's id is chosen on the phone when it's submitted (works offline), so
+// the offline queue and Firestore's own pending-write queue both write the
+// SAME document — a retry can never create a duplicate log.
+export function newSubmissionId(): string {
+  return db ? doc(collection(db, 'submissions')).id : `s-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export async function addSubmissionDoc(submission: Omit<Submission, 'id'>, id?: string): Promise<void> {
   if (!db) return;
-  await addDoc(collection(db, 'submissions'), submission);
+  if (id) await setDoc(doc(db, 'submissions', id), submission);
+  else await addDoc(collection(db, 'submissions'), submission);
+}
+
+// Has this log already reached the server? (Asks the server, not the
+// phone's cache.) Used before re-sending a queued log after reconnecting.
+export async function submissionOnServer(id: string): Promise<boolean> {
+  if (!db) return false;
+  return (await getDocFromServer(doc(db, 'submissions', id))).exists();
 }
 
 // Generic patch applier — dot-path keys (e.g. 'meta.signoff.checkedBy')
