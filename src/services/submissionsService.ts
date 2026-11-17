@@ -85,6 +85,7 @@ export function subscribeSubmissions(
   let recent: Submission[] = [];
   let pending: Submission[] = [];
   let ownRejected: Submission[] = [];
+  let ownRecent: Submission[] = [];
   let recentReady = false;
   let pendingReady = false;
   let stopped = false;
@@ -94,6 +95,7 @@ export function subscribeSubmissions(
     if (!recentReady || !pendingReady) return;
     const byId = new Map<string, Submission>();
     for (const s of ownRejected) byId.set(s.id, s);
+    for (const s of ownRecent) byId.set(s.id, s);
     for (const s of pending) byId.set(s.id, s);
     for (const s of recent) byId.set(s.id, s); // recent wins: same doc, same data
     onChange(Array.from(byId.values()));
@@ -151,7 +153,27 @@ export function subscribeSubmissions(
         (err) => console.error('subscribeSubmissions (own rejected) failed:', err),
       )
     : () => {};
-  return () => { stopped = true; unsubRecent(); unsubPending(); unsubOwnRejected(); };
+  // …and their own recent logs (the live window), whatever site — so
+  // History always shows what they just filed, to edit or delete it.
+  // Needs the (userId, timestamp) index; until it's built, falls back to
+  // all of their own logs filtered here.
+  let unsubOwnRecent: () => void = () => {};
+  if (ownUid) {
+    const startOwn = (withRange: boolean) => {
+      unsubOwnRecent = onSnapshot(
+        withRange
+          ? query(col, where('userId', '==', ownUid), where('timestamp', '>=', sinceISO))
+          : query(col, where('userId', '==', ownUid)),
+        (snap) => { ownRecent = toSubmissions(snap.docs).filter(s => s.timestamp >= sinceISO); emit(); },
+        (err) => {
+          if ((err as { code?: string }).code === 'failed-precondition' && withRange && !stopped) { startOwn(false); return; }
+          console.error('subscribeSubmissions (own recent) failed:', err);
+        },
+      );
+    };
+    startOwn(true);
+  }
+  return () => { stopped = true; unsubRecent(); unsubPending(); unsubOwnRejected(); unsubOwnRecent(); };
 }
 
 // One page of history older than `beforeISO`, newest first. Not live: old

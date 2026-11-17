@@ -1,4 +1,4 @@
-import { Fragment, Key, ReactNode, useState } from 'react';
+import { Fragment, Key, ReactNode, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { cn } from '../../utils/cn';
@@ -16,14 +16,17 @@ import { localDateISO } from '../../utils/localDate';
 // (wash) and Bilas (rinse) temperatures. Same "one submission per
 // location per DAY" shape as TempControlForm.tsx — see that file's
 // header comment for why.
-export function DishwashForm({ store, onCancel, onSubmitted }: OpsFormProps) {
+export function DishwashForm({ store, onCancel, onSubmitted, editingSubmission }: OpsFormProps) {
   const { t } = useTranslation();
   const { currentUser, sites, submissions, addSubmission, resubmitAfterRejection } = store;
   const { workingSiteId, workingSiteName: currentSiteName, availableSites, setWorkingSiteId } = useWorkingSite(currentUser, sites);
   const today = localDateISO();
   const locations = dishwashLocationsForSite(workingSiteId);
 
-  const [locationId, setLocationId] = useState(locations[0]?.id || '');
+  // Editing one of my own sheets from History: open that exact sheet
+  // (its site and location), even if it's not today's.
+  useEffect(() => { if (editingSubmission?.siteId && editingSubmission.siteId !== workingSiteId) setWorkingSiteId(editingSubmission.siteId); }, [editingSubmission?.id]);
+  const [locationId, setLocationId] = useState(editingSubmission?.meta?.assetId || locations[0]?.id || '');
   const location = locations.find(l => l.id === locationId);
 
   if (!location) {
@@ -36,7 +39,9 @@ export function DishwashForm({ store, onCancel, onSubmitted }: OpsFormProps) {
     );
   }
 
-  const todaysSubmission = submissions.find(s =>
+  const todaysSubmission = editingSubmission && editingSubmission.meta?.assetId === location.id
+    ? (submissions.find(x => x.id === editingSubmission.id) || editingSubmission)
+    : submissions.find(s =>
     s.type === 'DISHWASH_TEMP' && s.meta?.assetId === location.id && s.siteId === workingSiteId && s.meta?.date === today
   );
 
@@ -56,7 +61,7 @@ export function DishwashForm({ store, onCancel, onSubmitted }: OpsFormProps) {
       <DishwashDayEditor
         key={location.id}
         location={location}
-        date={today}
+        date={todaysSubmission?.meta?.date || today}
         existing={todaysSubmission}
         currentUserName={currentUser?.name || ''}
         onSave={(readings, remarks) => {
