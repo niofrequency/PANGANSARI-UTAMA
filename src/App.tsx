@@ -255,7 +255,12 @@ export default function App() {
     }
     const onMessage = (e: MessageEvent) => { if (e.data?.type === 'OPEN_FIX' && e.data.id) setFixOpenId(e.data.id); };
     navigator.serviceWorker?.addEventListener('message', onMessage);
-    return () => navigator.serviceWorker?.removeEventListener('message', onMessage);
+    const onOpenFix = (e: Event) => { const id = (e as CustomEvent<string>).detail; if (id) setFixOpenId(id); };
+    window.addEventListener('psu-open-fix', onOpenFix);
+    return () => {
+      navigator.serviceWorker?.removeEventListener('message', onMessage);
+      window.removeEventListener('psu-open-fix', onOpenFix);
+    };
   }, []);
   const fixSubmission = fixOpenId && currentUser ? store.submissions.find(s => s.id === fixOpenId && s.userId === currentUser.id) : undefined;
   useBackToClose(!!fixSubmission, () => setFixOpenId(null));

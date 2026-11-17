@@ -69,7 +69,12 @@ function toSubmissions(docs: { id: string; data: () => unknown }[]): Submission[
 export function subscribeSubmissions(
   scope: SubmissionScope,
   sinceISO: string,
-  onChange: (submissions: Submission[]) => void
+  onChange: (submissions: Submission[]) => void,
+  // The signed-in user's own uid: their own sent-back (REJECTED) logs are
+  // always loaded, whatever site they were filed under and however old —
+  // otherwise a log filed at a site they've since moved off (or older than
+  // the live window) would never reach them to fix.
+  ownUid?: string,
 ): () => void {
   if (!db) {
     onChange([]);
@@ -79,6 +84,7 @@ export function subscribeSubmissions(
 
   let recent: Submission[] = [];
   let pending: Submission[] = [];
+  let ownRejected: Submission[] = [];
   let recentReady = false;
   let pendingReady = false;
   let stopped = false;
@@ -87,6 +93,7 @@ export function subscribeSubmissions(
     // Wait for both first answers so screens don't flash a half list.
     if (!recentReady || !pendingReady) return;
     const byId = new Map<string, Submission>();
+    for (const s of ownRejected) byId.set(s.id, s);
     for (const s of pending) byId.set(s.id, s);
     for (const s of recent) byId.set(s.id, s); // recent wins: same doc, same data
     onChange(Array.from(byId.values()));
@@ -135,7 +142,16 @@ export function subscribeSubmissions(
     (sites) => query(col, ...sites, where('status', '==', 'PENDING')),
     (docs) => { pending = docs; pendingReady = true; emit(); }
   );
-  return () => { stopped = true; unsubRecent(); unsubPending(); };
+  // Two equality filters — served by single-field indexes, no composite
+  // index needed. Emits on its own (doesn't gate the first render).
+  const unsubOwnRejected = ownUid
+    ? onSnapshot(
+        query(col, where('userId', '==', ownUid), where('status', '==', 'REJECTED')),
+        (snap) => { ownRejected = toSubmissions(snap.docs); emit(); },
+        (err) => console.error('subscribeSubmissions (own rejected) failed:', err),
+      )
+    : () => {};
+  return () => { stopped = true; unsubRecent(); unsubPending(); unsubOwnRejected(); };
 }
 
 // One page of history older than `beforeISO`, newest first. Not live: old

@@ -264,7 +264,7 @@ export function useAppStore() {
     const since = liveWindowStartISO();
     setLiveWindowStart(since);
     const scope: SubmissionScope = { sites: sitesForScope(currentUser) };
-    const unsubSubmissions = subscribeSubmissions(scope, since, setLiveSubmissions);
+    const unsubSubmissions = subscribeSubmissions(scope, since, setLiveSubmissions, currentUser.id);
     return () => unsubSubmissions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isFirebaseConfigured, currentUser?.id, submissionScopeKey, pinSessionActive]);

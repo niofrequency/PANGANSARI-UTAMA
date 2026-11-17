@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { Undo2 as RejectedIcon } from 'lucide-react';
+import { RejectedLogsTab, useRejectedCount } from './RejectedLogsTab';
 import { useFixEditor } from '../../lib/fixEditors';
 import { useAppStore } from '../../store/useAppStore';
 import { TrainingsTab } from '../TrainingsTab';
@@ -37,7 +39,8 @@ interface LaundryStaffPortalProps {
 export function LaundryStaffPortal({ store, fromQr, onDeepLinkHandled, onScanJob }: LaundryStaffPortalProps) {
   const { t } = useTranslation();
   const { currentUser, submissions, trainings, completeTraining, sites } = store;
-  const [activeTab, setActiveTab] = useState<'TASKS' | 'HISTORY' | 'CHAT' | 'TRAINING'>('TASKS');
+  const [activeTab, setActiveTab] = useState<'TASKS' | 'HISTORY' | 'REJECTED' | 'CHAT' | 'TRAINING'>('TASKS');
+  const rejectedCount = useRejectedCount(store);
   const chatTab = useChatTab(store);
   useOpenChatSignal(() => setActiveTab('CHAT'));
   const myHistory = submissions.filter(s => s.userId === currentUser?.id);
@@ -72,6 +75,7 @@ export function LaundryStaffPortal({ store, fromQr, onDeepLinkHandled, onScanJob
         {[
           { id: 'TASKS' as const, icon: ClipboardList, label: t('housekeeper.tabTasks') },
           { id: 'HISTORY' as const, icon: History, label: t('housekeeper.tabHistory') },
+          { id: 'REJECTED' as const, icon: RejectedIcon, label: t('rejectedTab.tab') },
           { id: 'CHAT' as const, icon: chatTab.icon, label: chatTab.label },
           { id: 'TRAINING' as const, icon: GraduationCap, label: t('housekeeper.tabTraining') },
         ].map(tab => (
@@ -83,7 +87,12 @@ export function LaundryStaffPortal({ store, fromQr, onDeepLinkHandled, onScanJob
               activeTab === tab.id ? "bg-psu-green text-white shadow-md shadow-psu-green/20" : "text-psu-gray/40 hover:text-psu-gray"
             )}
           >
-            <tab.icon size={18} />
+            <span className="relative">
+              <tab.icon size={18} />
+              {tab.id === 'REJECTED' && rejectedCount > 0 && (
+                <span className="absolute -top-1.5 -right-2.5 min-w-4 h-4 px-1 rounded-full bg-psu-rejected text-white text-[9px] leading-4 text-center">{rejectedCount}</span>
+              )}
+            </span>
             {tab.label}
           </button>
         ))}
@@ -115,6 +124,16 @@ export function LaundryStaffPortal({ store, fromQr, onDeepLinkHandled, onScanJob
               onSubmitted={() => { setEditingId(null); setActiveTab('HISTORY'); if (cameFromQr) onDeepLinkHandled?.(); }}
             />
           </motion.div>
+        )}
+
+        {activeTab === 'REJECTED' && (
+
+          <motion.div key="rejected" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }}>
+
+            <RejectedLogsTab store={store} />
+
+          </motion.div>
+
         )}
 
         {activeTab === 'HISTORY' && (

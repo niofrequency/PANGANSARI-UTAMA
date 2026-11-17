@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Undo2 as RejectedIcon } from 'lucide-react';
+import { RejectedLogsTab, useRejectedCount } from './RejectedLogsTab';
 import { useFixEditor } from '../../lib/fixEditors';
 import { useAppStore } from '../../store/useAppStore';
 import { PhotoCapture } from '../PhotoCapture';
@@ -59,7 +61,8 @@ interface HousekeeperPortalProps {
 export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, onDeepLinkHandled, onScanJob }: HousekeeperPortalProps) {
   const { t, language } = useTranslation();
   const { currentUser, submissions, addSubmission, trainings, completeTraining, sites } = store;
-  const [activeTab, setActiveTab] = useState<'TASKS' | 'HISTORY' | 'CHAT' | 'TRAINING'>('TASKS');
+  const [activeTab, setActiveTab] = useState<'TASKS' | 'HISTORY' | 'REJECTED' | 'CHAT' | 'TRAINING'>('TASKS');
+  const rejectedCount = useRejectedCount(store);
   const chatTab = useChatTab(store);
   useOpenChatSignal(() => setActiveTab('CHAT'));
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -250,6 +253,7 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
         {[
           { id: 'TASKS', icon: ClipboardList, label: t('housekeeper.tabTasks') },
           { id: 'HISTORY', icon: History, label: t('housekeeper.tabHistory') },
+          { id: 'REJECTED', icon: RejectedIcon, label: t('rejectedTab.tab') },
           { id: 'CHAT', icon: chatTab.icon, label: chatTab.label },
           { id: 'TRAINING', icon: GraduationCap, label: t('housekeeper.tabTraining') },
         ].map(tab => (
@@ -263,7 +267,12 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
                 : "text-psu-gray/40 hover:text-psu-gray"
             )}
           >
-            <tab.icon size={18} />
+            <span className="relative">
+              <tab.icon size={18} />
+              {tab.id === 'REJECTED' && rejectedCount > 0 && (
+                <span className="absolute -top-1.5 -right-2.5 min-w-4 h-4 px-1 rounded-full bg-psu-rejected text-white text-[9px] leading-4 text-center">{rejectedCount}</span>
+              )}
+            </span>
             {tab.label}
           </button>
         ))}
@@ -461,6 +470,16 @@ export function HousekeeperPortal({ store, startBarak, startRoom, expectedSite, 
               </p>
             )}
           </motion.div>
+        )}
+
+        {activeTab === 'REJECTED' && (
+
+          <motion.div key="rejected" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }}>
+
+            <RejectedLogsTab store={store} />
+
+          </motion.div>
+
         )}
 
         {activeTab === 'HISTORY' && (
