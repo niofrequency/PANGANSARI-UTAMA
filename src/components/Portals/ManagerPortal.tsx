@@ -84,7 +84,7 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
     <div className="space-y-6">
       {/* Mobile pill tab bar — unchanged, just hidden once the sidebar
           below takes over at md+. */}
-      <div className="flex md:hidden print:hidden bg-white rounded-2xl p-1.5 shadow-sm border border-psu-gray/5 overflow-x-auto">
+      <div className="hidden">
         {tabs.map(tab => (
           <button
             key={tab.id}
@@ -121,9 +121,6 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
             {/* DesktopShell already shows a page title at md+ (from the
                 nav item's own label) — this mobile-only title would
                 otherwise double up with it. */}
-            <div className="mb-6 px-2 md:hidden">
-              <h2 className="text-xl font-bold tracking-tight text-psu-gray">{t('manager.dashboardTitle')}</h2>
-            </div>
             <div className="mb-6"><MissedChecksBanner store={store} department={checksDepartment} onOpen={() => setActiveTab('CHECKS')} /></div>
             <AnalyticsDashboard submissions={dashboardSubmissions} warnings={dashboardWarnings} sites={dashboardSites} users={users} />
             <div className="mt-8"><TrendsPanel store={store} department={checksDepartment} /></div>

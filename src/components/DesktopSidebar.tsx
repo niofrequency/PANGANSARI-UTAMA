@@ -61,7 +61,11 @@ export function DesktopSidebar({
   return (
     <nav
       className={cn(
-        "hidden md:flex print:!hidden md:flex-col shrink-0 gap-1 bg-white border-r border-psu-gray/10 rounded-xl p-2 md:mr-6 transition-[width] duration-200",
+        // Phone: a slim icon rail with tiny labels on the left, sticky
+        // while the page scrolls (office portals only — frontline portals
+        // keep their top tab bar). md+: the foldable sidebar.
+        "flex flex-col print:!hidden shrink-0 gap-1 bg-white border-r border-psu-gray/10 rounded-xl p-1 mr-3 w-[64px] sticky top-2 self-start max-h-[calc(100vh-1rem)] overflow-y-auto",
+        "md:static md:self-stretch md:max-h-none md:overflow-visible md:p-2 md:mr-6 transition-[width] duration-200",
         expanded ? "md:w-60" : "md:w-14"
       )}
     >
@@ -69,7 +73,7 @@ export function DesktopSidebar({
         onClick={toggle}
         title={expanded ? 'Collapse menu' : 'Expand menu'}
         className={cn(
-          "flex items-center gap-3 rounded-xl px-3 py-3 text-psu-gray/40 hover:bg-psu-gray/5 hover:text-psu-gray transition-colors mb-1",
+          "hidden md:flex items-center gap-3 rounded-xl px-3 py-3 text-psu-gray/40 hover:bg-psu-gray/5 hover:text-psu-gray transition-colors mb-1",
           expanded ? "justify-start" : "justify-center"
         )}
       >
@@ -83,13 +87,15 @@ export function DesktopSidebar({
           onClick={() => onNav(item.id)}
           title={item.label}
           className={cn(
-            "flex items-center gap-3 rounded-xl px-3 py-3 text-[11px] font-black uppercase tracking-widest transition-colors",
-            expanded ? "justify-start" : "justify-center",
+            "flex flex-col md:flex-row items-center gap-1 md:gap-3 rounded-xl px-1 py-2 md:px-3 md:py-3 text-[11px] font-black uppercase tracking-widest transition-colors",
+            expanded ? "md:justify-start" : "md:justify-center",
             activeId === item.id ? "bg-psu-green/10 text-psu-green" : "text-psu-gray/40 hover:bg-psu-gray/5 hover:text-psu-gray"
           )}
         >
           <item.icon size={20} className="shrink-0" />
-          {expanded && <span className="truncate">{item.label}</span>}
+          {/* Phone rail: a tiny label under the icon. */}
+          <span className="md:hidden w-full text-center text-[7px] leading-tight tracking-tight break-normal hyphens-none [overflow-wrap:normal] overflow-hidden">{item.label}</span>
+          {expanded && <span className="hidden md:inline truncate">{item.label}</span>}
         </button>
       ))}
     </nav>

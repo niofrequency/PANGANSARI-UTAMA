@@ -35,8 +35,8 @@ export type StampProblem = 'not-pending' | 'own-log' | 'no-step' | 'already-stam
 //   • only PENDING logs, never your own;
 //   • steps in chain order, each once — a second reviewer arriving a
 //     moment later gets 'already-stamped' instead of overwriting;
-//   • separation of duties — one person never stamps two steps of the
-//     same log (e.g. a Manager can't both approve and verify).
+//   • separation of duties — one person never stamps two steps at the
+//     same level of one log (e.g. a Manager can't both approve and verify).
 export function stampProblem(s: Submission, userId: string, step: SignoffStep): StampProblem | null {
   if (s.status !== 'PENDING') return 'not-pending';
   if (s.userId === userId) return 'own-log';
@@ -46,7 +46,10 @@ export function stampProblem(s: Submission, userId: string, step: SignoffStep): 
   const so = s.meta?.signoff || {};
   if (so[step]) return 'already-stamped';
   if (chain.slice(0, i).some(k => !so[k])) return 'out-of-order';
-  if (chain.some(k => k !== step && so[k]?.userId === userId)) return 'stamped-other-step';
+  // Same level only: a Manager can't both approve and verify one log, but
+  // someone who checked it as Supervisor may approve it as Manager.
+  const level = (k: SignoffStep) => (k === 'checkedBy' ? 'supervisor' : 'manager');
+  if (chain.some(k => k !== step && so[k]?.userId === userId && level(k) === level(step))) return 'stamped-other-step';
   return null;
 }
 

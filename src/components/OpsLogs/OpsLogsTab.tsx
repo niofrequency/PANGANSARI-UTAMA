@@ -418,7 +418,6 @@ export function OpsLogsTab({
                 Portal's DesktopShell, which already shows "History" as
                 the page title (same translation key) — this would just
                 repeat it. */}
-            <h2 className="text-xl font-bold tracking-tight text-psu-gray px-2 md:hidden">{t('ops.historySectionTitle')}</h2>
             <SubmissionHistoryList
               submissions={history}
               emptyIcon={<ClipboardList size={48} className="mx-auto" />}
