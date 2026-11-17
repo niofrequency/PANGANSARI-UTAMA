@@ -55,8 +55,9 @@ export const GEMBA_SECTIONS: GembaSection[] = [
           },
           {
             id: "A-1-2",
-            descEn: `Company equipment is in good condition`,
-            descId: `Peralatan perusahaan dalam kondisi baik.`,
+            // Updated (PSU checklist revision): plastic curtains added.
+            descEn: `Company equipment is in good condition (Including plastic curtains with no damaged edges and cutting risk)`,
+            descId: `Peralatan perusahaan dalam kondisi baik (Termasuk tirai plastik tanpa tepi yang rusak atau risiko teriris.)`,
           },
           {
             id: "A-1-3",
