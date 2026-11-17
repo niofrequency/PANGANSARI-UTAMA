@@ -11,6 +11,25 @@ export default defineConfig(() => {
     define: {
       __APP_VERSION__: JSON.stringify((process.env.VERCEL_GIT_COMMIT_SHA || 'dev').slice(0, 7)),
     },
+    // Split the big, rarely-changing libraries into their own cached files
+    // (an app update then only re-downloads the app code, not Firebase).
+    build: {
+      chunkSizeWarningLimit: 900,
+      rollupOptions: {
+        output: {
+          manualChunks: (id: string) => {
+            if (!id.includes('node_modules')) return undefined;
+            if (id.includes('firebase') || id.includes('@firebase')) return 'firebase';
+            if (id.includes('recharts') || id.includes('d3-')) return 'charts';
+            if (id.includes('react-dom') || id.includes('/react/') || id.includes('scheduler')) return 'react';
+            if (id.includes('motion') || id.includes('framer')) return 'motion';
+            // Everything else shared (incl. bundler helpers) — keeps the
+            // charts file from being pulled in at start-up by a helper.
+            return 'vendor';
+          },
+        },
+      },
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

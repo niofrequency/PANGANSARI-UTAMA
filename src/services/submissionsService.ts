@@ -25,6 +25,7 @@
 // firestore.indexes.json holds the composite indexes the site-filtered
 // queries need.
 
+import { listenMerged } from './liveQuery';
 import {
   collection, doc, addDoc, updateDoc, deleteField, onSnapshot, getDocs, runTransaction, arrayUnion,
   query, where, orderBy, limit, type QueryConstraint,
@@ -53,9 +54,9 @@ function siteConstraint(scope: SubmissionScope): QueryConstraint[] {
   return [where('siteId', 'in', sites)];
 }
 
-export function liveWindowStartISO(now = new Date()): string {
+export function liveWindowStartISO(now = new Date(), days = LIVE_WINDOW_DAYS): string {
   const d = new Date(now);
-  d.setDate(d.getDate() - LIVE_WINDOW_DAYS);
+  d.setDate(d.getDate() - days);
   d.setHours(0, 0, 0, 0);
   return d.toISOString();
 }
@@ -68,114 +69,15 @@ function toSubmissions(docs: { id: string; data: () => unknown }[]): Submission[
 // file header). `sinceISO` is the start of the live window, passed in so
 // the caller (useAppStore.ts) knows exactly where "older" history begins.
 // Returns an unsubscribe function.
+// Live-subscribes to this person's share of submissions — the slices
+// from lib/dataScope.ts's submissionSlices (own records, their sites'
+// recent window and open items, or a frontline worker's shared monthly
+// sheets). Returns an unsubscribe function.
 export function subscribeSubmissions(
-  scope: SubmissionScope,
-  sinceISO: string,
+  slices: QueryConstraint[][],
   onChange: (submissions: Submission[]) => void,
-  // The signed-in user's own uid: their own sent-back (REJECTED) logs are
-  // always loaded, whatever site they were filed under and however old —
-  // otherwise a log filed at a site they've since moved off (or older than
-  // the live window) would never reach them to fix.
-  ownUid?: string,
 ): () => void {
-  if (!db) {
-    onChange([]);
-    return () => {};
-  }
-  const col = collection(db, 'submissions');
-
-  let recent: Submission[] = [];
-  let pending: Submission[] = [];
-  let ownRejected: Submission[] = [];
-  let ownRecent: Submission[] = [];
-  let recentReady = false;
-  let pendingReady = false;
-  let stopped = false;
-
-  const emit = () => {
-    // Wait for both first answers so screens don't flash a half list.
-    if (!recentReady || !pendingReady) return;
-    const byId = new Map<string, Submission>();
-    for (const s of ownRejected) byId.set(s.id, s);
-    for (const s of ownRecent) byId.set(s.id, s);
-    for (const s of pending) byId.set(s.id, s);
-    for (const s of recent) byId.set(s.id, s); // recent wins: same doc, same data
-    onChange(Array.from(byId.values()));
-  };
-
-  // One listener with a site-filtered query. If Firestore says the
-  // composite index it needs isn't ready (failed-precondition: right
-  // after a deploy, while firestore.indexes.json is still building), it
-  // re-subscribes without the site filter — the old, wider read — rather
-  // than leaving the screen empty. Client-side site filtering in each
-  // portal keeps what people see the same either way.
-  const listen = (
-    label: string,
-    build: (sites: QueryConstraint[]) => ReturnType<typeof query>,
-    onDocs: (docs: Submission[]) => void
-  ): (() => void) => {
-    let unsub: () => void = () => {};
-    const start = (sites: QueryConstraint[]) => {
-      unsub = onSnapshot(
-        build(sites),
-        (snap) => onDocs(toSubmissions(snap.docs)),
-        (err) => {
-          const code = (err as { code?: string }).code;
-          if (code === 'failed-precondition' && sites.length > 0 && !stopped) {
-            console.warn(`subscribeSubmissions (${label}): index not ready yet, using unfiltered query for now`);
-            start([]);
-            return;
-          }
-          // Surface this instead of letting every queue/history screen
-          // silently stay empty forever.
-          console.error(`subscribeSubmissions (${label}) failed:`, err);
-        }
-      );
-    };
-    start(siteConstraint(scope));
-    return () => unsub();
-  };
-
-  const unsubRecent = listen(
-    'recent',
-    (sites) => query(col, ...sites, where('timestamp', '>=', sinceISO)),
-    (docs) => { recent = docs; recentReady = true; emit(); }
-  );
-  const unsubPending = listen(
-    'pending',
-    (sites) => query(col, ...sites, where('status', '==', 'PENDING')),
-    (docs) => { pending = docs; pendingReady = true; emit(); }
-  );
-  // Two equality filters — served by single-field indexes, no composite
-  // index needed. Emits on its own (doesn't gate the first render).
-  const unsubOwnRejected = ownUid
-    ? onSnapshot(
-        query(col, where('userId', '==', ownUid), where('status', '==', 'REJECTED')),
-        (snap) => { ownRejected = toSubmissions(snap.docs); emit(); },
-        (err) => console.error('subscribeSubmissions (own rejected) failed:', err),
-      )
-    : () => {};
-  // …and their own recent logs (the live window), whatever site — so
-  // History always shows what they just filed, to edit or delete it.
-  // Needs the (userId, timestamp) index; until it's built, falls back to
-  // all of their own logs filtered here.
-  let unsubOwnRecent: () => void = () => {};
-  if (ownUid) {
-    const startOwn = (withRange: boolean) => {
-      unsubOwnRecent = onSnapshot(
-        withRange
-          ? query(col, where('userId', '==', ownUid), where('timestamp', '>=', sinceISO))
-          : query(col, where('userId', '==', ownUid)),
-        (snap) => { ownRecent = toSubmissions(snap.docs).filter(s => s.timestamp >= sinceISO); emit(); },
-        (err) => {
-          if ((err as { code?: string }).code === 'failed-precondition' && withRange && !stopped) { startOwn(false); return; }
-          console.error('subscribeSubmissions (own recent) failed:', err);
-        },
-      );
-    };
-    startOwn(true);
-  }
-  return () => { stopped = true; unsubRecent(); unsubPending(); unsubOwnRejected(); unsubOwnRecent(); };
+  return listenMerged<Submission>('submissions', slices, (id, data) => ({ ...(data as Omit<Submission, 'id'>), id }), onChange, 'subscribeSubmissions');
 }
 
 // One page of history older than `beforeISO`, newest first. Not live: old
@@ -185,20 +87,15 @@ export function subscribeSubmissions(
 export async function fetchOlderSubmissions(
   scope: SubmissionScope,
   beforeISO: string,
-  pageSize = OLDER_PAGE_SIZE
+  pageSize = OLDER_PAGE_SIZE,
+  // Frontline: only their own older logs, not their whole site's.
+  ownUid?: string,
 ): Promise<{ submissions: Submission[]; hasMore: boolean }> {
   if (!db) return { submissions: [], hasMore: false };
   const col = collection(db, 'submissions');
-  const build = (sites: QueryConstraint[]) =>
-    query(col, ...sites, where('timestamp', '<', beforeISO), orderBy('timestamp', 'desc'), limit(pageSize));
-  let snap;
-  try {
-    snap = await getDocs(build(siteConstraint(scope)));
-  } catch (err) {
-    // Same index-still-building fallback as subscribeSubmissions.
-    if ((err as { code?: string }).code !== 'failed-precondition') throw err;
-    snap = await getDocs(build([]));
-  }
+  const filter = ownUid ? [where('userId', '==', ownUid)] : siteConstraint(scope);
+  // Always paged (limit) — never an unbounded read, even with no site filter.
+  const snap = await getDocs(query(col, ...filter, where('timestamp', '<', beforeISO), orderBy('timestamp', 'desc'), limit(pageSize)));
   return { submissions: toSubmissions(snap.docs), hasMore: snap.size === pageSize };
 }
 
@@ -260,3 +157,15 @@ export async function stampSubmissionTx(
 }
 
 export const appendHistory = (event: LogEvent) => arrayUnion(event);
+
+// One site's sheets of one form for one month — for printing / viewing a
+// monthly sheet (Temperature Control, Dishwashing, Mess Hall) whose days
+// fall outside the live window. Small, exact query (siteId + type +
+// timestamp index).
+export async function fetchMonthSheets(siteId: string, type: Submission['type'], fromISO: string, toISO: string): Promise<Submission[]> {
+  if (!db) return [];
+  const snap = await getDocs(query(collection(db, 'submissions'),
+    where('siteId', '==', siteId), where('type', '==', type),
+    where('timestamp', '>=', fromISO), where('timestamp', '<', toISO), limit(2000)));
+  return toSubmissions(snap.docs);
+}

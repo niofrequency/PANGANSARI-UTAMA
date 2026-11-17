@@ -4,27 +4,14 @@
 // rule (firestore.rules) is built around.
 
 import { collection, doc, addDoc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { listenMerged } from './liveQuery';
+import type { QueryConstraint } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { CorrectiveAction } from '../types';
 
-export function subscribeCorrectiveActions(onChange: (actions: CorrectiveAction[]) => void): () => void {
-  if (!db) {
-    onChange([]);
-    return () => {};
-  }
-  return onSnapshot(
-    collection(db, 'correctiveActions'),
-    (snap) => {
-      const actions: CorrectiveAction[] = snap.docs.map((d) => ({
-        ...(d.data() as Omit<CorrectiveAction, 'id'>),
-        id: d.id,
-      }));
-      onChange(actions);
-    },
-    (err) => {
-      console.error('subscribeCorrectiveActions failed:', err);
-    }
-  );
+// `slices` = this person's share (lib/dataScope.ts); default = all.
+export function subscribeCorrectiveActions(onChange: (items: CorrectiveAction[]) => void, slices: QueryConstraint[][] = [[]]): () => void {
+  return listenMerged<CorrectiveAction>('correctiveActions', slices, (id, data) => ({ ...(data as Omit<CorrectiveAction, 'id'>), id }), onChange, 'subscribeCorrectiveActions');
 }
 
 export async function addCorrectiveActionDoc(action: Omit<CorrectiveAction, 'id'>): Promise<void> {

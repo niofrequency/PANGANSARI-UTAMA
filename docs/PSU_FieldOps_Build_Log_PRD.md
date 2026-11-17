@@ -254,6 +254,23 @@ Rules: `firestore.rules` (deployed automatically by CI). Storage rules: `storage
 4. Photos: compressed once on upload; Cloudinary free-tier storage/bandwidth limits unknown vs. current usage — needs a dashboard check.
 5. Demo mode stores photos as base64 in `localStorage` (quota ~5–10 MB) — only matters if demo mode is used in practice.
 
+### 9.2b Scale pass for ~1,000 daily users (#111)
+What each phone loads is now decided per role in `lib/dataScope.ts`, through `services/liveQuery.ts`'s `listenMerged` (several bounded queries, merged; a failing slice is logged and treated as empty — never widened to an unbounded read):
+| Data | Frontline (Housekeeper, Laundry, Janitor, Technician) | Leadhand / Supervisor | Manager / GM / Admin |
+|---|---|---|---|
+| Submissions | own (live window + any sent back) + this month's **shared sheets** at their sites (Temp Control, Dishwash, Mess Hall, Restroom, Laundry) | own + their sites, **14 days** + every PENDING / REJECTED at any age (sites chunked ≤30 / ≤15 per query) | same; with access to every site: **3 days** + every open item |
+| Users | their Leadhands / Supervisors + Admin (chat) | their department's staff + managers / GM / Admin | everyone (Personnel) |
+| Warnings | own | last 90 days | last 90 days |
+| Reported issues | own | open + last 60 days | open + last 60 days |
+| Action items | assigned to them | open / done + last 60 days | same |
+| Missed checks | — | last 7 days (dashboard fetches more on demand) | same |
+| Chat | newest 1,000 messages | same | same |
+- **Before:** every client subscribed to the whole `users` collection (1,400+ docs) and whole `warnings` / `fieldReports` / `correctiveActions`; technicians loaded their whole site's last 60 days (≈18k logs at a busy site); anyone with all sites or >30 sites got **no site filter at all** (≈180k logs at 3,000 logs/day).
+- Older history pages in on demand ("Load older records": frontline pages only their own logs; always `limit`ed — the unfiltered index-building fallback was removed). Monthly sheets (Temp / Dishwash / Mess Hall) fetch that site + form + month on open (`fetchMonthSheets`), so a sheet never shows blank days just because they're outside the window. The dashboard fetches the extra days for 30-day / previous-period figures on demand (capped at 20,000 logs, flagged if hit).
+- **Functions:** staff-by-role lookups cached 10 min per instance (`usersWithRoles`); push-token lookups batched 30 uids per query.
+- **App size:** each portal is code-split (`React.lazy`), libraries split into cached `react` / `firebase` / `vendor` / `motion` / `charts` files; first open ≈ 580 KB gzip (was ≈ 770 KB in one file) and charts (≈ 90 KB) load only with a dashboard.
+- New indexes: `submissions (userId, timestamp desc)`, `messages (participants contains, createdAt desc)`.
+
 ### 9.2a Fixed (storage workstream, branch `claude/gifted-mayer-ohigvv`)
 - **Scoped submissions:** each device now live-listens only to the last 60 days plus anything still `PENDING`, limited to the user's sites (`siteId in …` when ≤30 sites). Older history loads on demand, 300 at a time, from a "Load older records" button under every history list and Admin → Activity. Composite indexes are in `firestore.indexes.json` (deployed by CI); if an index is still building, queries fall back to the unfiltered form instead of showing nothing.
 - **Persistent Firestore cache** (IndexedDB) enabled; wiped on logout so shared phones don't keep the previous person's data (logout now reloads the page).

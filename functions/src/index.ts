@@ -593,7 +593,10 @@ async function pushTo(uids: string[], data: Record<string, string>) {
   const unique = [...new Set(uids.filter(Boolean))];
   if (!unique.length) return;
   const db = admin.firestore();
-  const snaps = await Promise.all(unique.map((uid) => db.collection('pushTokens').where('uid', '==', uid).get()));
+  // 30 uids per query (Firestore `in` limit) instead of one query each.
+  const groups: string[][] = [];
+  for (let i = 0; i < unique.length; i += 30) groups.push(unique.slice(i, i + 30));
+  const snaps = await Promise.all(groups.map((g) => db.collection('pushTokens').where('uid', 'in', g).get()));
   const tokens = snaps.flatMap((sn) => sn.docs.map((d) => d.id));
   if (!tokens.length) return;
   const response = await admin.messaging().sendEachForMulticast({
@@ -691,6 +694,21 @@ export const notifySubmissionReturned = functionsV1.firestore
 // filer, never someone who already stamped another step of it. One
 // collapsing notification per site and department, so a busy morning
 // doesn't stack dozens.
+// Staff by role, cached in the function instance for 10 minutes: at ~3,000
+// logs a day, re-reading the reviewers' profiles on every single write
+// would cost hundreds of thousands of reads a day for data that barely
+// changes. A role change reaches notifications within 10 minutes.
+const roleCache = new Map<string, { at: number; users: any[] }>();
+async function usersWithRoles(roles: string[]): Promise<any[]> {
+  const key = [...roles].sort().join(',');
+  const hit = roleCache.get(key);
+  if (hit && Date.now() - hit.at < 10 * 60 * 1000) return hit.users;
+  const snap = await admin.firestore().collection('users').where('role', 'in', roles).get();
+  const users = snap.docs.map((d) => d.data());
+  roleCache.set(key, { at: Date.now(), users });
+  return users;
+}
+
 const CHAINS: Record<string, string[]> = {
   TEMP_CONTROL: ['checkedBy', 'approvedBy'], DISHWASH_TEMP: ['checkedBy', 'approvedBy'],
   MESS_HALL_HYGIENE: ['checkedBy', 'approvedBy', 'verifiedBy'], COOKING_SERVICE: ['checkedBy', 'approvedBy'],
@@ -742,8 +760,7 @@ export const notifyReviewers = functionsV1.firestore
     // checked it as Supervisor may still approve it as Manager.
     const sameLevel = step === 'checkedBy' ? ['checkedBy'] : ['approvedBy', 'verifiedBy'];
     const stampers = new Set(sameLevel.map((k) => so[k]?.userId).filter(Boolean));
-    const snap = await admin.firestore().collection('users').where('role', 'in', roles).get();
-    const uids = snap.docs.map((d) => d.data() as any)
+    const uids = (await usersWithRoles(roles))
       .filter((u) => coversSite(u, after.siteId) && u.uid !== after.userId && !stampers.has(u.uid))
       .map((u) => u.uid as string);
     if (!uids.length) return;
@@ -771,8 +788,7 @@ export const notifyFieldReport = functionsV1.firestore
     const r = snap.data() as any;
     if (!r?.department || !r.siteId) return;
     const roles = [`${r.department}_LEADHAND`, `${r.department}_SUPERVISOR`, `${r.department}_MANAGER`];
-    const users = await admin.firestore().collection('users').where('role', 'in', roles).get();
-    const uids = users.docs.map((d) => d.data() as any)
+    const uids = (await usersWithRoles(roles))
       .filter((u) => coversSite(u, r.siteId) && u.uid !== r.userId)
       .map((u) => u.uid as string);
     await pushTo(uids, {

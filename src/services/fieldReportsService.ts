@@ -7,27 +7,14 @@
 // acknowledged/resolved either.
 
 import { collection, doc, addDoc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { listenMerged } from './liveQuery';
+import type { QueryConstraint } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { FieldReport } from '../types';
 
-export function subscribeFieldReports(onChange: (reports: FieldReport[]) => void): () => void {
-  if (!db) {
-    onChange([]);
-    return () => {};
-  }
-  return onSnapshot(
-    collection(db, 'fieldReports'),
-    (snap) => {
-      const reports: FieldReport[] = snap.docs.map((d) => ({
-        ...(d.data() as Omit<FieldReport, 'id'>),
-        id: d.id,
-      }));
-      onChange(reports);
-    },
-    (err) => {
-      console.error('subscribeFieldReports failed:', err);
-    }
-  );
+// `slices` = this person's share (lib/dataScope.ts); default = all.
+export function subscribeFieldReports(onChange: (items: FieldReport[]) => void, slices: QueryConstraint[][] = [[]]): () => void {
+  return listenMerged<FieldReport>('fieldReports', slices, (id, data) => ({ ...(data as Omit<FieldReport, 'id'>), id }), onChange, 'subscribeFieldReports');
 }
 
 export async function addFieldReportDoc(report: Omit<FieldReport, 'id'>): Promise<void> {

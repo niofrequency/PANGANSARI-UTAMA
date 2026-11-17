@@ -4,6 +4,8 @@
 // a query. See authService.ts for how accounts actually get activated.
 
 import { collection, doc, deleteDoc, deleteField, getDoc, onSnapshot, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
+import { listenMerged } from './liveQuery';
+import type { QueryConstraint } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { User, UserRole } from '../types';
 
@@ -21,38 +23,24 @@ interface FirestoreUserDoc {
 }
 
 // Live-subscribes to the users collection. Returns an unsubscribe function.
-export function subscribeUsers(onChange: (users: User[]) => void): () => void {
-  if (!db) {
-    onChange([]);
-    return () => {};
-  }
-  return onSnapshot(
-    collection(db, 'users'),
-    (snap) => {
-      const users: User[] = snap.docs.map((d) => {
-        const data = d.data() as FirestoreUserDoc;
-        return {
-          id: data.uid || d.id, // fall back to the email-based doc id pre-activation
-          name: data.name,
-          firstName: data.firstName || '',
-          lastName: data.lastName || '',
-          email: data.email,
-          role: data.role,
-          site: data.site,
-          assignedSites: data.assignedSites,
-          isActive: data.isActive,
-          staffCode: data.staffCode,
-        };
-      });
-      onChange(users);
-    },
-    (err) => {
-      // Surface this instead of letting the Personnel list silently stay
-      // empty forever — Firestore treats permission-denied as terminal
-      // for a given listener rather than something it retries on its own.
-      console.error('subscribeUsers failed:', err);
-    }
-  );
+// `slices` = which users this person loads (lib/dataScope.ts userSlices);
+// default = everyone (office roles).
+export function subscribeUsers(onChange: (users: User[]) => void, slices: QueryConstraint[][] = [[]]): () => void {
+  return listenMerged<User>('users', slices, (id, raw) => {
+    const data = raw as FirestoreUserDoc;
+    return {
+      id: data.uid || id, // fall back to the email-based doc id pre-activation
+      name: data.name,
+      firstName: data.firstName || '',
+      lastName: data.lastName || '',
+      email: data.email,
+      role: data.role,
+      site: data.site,
+      assignedSites: data.assignedSites,
+      isActive: data.isActive,
+      staffCode: data.staffCode,
+    };
+  }, onChange, 'subscribeUsers');
 }
 
 // Creates an "invite": a profile with a role, but no linked Auth account

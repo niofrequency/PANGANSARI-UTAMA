@@ -21,6 +21,7 @@ import { subscribeSubmissions, fetchOlderSubmissions, liveWindowStartISO, addSub
 import { LogEvent, chainOf, eventBy, stampProblem, reviewQueueFor, reviewTierOf, reviewDepartments } from '../lib/logLifecycle';
 import { reportLogError } from '../lib/logMessages';
 import { userCanSeeSite } from '../lib/siteScope';
+import { audienceOf, actionSlices, fieldReportSlices, liveWindowDaysFor, submissionSlices, userSlices, warningSlices, wantsMissedChecks } from '../lib/dataScope';
 import { sitesForScope } from '../lib/siteScope';
 import { subscribeCheckSchedules, subscribeMissedChecks, addCheckScheduleDoc, updateCheckScheduleDoc, deleteCheckScheduleDoc } from '../services/checksService';
 import { localDateISO } from '../utils/localDate';
@@ -230,10 +231,10 @@ export function useAppStore() {
       setUsers([]);
       return;
     }
-    const unsubUsers = subscribeUsers(setUsers);
+    const unsubUsers = subscribeUsers(setUsers, userSlices(currentUser));
     return () => unsubUsers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isFirebaseConfigured, currentUser?.id, pinSessionActive]);
+  }, [isFirebaseConfigured, currentUser?.id, currentUser?.role, pinSessionActive]);
 
   // Same live-subscription pattern as users above — this is what actually
   // makes a submission a Technician files show up on a Supervisor's
@@ -264,13 +265,13 @@ export function useAppStore() {
       setLiveSubmissions([]);
       return;
     }
-    const since = liveWindowStartISO();
+    // Window sized per role (lib/dataScope.ts) — older history pages in on demand.
+    const since = liveWindowStartISO(new Date(), liveWindowDaysFor(currentUser));
     setLiveWindowStart(since);
-    const scope: SubmissionScope = { sites: sitesForScope(currentUser) };
-    const unsubSubmissions = subscribeSubmissions(scope, since, setLiveSubmissions, currentUser.id);
+    const unsubSubmissions = subscribeSubmissions(submissionSlices(currentUser, since), setLiveSubmissions);
     return () => unsubSubmissions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isFirebaseConfigured, currentUser?.id, submissionScopeKey, pinSessionActive]);
+  }, [isFirebaseConfigured, currentUser?.id, currentUser?.role, submissionScopeKey, pinSessionActive]);
 
   useEffect(() => {
     if (!isFirebaseConfigured) return;
@@ -290,7 +291,7 @@ export function useAppStore() {
     setIsLoadingOlder(true);
     try {
       const before = olderCursor || liveWindowStart;
-      const { submissions: page, hasMore } = await fetchOlderSubmissions({ sites: sitesForScope(currentUser) }, before);
+      const { submissions: page, hasMore } = await fetchOlderSubmissions({ sites: sitesForScope(currentUser) }, before, undefined, audienceOf(currentUser.role) === 'frontline' ? currentUser.id : undefined);
       setOlderSubmissions((prev) => {
         const seen = new Set(prev.map((s) => s.id));
         return [...prev, ...page.filter((s) => !seen.has(s.id))];
@@ -320,10 +321,10 @@ export function useAppStore() {
       setWarnings([]);
       return;
     }
-    const unsubWarnings = subscribeWarnings(setWarnings);
+    const unsubWarnings = subscribeWarnings(setWarnings, warningSlices(currentUser));
     return () => unsubWarnings();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isFirebaseConfigured, currentUser?.id, pinSessionActive]);
+  }, [isFirebaseConfigured, currentUser?.id, currentUser?.role, pinSessionActive]);
 
   useEffect(() => {
     if (!isFirebaseConfigured) return;
@@ -331,10 +332,10 @@ export function useAppStore() {
       setFieldReports([]);
       return;
     }
-    const unsubFieldReports = subscribeFieldReports(setFieldReports);
+    const unsubFieldReports = subscribeFieldReports(setFieldReports, fieldReportSlices(currentUser));
     return () => unsubFieldReports();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isFirebaseConfigured, currentUser?.id, pinSessionActive]);
+  }, [isFirebaseConfigured, currentUser?.id, currentUser?.role, pinSessionActive]);
 
   useEffect(() => {
     if (!isFirebaseConfigured) return;
@@ -342,10 +343,10 @@ export function useAppStore() {
       setCorrectiveActions([]);
       return;
     }
-    const unsubCorrectiveActions = subscribeCorrectiveActions(setCorrectiveActions);
+    const unsubCorrectiveActions = subscribeCorrectiveActions(setCorrectiveActions, actionSlices(currentUser));
     return () => unsubCorrectiveActions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isFirebaseConfigured, currentUser?.id, pinSessionActive]);
+  }, [isFirebaseConfigured, currentUser?.id, currentUser?.role, pinSessionActive]);
 
   useEffect(() => {
     if (!isFirebaseConfigured) return;
@@ -356,7 +357,7 @@ export function useAppStore() {
     const unsubTrainings = subscribeTrainings(setTrainings);
     return () => unsubTrainings();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isFirebaseConfigured, currentUser?.id, pinSessionActive]);
+  }, [isFirebaseConfigured, currentUser?.id, currentUser?.role, pinSessionActive]);
 
   // Missed-check alerts (functions/src/missedChecks.ts) — only people who
   // review or manage sites need them; frontline phones skip both
@@ -487,7 +488,7 @@ export function useAppStore() {
     registerPush(currentUser.id, currentUser.email, false).catch(() => {});
     return () => unsub();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isFirebaseConfigured, currentUser?.id, pinSessionActive]);
+  }, [isFirebaseConfigured, currentUser?.id, currentUser?.role, pinSessionActive]);
 
   // Unread chat count on the installed app's icon.
   // Messages this user cleared / deleted "for me" never reach the UI.

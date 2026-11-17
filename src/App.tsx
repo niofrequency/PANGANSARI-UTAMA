@@ -3,19 +3,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { useAppStore } from './store/useAppStore';
 import { Login } from './components/Auth';
 import { StaffIdGate } from './components/StaffIdGate';
 import { Layout } from './components/Layout';
-import { HousekeeperPortal } from './components/Portals/HousekeeperPortal';
-import { LaundryStaffPortal } from './components/Portals/LaundryStaffPortal';
-import { JanitorPortal } from './components/Portals/JanitorPortal';
-import { SupervisorPortal } from './components/Portals/SupervisorPortal';
-import { ManagerPortal } from './components/Portals/ManagerPortal';
-import { TechnicianPortal } from './components/Portals/TechnicianPortal';
+const HousekeeperPortal = lazy(() => import('./components/Portals/HousekeeperPortal').then(m => ({ default: m.HousekeeperPortal })));
+const LaundryStaffPortal = lazy(() => import('./components/Portals/LaundryStaffPortal').then(m => ({ default: m.LaundryStaffPortal })));
+const JanitorPortal = lazy(() => import('./components/Portals/JanitorPortal').then(m => ({ default: m.JanitorPortal })));
+const SupervisorPortal = lazy(() => import('./components/Portals/SupervisorPortal').then(m => ({ default: m.SupervisorPortal })));
+const ManagerPortal = lazy(() => import('./components/Portals/ManagerPortal').then(m => ({ default: m.ManagerPortal })));
+const TechnicianPortal = lazy(() => import('./components/Portals/TechnicianPortal').then(m => ({ default: m.TechnicianPortal })));
 import { OlderHistoryContext } from './components/LoadOlderHistory';
-import { AdminPortal } from './components/Admin/AdminPortal';
+const AdminPortal = lazy(() => import('./components/Admin/AdminPortal').then(m => ({ default: m.AdminPortal })));
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { PrivacyPolicyPage } from './components/Legal/PrivacyPolicyPage';
 import { TermsOfServicePage } from './components/Legal/TermsOfServicePage';
@@ -352,7 +352,13 @@ export default function App() {
                   />
                 </div>
               )}
-              <div className={fixSubmission ? 'hidden' : undefined}>{renderPortal()}</div>
+              <div className={fixSubmission ? 'hidden' : undefined}>
+                {/* Each role's portal is its own download (code-split), so a
+                    technician's phone never loads the Admin / Manager code. */}
+                <Suspense fallback={<div className="flex justify-center py-24"><div className="w-8 h-8 rounded-full border-4 border-psu-green/20 border-t-psu-green animate-spin" /></div>}>
+                  {renderPortal()}
+                </Suspense>
+              </div>
             </Layout>
           </motion.div>
         )}
