@@ -271,6 +271,17 @@ What each phone loads is now decided per role in `lib/dataScope.ts`, through `se
 - **App size:** each portal is code-split (`React.lazy`), libraries split into cached `react` / `firebase` / `vendor` / `motion` / `charts` files; first open ≈ 580 KB gzip (was ≈ 770 KB in one file) and charts (≈ 90 KB) load only with a dashboard.
 - New indexes: `submissions (userId, timestamp desc)`, `messages (participants contains, createdAt desc)`.
 
+### 9.2e Working with no signal (#113)
+Staff without mobile data fill forms offline; they sync on reconnect.
+- **Whole app cached for offline:** the build writes this release's id and the list of every file (each role's screens, every form) into `dist/sw.js` (`precacheServiceWorker` in `vite.config.ts`); the service worker caches them all on install, so after one online visit any screen / form opens with no connection — not only screens already visited (needed since #111 split the app into per-role downloads). Cache name changes per release, old caches removed.
+- **Blank-screen-offline bug fixed:** cache lookups now `ignoreVary` — a server answering with `Vary: Origin` made every offline lookup miss.
+- The service worker only handles the app's own files; Firebase (live data, auth, photos) manages its own connection and offline queue.
+- **No duplicate logs after reconnecting:** a log's Firestore id is now chosen on the phone at submit time (`newSubmissionId`); the offline outbox and Firestore's own pending-write queue write the same document, and the outbox checks the server (`submissionOnServer`) before re-sending. Before, a log submitted offline could be saved twice.
+- On submit with no connection: toast "Saved on this phone — it will be sent automatically when you're back online"; header shows "Offline — N pending".
+- Photos taken offline are kept inside the log (the upload is retried, the local copy is used if it can't upload).
+- Needs one online visit after each install/login (to download the app and sign in); reviewing/stamping needs a connection (stamps are checked against the live log).
+- Test: `tests/e2e/offline.spec.ts` — one online visit, then offline: app and never-opened forms load.
+
 ### 9.2d Approval-chain audit and fixes (#112)
 - **Crash fixed — Supervisors / Leadhands couldn't open any checklist** (React error #300 "Rendered fewer hooks than expected"): `useBackToClose` in `OpsLogsTab` ran after the early return that opens a form (introduced in #97). Same class of bug in `RestroomForm` (Janitor: four `useState` after the editing-mode return). Both fixed; **ESLint `react-hooks/rules-of-hooks`** now runs in CI (`npm run lint:hooks`, 0 findings) so this can't ship again.
 - **Managers couldn't see logs waiting for their approval:** a Manager's site scope defaulted to their home site (usually an office where no logs are filed). Department Managers now cover **every site in their department** by default, like the GM (`ALWAYS_UNSCOPED_ROLES`); Admin can still narrow them (Personnel → Site Access → Home Site / Custom). Same default applied to push notifications (`coversSite`, `userCoversSite`).

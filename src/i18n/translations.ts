@@ -178,6 +178,7 @@ export const translations = {
       resolved: 'Sent back up to {name}',
       resent: 'Sent back for review',
       deleted: 'Log deleted',
+      savedOffline: "Saved on this phone — no connection right now. It will be sent automatically when you're back online.",
     },
     logTimeline: {
       title: 'Activity',
@@ -1240,6 +1241,7 @@ export const translations = {
       resolved: 'Dikirim kembali ke {name}',
       resent: 'Dikirim kembali untuk ditinjau',
       deleted: 'Log dihapus',
+      savedOffline: 'Tersimpan di ponsel ini — sedang tidak ada koneksi. Akan terkirim otomatis saat kembali online.',
     },
     logTimeline: {
       title: 'Aktivitas',

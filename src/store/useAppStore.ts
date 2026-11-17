@@ -17,9 +17,9 @@ import {
 import { subscribeUsers, updateUserRoleDoc, updateUserSiteDoc, updateUserAssignedSitesDoc, setStaffIdentityDoc, toggleUserActiveDoc, deleteUserDoc } from '../services/usersService';
 import { createStaffAccountDirect } from '../services/adminCreateAccount';
 import { resetStaffCredentials } from '../services/adminResetCredentials';
-import { subscribeSubmissions, fetchOlderSubmissions, liveWindowStartISO, addSubmissionDoc, updateSubmissionDoc, stampSubmissionTx, appendHistory, CLEAR_FIELD, type SubmissionScope } from '../services/submissionsService';
+import { subscribeSubmissions, fetchOlderSubmissions, liveWindowStartISO, addSubmissionDoc, newSubmissionId, submissionOnServer, updateSubmissionDoc, stampSubmissionTx, appendHistory, CLEAR_FIELD, type SubmissionScope } from '../services/submissionsService';
 import { LogEvent, chainOf, eventBy, stampProblem, reviewQueueFor, reviewTierOf, reviewDepartments } from '../lib/logLifecycle';
-import { reportLogError } from '../lib/logMessages';
+import { reportLogError, notifySavedOffline } from '../lib/logMessages';
 import { userCanSeeSite } from '../lib/siteScope';
 import { audienceOf, actionSlices, fieldReportSlices, liveWindowDaysFor, submissionSlices, userSlices, warningSlices, wantsMissedChecks } from '../lib/dataScope';
 import { sitesForScope } from '../lib/siteScope';
@@ -676,8 +676,15 @@ export function useAppStore() {
     const flushOutbox = async () => {
       const pending = await outboxDb.outbox.toArray();
       for (const entry of pending) {
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) break;
         try {
-          await addSubmissionDoc(entry.payload as Omit<Submission, 'id'>);
+          // Already arrived (Firestore's own offline queue may have sent it
+          // first)? Then just clear it — never send a second copy.
+          if (entry.docId && await submissionOnServer(entry.docId)) {
+            await outboxDb.outbox.delete(entry.id);
+            continue;
+          }
+          await addSubmissionDoc(entry.payload as Omit<Submission, 'id'>, entry.docId);
           await outboxDb.outbox.delete(entry.id);
         } catch (err) {
           console.error('Outbox flush failed, still queued:', entry.id, err);
@@ -712,11 +719,13 @@ export function useAppStore() {
       // convention as every other Firestore write in this file otherwise:
       // the live subscription above updates `submissions` once the write
       // actually round-trips, not this call directly.
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) notifySavedOffline();
       const outboxId = `ob-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const docId = newSubmissionId();
       outboxDb.outbox
-        .add({ id: outboxId, type: 'submission', payload: submission, createdAt: new Date().toISOString(), status: 'pending' })
+        .add({ id: outboxId, type: 'submission', payload: submission, docId, createdAt: new Date().toISOString(), status: 'pending' })
         .then(refreshOutboxCount)
-        .then(() => addSubmissionDoc(submission))
+        .then(() => addSubmissionDoc(submission, docId))
         .then(() => outboxDb.outbox.delete(outboxId))
         .then(refreshOutboxCount)
         .catch((err) => console.error('addSubmission failed, queued for retry:', err));
