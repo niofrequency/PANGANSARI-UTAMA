@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAppStore } from '../../store/useAppStore';
-import { AnalyticsDashboard } from '../Dashboard/AnalyticsDashboard';
+import { OpsDashboard } from '../Dashboard/OpsDashboard';
 import {
   Users, UserPlus, Shield, Trash2, XCircle, Search, Activity as ActivityIcon,
   User as UserIcon, AlertTriangle, Copy, Check, Eye, EyeOff, RefreshCw, KeyRound, Hash, Printer, ListTodo, Pencil, MessageCircle, FileSpreadsheet,
@@ -387,10 +387,12 @@ export function AdminPortal({ store }: { store: ReturnType<typeof useAppStore> }
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
           >
-            <h2 className="text-xl font-bold tracking-tight text-psu-gray mb-6 px-2">{t('admin.tabAnalytics')}</h2>
-            <div className="mb-6"><AppHealthPanel /></div>
             <div className="mb-6">{renderScopeFilters()}</div>
-            <AnalyticsDashboard submissions={scopedSubmissions} warnings={scopedWarnings} sites={scopedSites} users={scopedUsers} />
+            <OpsDashboard store={store}
+              onlySiteId={scopeSite === 'ALL' ? undefined : scopeSite}
+              onlyDept={scopeDept === 'ALL' ? undefined : scopeDept}
+              onNavigate={(to) => setActiveTab(to === 'checks' ? 'CHECKS' : 'ACTIVITY')} />
+            <div className="mt-6"><AppHealthPanel /></div>
             <div className="mt-8"><TrendsPanel store={store} /></div>
           </motion.div>
         )}
