@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { LogIn, UserPlus, Mail, Lock, AlertCircle, Info, Eye, EyeOff } from 'lucide-react';
+import { LogIn, UserPlus, Mail, Lock, AlertCircle, Info, Eye, EyeOff, IdCard, ChevronRight } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext';
 import { isFirebaseConfigured } from '../lib/firebase';
 import { cn } from '../utils/cn';
@@ -147,6 +147,23 @@ export function Login({ onLogin, onLoginWithGoogle, onSwitchToStaffId }: LoginPr
           </div>
         )}
 
+        {/* Most staff log in with their Staff ID — make that the first,
+            most obvious choice instead of a small link at the bottom. */}
+        {onSwitchToStaffId && mode === 'login' && (
+          <button
+            type="button"
+            onClick={onSwitchToStaffId}
+            className="w-full flex items-center gap-4 p-4 mb-6 rounded-2xl bg-psu-blue text-white text-left shadow-lg shadow-psu-blue/20 active:scale-[0.98] transition-all"
+          >
+            <span className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center shrink-0"><IdCard size={22} /></span>
+            <span className="flex-1 min-w-0">
+              <span className="block text-sm font-black">{t('auth.staffIdButton')}</span>
+              <span className="block text-[11px] font-medium text-white/80">{t('auth.staffIdButtonHint')}</span>
+            </span>
+            <ChevronRight size={20} className="shrink-0 text-white/80" />
+          </button>
+        )}
+
         {isFirebaseConfigured && onLoginWithGoogle && (
           <>
             <button
@@ -259,15 +276,6 @@ export function Login({ onLogin, onLoginWithGoogle, onSwitchToStaffId }: LoginPr
           </button>
         </form>
 
-        {onSwitchToStaffId && mode === 'login' && (
-          <button
-            type="button"
-            onClick={onSwitchToStaffId}
-            className="w-full text-center text-[11px] text-psu-gray/40 font-bold underline mt-6"
-          >
-            {t('auth.switchToStaffId')}
-          </button>
-        )}
 
         <div className="mt-8 text-center space-y-2">
           <span className="text-[9px] text-psu-gray/30 font-black uppercase tracking-[0.2em] block">{t('auth.footer')}</span>

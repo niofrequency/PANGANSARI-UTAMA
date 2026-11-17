@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Delete, AlertCircle, LogIn } from 'lucide-react';
+import { Delete, AlertCircle, LogIn, ClipboardPaste } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext';
 import { DeepLinkJob, parseDeepLinkFromUrl } from '../lib/deepLink';
 import { Site } from '../types';
@@ -102,6 +102,42 @@ export function StaffIdGate({ pendingJob, sites, loginByStaffCode, onSuccess, on
     onSuccess();
   };
 
+  const setFromText = (raw: string) => {
+    if (isSubmitting) return;
+    const v = cleanStaffId(raw);
+    if (!v) return;
+    setError('');
+    setNeedPassword(false);
+    setPassword('');
+    setStaffCode(v);
+  };
+
+  // Ctrl/⌘+V anywhere on this screen pastes the ID — even if the cursor
+  // isn't in the ID box (e.g. after tapping the keypad). The password box
+  // keeps its own paste.
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target instanceof HTMLInputElement && (target.type === 'password' || target.dataset.staffId === 'true')) return;
+      const text = e.clipboardData?.getData('text') || '';
+      if (!cleanStaffId(text)) return;
+      e.preventDefault();
+      setFromText(text);
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSubmitting]);
+
+  const canPasteButton = !coarsePointer && typeof navigator !== 'undefined' && !!navigator.clipboard?.readText;
+  const pasteFromClipboard = async () => {
+    try {
+      setFromText(await navigator.clipboard.readText());
+    } catch {
+      setError(t('staffIdGate.pasteBlocked'));
+    }
+  };
+
   const pressDigit = (d: string) => {
     if (isSubmitting) return;
     setError('');
@@ -166,6 +202,8 @@ export function StaffIdGate({ pendingJob, sites, loginByStaffCode, onSuccess, on
             setStaffCode(cleanStaffId(e.target.value));
           }}
           onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(); }}
+          data-staff-id="true"
+          autoFocus={!coarsePointer}
           inputMode={coarsePointer ? 'none' : 'text'}
           autoComplete="username"
           autoCapitalize="characters"
@@ -178,6 +216,12 @@ export function StaffIdGate({ pendingJob, sites, loginByStaffCode, onSuccess, on
             (error ? "border-psu-rejected" : "border-psu-gray/10")
           }
         />
+        {canPasteButton && (
+          <button type="button" onClick={pasteFromClipboard}
+            className="-mt-4 mb-5 w-full flex items-center justify-center gap-2 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest text-psu-blue bg-psu-blue/5 hover:bg-psu-blue/10">
+            <ClipboardPaste size={14} /> {t('staffIdGate.pasteButton')}
+          </button>
+        )}
 
         {/* 123/ABC toggle — a Staff ID can mix digits and letters (e.g.
             "TECH01"), so the keypad switches character sets instead of

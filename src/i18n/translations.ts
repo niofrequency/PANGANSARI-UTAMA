@@ -276,6 +276,8 @@ export const translations = {
       signupButton: 'Sign Up',
       signupHint: "Anyone can create an account. New accounts start as Food Safety Technician — an admin can change your role later.",
       switchToStaffId: 'Have a Staff ID? Sign in with it instead',
+      staffIdButton: 'Log in with Staff ID',
+      staffIdButtonHint: 'Field staff: use the ID number on your card',
       footer: 'Pangansari Utama · Food Resources Solutions',
     },
     accessRestricted: {
@@ -774,6 +776,8 @@ export const translations = {
       label: 'Language',
     },
     staffIdGate: {
+      pasteButton: 'Paste ID',
+      pasteBlocked: 'Your browser blocked reading the clipboard — click the ID box and press Ctrl+V instead.',
       passwordLabel: 'Password',
       enterPassword: 'Enter your password to continue.',
       errorWrongPassword: 'Wrong password. Ask your Admin or Manager to reset it if you forgot it.',
@@ -1334,6 +1338,8 @@ export const translations = {
       signupButton: 'Daftar',
       signupHint: 'Siapa saja bisa membuat akun. Akun baru dimulai sebagai Food Safety Technician — admin dapat mengubah peran Anda nanti.',
       switchToStaffId: 'Punya Staff ID? Masuk dengan itu saja',
+      staffIdButton: 'Masuk dengan Staff ID',
+      staffIdButtonHint: 'Staf lapangan: pakai nomor ID di kartu Anda',
       footer: 'Pangansari Utama · Food Resources Solutions',
     },
     accessRestricted: {
@@ -1827,6 +1833,8 @@ export const translations = {
       label: 'Bahasa',
     },
     staffIdGate: {
+      pasteButton: 'Tempel ID',
+      pasteBlocked: 'Browser memblokir clipboard — klik kotak ID lalu tekan Ctrl+V.',
       passwordLabel: 'Kata sandi',
       enterPassword: 'Masukkan kata sandi Anda untuk lanjut.',
       errorWrongPassword: 'Kata sandi salah. Minta Admin atau Manajer untuk mereset jika lupa.',
