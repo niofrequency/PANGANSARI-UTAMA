@@ -644,6 +644,30 @@ export const notifySubmissionReturned = functionsV1.firestore
       return;
     }
 
+    // Sent back to a reviewer lower in the chain (e.g. Manager → the
+    // Supervisor who checked it): push that reviewer.
+    const rb = before.meta?.returned;
+    const ra = after.meta?.returned;
+    if (after.status === 'PENDING' && ra?.to === 'reviewer' && ra.toUserId && ra.at !== rb?.at) {
+      await pushTo([ra.toUserId], {
+        title: `Sent back to you: ${label}${site}`,
+        body: `${ra.name || 'Your manager'}: ${String(ra.note || '').slice(0, 160)}`,
+        url: `/?fix=${ctx.params.submissionId}`,
+        tag: `fix-${ctx.params.submissionId}`,
+      });
+      return;
+    }
+    // …and that reviewer fixed it and sent it back up.
+    if (ra?.to === 'reviewer' && ra.resolved && !rb?.resolved && ra.userId) {
+      await pushTo([ra.userId], {
+        title: `Fixed & sent back up: ${label}${site}`,
+        body: `${ra.resolved.name || 'The reviewer'}: ${String(ra.resolved.note || '').slice(0, 160)}`,
+        url: '/',
+        tag: `fix-${ctx.params.submissionId}`,
+      });
+      return;
+    }
+
     if (before.status === 'REJECTED' && after.status === 'PENDING') {
       const r = after.meta?.returned;
       if (!r?.userId || r.userId === after.userId) return;

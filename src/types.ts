@@ -228,7 +228,19 @@ export interface Submission {
     // correction (any status, see lib/submissionAuthority.ts). Its sign-off
     // stamps were cleared at that moment, so once fixed it climbs the whole
     // chain again. Kept after the fix as a record of what happened.
-    returned?: { userId: string; name: string; role: string; at: string; note: string; fromStatus: string };
+    returned?: {
+      userId: string; name: string; role: string; at: string; note: string; fromStatus: string;
+      // Who has to fix it. Unset / 'filer' = the person who filled it in
+      // (status REJECTED). 'reviewer' = someone lower in the chain who had
+      // stamped it (e.g. the Supervisor) — status goes back to PENDING at
+      // their step (toStep); they fix it and send it back up (resolved).
+      to?: 'filer' | 'reviewer';
+      toStep?: 'checkedBy' | 'approvedBy' | 'verifiedBy';
+      toUserId?: string;
+      toName?: string;
+      toRole?: string;
+      resolved?: { userId: string; name: string; at: string; note: string };
+    };
     // Set by the filer when they send a returned log back up ("Fixed").
     fixNote?: string;
 

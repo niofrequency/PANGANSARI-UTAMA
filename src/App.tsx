@@ -24,7 +24,7 @@ import { NotFoundPage } from './components/Legal/NotFoundPage';
 import { useTranslation } from './i18n/LanguageContext';
 import { DeepLinkAction, DeepLinkJob, parseDeepLink, consumeDeepLink, clearDeepLink, setDeepLink } from './lib/deepLink';
 import { titleKeyForChainType } from './data/opsLogsCatalog';
-import { UserRole } from './types';
+import { Submission, UserRole } from './types';
 import { SubmissionDetailPage, useBackToClose } from './components/OpsLogs/SubmissionDetailPage';
 import { findFixEditor } from './lib/fixEditors';
 import { motion, AnimatePresence } from 'motion/react';
@@ -227,9 +227,13 @@ export default function App() {
   // resubmit mechanism now (see opsLogsCatalog.ts's SIGNOFF_CHAINS), so
   // one bell covers all of them regardless of which portal they'd go fix
   // it in.
+  // A reviewer lower in the chain (e.g. the Supervisor) a log was sent
+  // back to by someone above them — theirs to fix and send back up.
+  const isReturnedToMe = (s: Submission) => !!currentUser && s.status === 'PENDING'
+    && s.meta?.returned?.to === 'reviewer' && !s.meta.returned.resolved && s.meta.returned.toUserId === currentUser.id;
   const rejectedNotices = currentUser
     ? store.submissions
-        .filter(s => s.userId === currentUser.id && s.status === 'REJECTED')
+        .filter(s => !s.deletedAt && ((s.userId === currentUser.id && s.status === 'REJECTED') || isReturnedToMe(s)))
         .map(s => {
           const titleKey = titleKeyForChainType(s.type);
           const r = s.meta?.returned;
@@ -262,7 +266,11 @@ export default function App() {
       window.removeEventListener('psu-open-fix', onOpenFix);
     };
   }, []);
-  const fixSubmission = fixOpenId && currentUser ? store.submissions.find(s => s.id === fixOpenId && s.userId === currentUser.id) : undefined;
+  // Found by id only: once open it stays open until Back, even after the
+  // fix / send-back changes who it belongs to (closing it from underneath
+  // would trigger a second history.back() and leave the app).
+  const fixSubmission = fixOpenId && currentUser ? store.submissions.find(s => s.id === fixOpenId) : undefined;
+  const fixIsReviewer = !!fixSubmission && isReturnedToMe(fixSubmission);
   useBackToClose(!!fixSubmission, () => setFixOpenId(null));
   const fixEditor = fixSubmission && fixSubmission.status === 'REJECTED' ? findFixEditor(fixSubmission) : undefined;
 
@@ -339,6 +347,8 @@ export default function App() {
                     submission={fixSubmission}
                     onBack={() => window.history.state?.psuDetail ? window.history.back() : setFixOpenId(null)}
                     onEdit={fixEditor ? () => { const s = fixSubmission; setFixOpenId(null); fixEditor.edit(s); } : undefined}
+                    canStamp={fixIsReviewer}
+                    onReject={fixIsReviewer ? () => {} : undefined}
                   />
                 </div>
               )}

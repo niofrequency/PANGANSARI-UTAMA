@@ -153,7 +153,8 @@ export function OpsLogsTab({
   // Logs a Supervisor/Manager (or anyone up the chain) sent back for
   // correction, still waiting for the filer to fix them — shown to the
   // whole chain until resolved.
-  const returnedWaiting = submissions.filter(s => s.status === 'REJECTED' && !s.deletedAt && inScope(s))
+  const returnedWaiting = submissions.filter(s => !s.deletedAt && inScope(s) && (s.status === 'REJECTED'
+    || (s.status === 'PENDING' && s.meta?.returned?.to === 'reviewer' && !s.meta.returned.resolved)))
     .sort((a, b) => new Date(b.meta?.returned?.at || b.timestamp).getTime() - new Date(a.meta?.returned?.at || a.timestamp).getTime());
 
   // Shared between the two places History can render (the collapsible
@@ -270,6 +271,9 @@ export function OpsLogsTab({
                           {s.wasApprovedBeforeEdit && (
                             <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-psu-rejected"><Pencil size={10} /> {t('ops.signoff.editedAfterApproval')}</span>
                           )}
+                          {s.meta?.returned?.to === 'reviewer' && !s.meta.returned.resolved && (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-psu-warning"><CornerUpLeft size={10} /> {t('ops.chain.sentBackToReviewerChip', { name: s.meta.returned.name })}</span>
+                          )}
                           <SignoffProgress submission={s} />
                         </div>
                       ),
@@ -299,6 +303,11 @@ export function OpsLogsTab({
                           {s.wasApprovedBeforeEdit && (
                             <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-psu-rejected bg-psu-rejected/10 px-2 py-0.5 rounded-full mt-1.5">
                               <Pencil size={10} /> {t('ops.signoff.editedAfterApproval')}
+                            </span>
+                          )}
+                          {s.meta?.returned?.to === 'reviewer' && !s.meta.returned.resolved && (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-psu-warning bg-psu-warning/10 px-2 py-0.5 rounded-full mt-1.5">
+                              <CornerUpLeft size={10} /> {t('ops.chain.sentBackToReviewerChip', { name: s.meta.returned.name })}
                             </span>
                           )}
                           <div className="mt-2"><SignoffProgress submission={s} /></div>
@@ -332,6 +341,9 @@ export function OpsLogsTab({
                     </p>
                     <p className="text-[11px] text-psu-warning mt-1 truncate">
                       {r.meta?.returned ? `${r.meta.returned.name}: ${r.meta.returned.note}` : r.rejectionReason}
+                    </p>
+                    <p className="text-[10px] font-black text-psu-gray/50 uppercase tracking-widest mt-0.5 truncate">
+                      {t('ops.chain.waitingOn', { name: r.status === 'PENDING' && r.meta?.returned?.toName ? r.meta.returned.toName : r.userName })}
                     </p>
                   </div>
                   <ChevronRight size={16} className="text-psu-gray/20 shrink-0" />
