@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { LayoutDashboard } from 'lucide-react';
+import { OpsDashboard } from '../Dashboard/OpsDashboard';
 import { useBadgedIcon, useOpenOpsLogsSignal, useOpenTabSignal } from '../BadgedIcon';
 import { useAppStore } from '../../store/useAppStore';
 import { AlertTriangle, ClipboardCheck, History, ListChecks, ListTodo, MessageSquareWarning, MessageCircle } from 'lucide-react';
@@ -42,7 +44,7 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled }: Supervi
   // Leadhands share this portal for the "Checked by" step but don't do
   // inspections, action items or warnings — those stay with Supervisors.
   const isLeadhand = currentUser?.role === 'HOUSEKEEPING_LEADHAND' || currentUser?.role === 'FOOD_SAFETY_LEADHAND';
-  const [activeTab, setActiveTab] = useState<'OPS_LOGS' | 'HISTORY' | 'REPORTS' | 'ACTIONS' | 'INSPECTIONS' | 'CHAT' | 'CHECKS'>(startTab ?? 'OPS_LOGS');
+  const [activeTab, setActiveTab] = useState<'OPS_LOGS' | 'DASHBOARD' | 'HISTORY' | 'REPORTS' | 'ACTIONS' | 'INSPECTIONS' | 'CHAT' | 'CHECKS'>(startTab ?? 'OPS_LOGS');
   const chatTab = useChatTab(store);
   useOpenChatSignal(() => setActiveTab('CHAT'));
   useOpenChecksSignal(() => setActiveTab('CHECKS'));
@@ -86,6 +88,7 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled }: Supervi
 
   const tabs = [
     { id: 'OPS_LOGS' as const, icon: opsLogsIcon, label: t('ops.tabTitle') },
+    { id: 'DASHBOARD' as const, icon: LayoutDashboard, label: t('dash.tab') },
     { id: 'HISTORY' as const, icon: History, label: t('ops.historySectionTitle') },
     { id: 'CHECKS' as const, icon: AlarmClock, label: t('checks.tabTitle') },
     { id: 'REPORTS' as const, icon: reportsIcon, label: t('fieldReport.tabTitle') },
@@ -124,6 +127,11 @@ export function SupervisorPortal({ store, startTab, onDeepLinkHandled }: Supervi
       <DesktopShell navItems={tabs} activeId={activeTab} onNav={(id) => setActiveTab(id as any)} title={activeTabLabel}>
       {activeTab === 'INSPECTIONS' && !isLeadhand && (
         <InspectionsTab store={store} department={isFoodSafety ? 'FOOD_SAFETY' : 'HOUSEKEEPING'} />
+      )}
+
+      {activeTab === 'DASHBOARD' && (
+        <OpsDashboard store={store} onNavigate={(to) => setActiveTab(
+          to === 'opslogs' ? 'OPS_LOGS' : to === 'history' ? 'HISTORY' : to === 'checks' ? 'CHECKS' : to === 'reports' ? 'REPORTS' : isLeadhand ? 'OPS_LOGS' : 'ACTIONS')} />
       )}
 
       {activeTab === 'OPS_LOGS' && (

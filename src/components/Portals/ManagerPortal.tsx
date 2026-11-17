@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useBadgedIcon, useOpenOpsLogsSignal, useOpenTabSignal } from '../BadgedIcon';
 import { useAppStore } from '../../store/useAppStore';
-import { AnalyticsDashboard } from '../Dashboard/AnalyticsDashboard';
+import { OpsDashboard } from '../Dashboard/OpsDashboard';
 import { LayoutDashboard, ClipboardCheck, ClipboardList, History, ListTodo, Users, MessageCircle, MessageSquareWarning } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils/cn';
@@ -126,7 +126,8 @@ export function ManagerPortal({ store }: { store: ReturnType<typeof useAppStore>
                 nav item's own label) — this mobile-only title would
                 otherwise double up with it. */}
             <div className="mb-6"><MissedChecksBanner store={store} department={checksDepartment} onOpen={() => setActiveTab('CHECKS')} /></div>
-            <AnalyticsDashboard submissions={dashboardSubmissions} warnings={dashboardWarnings} sites={dashboardSites} users={users} />
+            <OpsDashboard store={store} onNavigate={(to) => setActiveTab(
+              to === 'opslogs' ? 'OPS_LOGS' : to === 'history' ? 'HISTORY' : to === 'checks' ? 'CHECKS' : to === 'reports' ? 'ISSUES' : 'ACTIONS')} />
             <div className="mt-8"><TrendsPanel store={store} department={checksDepartment} /></div>
           </motion.div>
         )}
