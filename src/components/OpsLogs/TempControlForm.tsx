@@ -1,4 +1,4 @@
-import { Key, ReactNode, useState } from 'react';
+import { Key, ReactNode, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { cn } from '../../utils/cn';
@@ -21,14 +21,17 @@ import { localDateISO } from '../../utils/localDate';
 // queries a month of those per-day submissions instead of reading one
 // big one apart. See types.ts's Submission.meta comment on `date`/
 // `tempReadings` for the exact shape.
-export function TempControlForm({ store, onCancel, onSubmitted }: OpsFormProps) {
+export function TempControlForm({ store, onCancel, onSubmitted, editingSubmission }: OpsFormProps) {
   const { t } = useTranslation();
   const { currentUser, sites, submissions, addSubmission, resubmitAfterRejection } = store;
   const { workingSiteId, workingSiteName: currentSiteName, availableSites, setWorkingSiteId } = useWorkingSite(currentUser, sites);
   const today = localDateISO();
   const assets = assetsForSite(workingSiteId);
 
-  const [assetId, setAssetId] = useState(assets[0]?.id || '');
+  // Editing one of my own sheets from History: open that exact sheet
+  // (its site and asset), even if it's not today's.
+  useEffect(() => { if (editingSubmission?.siteId && editingSubmission.siteId !== workingSiteId) setWorkingSiteId(editingSubmission.siteId); }, [editingSubmission?.id]);
+  const [assetId, setAssetId] = useState(editingSubmission?.meta?.assetId || assets[0]?.id || '');
   const asset = assets.find(a => a.id === assetId);
 
   if (!asset) {
@@ -41,7 +44,9 @@ export function TempControlForm({ store, onCancel, onSubmitted }: OpsFormProps) 
     );
   }
 
-  const todaysSubmission = submissions.find(s =>
+  const todaysSubmission = editingSubmission && editingSubmission.meta?.assetId === asset.id
+    ? (submissions.find(x => x.id === editingSubmission.id) || editingSubmission)
+    : submissions.find(s =>
     s.type === 'TEMP_CONTROL' && s.meta?.assetId === asset.id && s.siteId === workingSiteId && s.meta?.date === today
   );
 
@@ -69,7 +74,7 @@ export function TempControlForm({ store, onCancel, onSubmitted }: OpsFormProps) 
       <TempControlDayEditor
         key={asset.id}
         asset={asset}
-        date={today}
+        date={todaysSubmission?.meta?.date || today}
         existing={todaysSubmission}
         currentUserName={currentUser?.name || ''}
         onSave={(readings, remarks) => {

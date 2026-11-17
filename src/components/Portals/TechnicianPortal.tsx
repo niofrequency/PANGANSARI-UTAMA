@@ -18,6 +18,7 @@ import { ReportIssueButton } from '../FieldReports/ReportIssueButton';
 import { MyFieldReports } from '../FieldReports/MyFieldReports';
 import { MyActionItems } from '../CorrectiveActions/MyActionItems';
 import { ResubmitNotice, ChecklistRow, PortalHeaderRow } from '../OpsLogs/opsHelpers';
+import { Submission } from '../../types';
 import { SubmissionHistoryList } from '../SubmissionHistoryList';
 import { ConfirmDeleteModal } from '../ConfirmDeleteModal';
 import { TempControlForm } from '../OpsLogs/TempControlForm';
@@ -78,6 +79,21 @@ export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob 
   // TASKS tab instead of swapping the whole screen (History/Training
   // stay one tap away while one of these is open).
   const [openType, setOpenType] = useState<'TEMP_CONTROL' | 'DISHWASH_TEMP' | null>(null);
+  // A Temperature Control / Dishwashing sheet of mine being edited from
+  // History (or Fix now): that form opens on that exact sheet.
+  const [opsEditing, setOpsEditing] = useState<Submission | null>(null);
+  const closeOpsForm = () => { setOpenType(null); setOpsEditing(null); };
+  // Edit any of my own logs — opens the right form for its type.
+  const editMine = (s: Submission) => {
+    if (s.type === 'TEMP_CONTROL' || s.type === 'DISHWASH_TEMP') {
+      setEditingId(null);
+      setOpsEditing(s);
+      setOpenType(s.type);
+      setActiveTab('TASKS');
+    } else {
+      setEditingId(s.id);
+    }
+  };
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showValidation, setShowValidation] = useState(false);
   const [highlightSection, setHighlightSection] = useState<DeepLinkStartAt | null>(null);
@@ -113,7 +129,7 @@ export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob 
   // same as every other merged-in submission type.
   const [editingId, setEditingId] = useState<string | null>(null);
   const editingSubmission = editingId ? myHistory.find(s => s.id === editingId) : undefined;
-  useFixEditor((s) => s.type === 'FOOD_SAFETY' && s.userId === currentUser?.id, (s) => setEditingId(s.id));
+  useFixEditor((s) => ['FOOD_SAFETY', 'TEMP_CONTROL', 'DISHWASH_TEMP'].includes(s.type) && s.userId === currentUser?.id, (s) => editMine(s));
   // "Type DELETE to confirm" fail-safe (ConfirmDeleteModal) in front of
   // permanently removing one of their own History entries — see
   // deleteSubmission in useAppStore.ts.
@@ -300,9 +316,9 @@ export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob 
           >
             {openType ? (
               openType === 'TEMP_CONTROL' ? (
-                <TempControlForm store={store} onCancel={() => setOpenType(null)} onSubmitted={() => setOpenType(null)} />
+                <div key={opsEditing?.id || 'new'}><TempControlForm store={store} editingSubmission={opsEditing || undefined} onCancel={closeOpsForm} onSubmitted={() => { closeOpsForm(); setActiveTab('HISTORY'); }} /></div>
               ) : (
-                <DishwashForm store={store} onCancel={() => setOpenType(null)} onSubmitted={() => setOpenType(null)} />
+                <div key={opsEditing?.id || 'new'}><DishwashForm store={store} editingSubmission={opsEditing || undefined} onCancel={closeOpsForm} onSubmitted={() => { closeOpsForm(); setActiveTab('HISTORY'); }} /></div>
               )
             ) : (
             <>
@@ -603,7 +619,7 @@ export function TechnicianPortal({ store, startAt, onDeepLinkHandled, onScanJob 
                     )}
                     <div className="flex gap-2">
                       <button
-                        onClick={() => setEditingId(s.id)}
+                        onClick={() => editMine(s)}
                         className="flex-1 flex items-center justify-center gap-2 py-3 bg-psu-blue text-white rounded-xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all"
                       >
                         <Pencil size={14} /> {t('ops.signoff.editAndResubmit')}
