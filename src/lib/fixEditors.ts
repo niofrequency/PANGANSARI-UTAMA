@@ -24,3 +24,9 @@ export function findFixEditor(s: Submission): Editor | undefined {
   for (const r of editors) if (r.current.canEdit(s)) return r.current;
   return undefined;
 }
+
+// Opens App.tsx's fix page for one of the signed-in user's sent-back logs
+// (used by the portals' Rejected tab).
+export function openFixPage(id: string) {
+  window.dispatchEvent(new CustomEvent('psu-open-fix', { detail: id }));
+}
