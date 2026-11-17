@@ -28,11 +28,11 @@ export function DesktopShell({
   children: ReactNode;
 }) {
   return (
-    <div className="md:flex print:block">
+    <div className="flex print:block">
       <DesktopSidebar navItems={navItems} activeId={activeId} onNav={onNav} />
       <div className="flex-1 min-w-0">
-        <div className="psu-print-pagetitle hidden md:flex items-center justify-between mb-6 gap-4">
-          <h1 className="text-xl lg:text-2xl font-black text-psu-gray truncate">{title}</h1>
+        <div className="psu-print-pagetitle flex items-center justify-between mb-4 md:mb-6 gap-4">
+          <h1 className="text-lg md:text-xl lg:text-2xl font-black text-psu-gray truncate">{title}</h1>
           {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
         </div>
         {children}

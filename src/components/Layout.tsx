@@ -212,7 +212,7 @@ export function Layout({ user, onLogout, children, storageError, rejectedNotices
           portals (Admin/Manager/Supervisor) get a DesktopShell sidebar +
           full-width pane, forms and reports cap their own width with
           md:max-w-3xl/md:max-w-2xl at the call site. */}
-      <main className="flex-1 min-w-0 p-6 lg:p-8 print:p-0">
+      <main className="flex-1 min-w-0 p-3 sm:p-6 lg:p-8 print:p-0">
         {rejectedNotices.length > 0 && onOpenNotice && (
           <div className="mb-5 rounded-2xl border border-psu-rejected/20 bg-psu-rejected/5 p-4 print:hidden">
             <p className="text-[10px] font-black text-psu-rejected uppercase tracking-widest flex items-center gap-1.5">

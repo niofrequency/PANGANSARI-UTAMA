@@ -738,7 +738,10 @@ export const notifyReviewers = functionsV1.firestore
       ? [`${dept}_SUPERVISOR`, `${dept}_LEADHAND`]
       : [`${dept}_MANAGER`];
     const so = after.meta?.signoff || {};
-    const stampers = new Set(['checkedBy', 'approvedBy', 'verifiedBy'].map((k) => so[k]?.userId).filter(Boolean));
+    // Same level only (src/lib/logLifecycle.ts's stampProblem): someone who
+    // checked it as Supervisor may still approve it as Manager.
+    const sameLevel = step === 'checkedBy' ? ['checkedBy'] : ['approvedBy', 'verifiedBy'];
+    const stampers = new Set(sameLevel.map((k) => so[k]?.userId).filter(Boolean));
     const snap = await admin.firestore().collection('users').where('role', 'in', roles).get();
     const uids = snap.docs.map((d) => d.data() as any)
       .filter((u) => coversSite(u, after.siteId) && u.uid !== after.userId && !stampers.has(u.uid))
