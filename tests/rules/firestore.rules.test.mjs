@@ -117,6 +117,27 @@ test('a reviewer can stamp a pending submission but not rewrite its answers', as
   await assertFails(updateDoc(doc(sup, 'submissions', 'sub-pending'), { items: [{ id: 'x', question: 'q', answer: 'faked' }] }));
 });
 
+test('frontline staff and the other department cannot stamp or reject someone else\'s log', async () => {
+  const stamp = { 'meta.signoff': { checkedBy: { name: 'x' } } };
+  const reject = { status: 'REJECTED', rejectionReason: 'no' };
+  // another technician: no
+  await assertFails(updateDoc(doc(as(people.tech2), 'submissions', 'sub-pending'), stamp));
+  await assertFails(updateDoc(doc(as(people.tech2), 'submissions', 'sub-pending'), reject));
+  // a housekeeper (other department, frontline): no
+  await assertFails(updateDoc(doc(as(people.housekeeper), 'submissions', 'sub-pending'), stamp));
+  // a housekeeping supervisor on a food-safety log: no
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'users', 'hks@psu.test'), { name: 'hks', email: 'hks@psu.test', uid: 'u-hks', role: 'HOUSEKEEPING_SUPERVISOR', site: 'site-a', isActive: true }));
+  await assertFails(updateDoc(doc(as({ uid: 'u-hks', email: 'hks@psu.test' }), 'submissions', 'sub-pending'), stamp));
+  // the food-safety supervisor and the admin: yes
+  await assertSucceeds(updateDoc(doc(as(people.fsSupervisor), 'submissions', 'sub-pending'), stamp));
+  await assertSucceeds(updateDoc(doc(as(people.admin), 'submissions', 'sub-pending'), { 'meta.signoff': { checkedBy: { name: 'x' }, approvedBy: { name: 'y' } } }));
+});
+
+test('a deactivated supervisor cannot stamp', async () => {
+  await env.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), 'users', people.fsSupervisor.email), { isActive: false }));
+  await assertFails(updateDoc(doc(as(people.fsSupervisor), 'submissions', 'sub-pending'), { 'meta.signoff': { checkedBy: { name: 'x' } } }));
+});
+
 test('submissions can never be hard-deleted', async () => {
   await assertFails(deleteDoc(doc(as(people.tech), 'submissions', 'sub-pending')));
   await assertFails(deleteDoc(doc(as(people.admin), 'submissions', 'sub-pending')));

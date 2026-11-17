@@ -243,6 +243,9 @@ export interface Submission {
     };
     // Set by the filer when they send a returned log back up ("Fixed").
     fixNote?: string;
+    // Append-only activity history: submitted / edited / stamped / sent
+    // back / fixed — see lib/logLifecycle.ts.
+    history?: import('./lib/logLifecycle').LogEvent[];
 
     // RESTROOM (UN.00.45) — its 3 daily slots
     slot?: '08' | '11' | '16';

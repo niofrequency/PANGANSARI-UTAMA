@@ -107,6 +107,12 @@ Chain of command (rank) for returning and deleting logs: Admin 6 › General Man
 - **Resolve:** the filer sees the note (and the notification bell) and either uses **Edit & resubmit** (Restroom, Laundryshop and the frontline portals' own edit flows) or **"Fixed — send back for review"** with a note (`meta.fixNote`), which puts it back to PENDING at the first step. Once re-approved, the page shows "Was sent back by … — fixed" as a record.
 - **Reject = sent back down the chain (#102):** the Stamp step's **Reject** now behaves exactly like Return for correction — records `meta.returned` (who, role, note), clears every stamp except `draftedBy`, so the fixed log climbs the whole chain again. Previously it only set `REJECTED` and left old stamps on.
 - **Filer is told and taken to the fix (#102):** push notification "Fix needed: <form>" (function `notifySubmissionReturned`; tapping opens the log), a red **"Sent back to you — Fix now"** banner at the top of every portal, and the bell (now showing who sent it back). **Fix now** opens the log as a page with the note; **Edit & resubmit** hands it to the portal's own form (`lib/fixEditors.ts` — Housekeeper, Technician daily log, Janitor/Restroom, Laundry, Gemba Walk, Ops Logs Restroom/Laundry); other types use **Fixed — send back for review** with a note. Reviewers see "Waiting for <name> to fix it". When it's resent, the person who sent it back gets a "Fixed & resent" push and it's back in the queue marked "Was sent back by … — fixed".
+- **Log system hardening (#106)** — `lib/logLifecycle.ts` is the single source of the rules of a log's life:
+  - **One stamp per step, in order, no overwrites:** `stampSubmissionTx` stamps inside a Firestore transaction against the live document; a second reviewer a moment later gets "already stamped" instead of silently overwriting.
+  - **Separation of duties:** one person never stamps two steps of the same log (e.g. the Manager who approved a Mess Hall log can't also verify it — another Manager / the GM does). Queues only list logs the person can actually stamp (never their own).
+  - **Activity history:** every log keeps an append-only `meta.history` (submitted, stamped, sent back — to whom and why, fixed, edited), shown as an **Activity** timeline on the log page. Older logs get a timeline rebuilt from their stamps.
+  - **Honest feedback:** every log action reports failure as a toast in the user's language (offline, already stamped, no permission…) and confirms success ("Stamped — sent up", "Approved", "Sent back to …", "Log deleted"); store actions resolve `null` on failure instead of throwing (`guard` in useAppStore.ts, `lib/logMessages.ts`).
+  - A filer editing a log that had been sent back to a reviewer also settles that send-back.
 - **Choose who fixes it (#104):** Reject (at a stamp step) and Return for correction now open one box: the note + **"Who should fix it?"** — the person who filled it in, or any reviewer below who had stamped it (e.g. the Supervisor who checked it). Store: `sendBack(id, note, target)`.
   - To the filer → `REJECTED`, all stamps but Drafted cleared (as before).
   - To a reviewer (e.g. Manager → Supervisor) → stays `PENDING`, stamps from that step on are cleared so it's back in that reviewer's queue; `meta.returned = { …, to: 'reviewer', toStep, toUserId, toName }`. The reviewer gets a push + the "Fix now" banner; the page shows "Sent back to <Supervisor> by <Manager>" with two choices: **Fixed — send back up to <Manager>** (note + optional e-signature → `resolveReturned`: records `returned.resolved` and re-stamps their step, so it goes straight back to the Manager) or **Reject** to pass it down to the technician. The Manager is pushed "Fixed & sent back up", and sees the fix note on the log.
@@ -183,7 +189,7 @@ Rules: `firestore.rules` (deployed automatically by CI). Storage rules: `storage
 - Chat pairs and the 15-min edit window are enforced in `firestore.rules`, not just the UI.
 - Returning or deleting someone else's log requires outranking the filer in the same department (`outranksSubmitter()`); a superior can't change the answers while sending a log back. Covered by rules tests.
 - **Rules tests** (`npm run test:rules`; 21 tests at #97) run in CI on rule changes and before every rules deploy.
-- **Known weakness (pre-existing):** the reviewer branch of the submissions rule lets **any** signed-in non-filer stamp or reject a PENDING submission; the role/step check lives in the app only. Worth tightening with the same rank helpers.
+- **Reviewer rule tightened (#106):** stamping / rejecting a PENDING log now requires `canReview()` — an active Leadhand or above, in the filer's department (Admin / GM: any), ranked at least as high as the filer. Frontline staff, the other department and deactivated accounts are refused (rules tests 24/24). Step order, "already stamped" and "one person, one step" are enforced by the app inside a Firestore transaction (`stampSubmissionTx`), not by rules.
 
 ---
 
@@ -200,7 +206,7 @@ Rules: `firestore.rules` (deployed automatically by CI). Storage rules: `storage
 9. Personnel "possible duplicates" check and Staff ID-only security gap (§7).
 10. **Document Control (SOPs) and Inventory Management**: requested; waiting for PSU to describe their current system (numbering, approval, revisions; items, stores, counts, requests and reorders) before building.
 11. **Staff notification**: email drafted 15 Nov 2026 for Mark to send (imported / not-imported Excel lists, how to log in, Print form, Document Control / Inventory request).
-12. Tighten the submissions reviewer rule (§7 known weakness) and enforce site access for return / delete server-side.
+12. ~~Tighten the submissions reviewer rule~~ (done in #106). Still open: enforce site access for stamp / return / delete server-side (department and rank are enforced; site scope is app-only).
 13. A returned Temperature Control / Dishwashing sheet from an earlier day can't be reopened by the filer (§3.3 limitation).
 
 ---

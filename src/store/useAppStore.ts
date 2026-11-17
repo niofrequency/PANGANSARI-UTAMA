@@ -17,7 +17,9 @@ import {
 import { subscribeUsers, updateUserRoleDoc, updateUserSiteDoc, updateUserAssignedSitesDoc, setStaffIdentityDoc, toggleUserActiveDoc, deleteUserDoc } from '../services/usersService';
 import { createStaffAccountDirect } from '../services/adminCreateAccount';
 import { resetStaffCredentials } from '../services/adminResetCredentials';
-import { subscribeSubmissions, fetchOlderSubmissions, liveWindowStartISO, addSubmissionDoc, updateSubmissionDoc, CLEAR_FIELD, type SubmissionScope } from '../services/submissionsService';
+import { subscribeSubmissions, fetchOlderSubmissions, liveWindowStartISO, addSubmissionDoc, updateSubmissionDoc, stampSubmissionTx, appendHistory, CLEAR_FIELD, type SubmissionScope } from '../services/submissionsService';
+import { LogEvent, chainOf, eventBy, stampProblem } from '../lib/logLifecycle';
+import { reportLogError } from '../lib/logMessages';
 import { sitesForScope } from '../lib/siteScope';
 import { subscribeCheckSchedules, subscribeMissedChecks, addCheckScheduleDoc, updateCheckScheduleDoc, deleteCheckScheduleDoc } from '../services/checksService';
 import { localDateISO } from '../utils/localDate';
@@ -661,7 +663,19 @@ export function useAppStore() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const addSubmission = (submission: Omit<Submission, 'id'>) => {
+  // Log actions report their own failures (toast, in the person's
+  // language) and resolve to null instead of throwing, so fire-and-forget
+  // callers never leave an unhandled rejection and nobody is left
+  // thinking a stamp / send-back / edit went through when it didn't.
+  const guard = <A extends unknown[], R>(fn: (...a: A) => Promise<R>) =>
+    (...a: A): Promise<R | null> => fn(...a).catch((e) => { reportLogError(e); return null; });
+
+  const addSubmission = (input: Omit<Submission, 'id'>) => {
+    // Every log starts its activity history with "submitted".
+    const submission: Omit<Submission, 'id'> = input.meta?.history?.length ? input : {
+      ...input,
+      meta: { ...input.meta, history: [{ action: 'submitted', at: input.timestamp, by: { userId: input.userId, name: input.userName, role: input.role } }] },
+    };
     if (isFirebaseConfigured) {
       // Queued in Dexie FIRST, synchronously ahead of the network call —
       // if the tab is killed the instant after this, the write is still
@@ -702,14 +716,14 @@ export function useAppStore() {
   // every deletedAt-set entry out of what any screen actually shows.
   // Own entries, or (chain of command) an entry filed by someone ranked
   // below you — see lib/submissionAuthority.ts and firestore.rules.
-  const deleteSubmission = (submissionId: string) => {
+  const deleteSubmission = async (submissionId: string): Promise<void> => {
     const target = submissions.find(s => s.id === submissionId);
     if (!target || !currentUser || (target.userId !== currentUser.id && !canManageSubmission(currentUser, target))) return;
     const deletedBy = { userId: currentUser.id, name: currentUser.name };
     const patch = { deletedAt: new Date().toISOString(), deletedBy };
 
     if (isFirebaseConfigured) {
-      updateSubmissionDoc(submissionId, patch).catch((err) => console.error('deleteSubmission failed:', err));
+      await updateSubmissionDoc(submissionId, patch);
       return;
     }
     setSubmissions(prev => prev.map(s => s.id === submissionId ? { ...s, ...patch } : s));
@@ -726,37 +740,35 @@ export function useAppStore() {
   // The old single-step Approve/Reject this replaced, updateSubmission
   // Status(), is gone: rejectSignoff() below covers what Reject used to
   // do, and every Approve is now a stamp on some step.
-  const addSignoffStamp = (submissionId: string, step: 'checkedBy' | 'approvedBy' | 'verifiedBy', signature?: string) => {
-    if (!currentUser) return;
-    const stamp = { userId: currentUser.id, name: currentUser.name, role: currentUser.role, at: new Date().toISOString(), ...(signature ? { signature } : {}) };
+  // Returns 'approved' when this was the chain's last step, else 'stamped'.
+  // Rejects with an Error whose message is a StampProblem code
+  // (lib/logLifecycle.ts) — 'already-stamped', 'stamped-other-step', … —
+  // or a Firestore error (e.g. offline); callers show it as a toast.
+  const addSignoffStamp = async (submissionId: string, step: 'checkedBy' | 'approvedBy' | 'verifiedBy', signature?: string): Promise<'stamped' | 'approved'> => {
+    if (!currentUser) throw new Error('signed-out');
+    const at = new Date().toISOString();
+    const stamp = { userId: currentUser.id, name: currentUser.name, role: currentUser.role, at, ...(signature ? { signature } : {}) };
+    const event: LogEvent = { action: 'stamped', step, at, by: eventBy(currentUser) };
 
     if (isFirebaseConfigured) {
-      const target = submissions.find(s => s.id === submissionId);
-      const chain = target && target.type in SIGNOFF_CHAINS ? SIGNOFF_CHAINS[target.type as keyof typeof SIGNOFF_CHAINS] : undefined;
-      const isFinalStep = chain ? chain[chain.length - 1] === step : false;
-      updateSubmissionDoc(submissionId, {
-        [`meta.signoff.${step}`]: stamp,
-        // Freshly re-approved — whatever prompted the "Edited after
-        // approval" callout is resolved now that a reviewer has actually
-        // seen and re-stamped the current content.
-        ...(isFinalStep ? { status: 'APPROVED', wasApprovedBeforeEdit: false } : {}),
-      }).catch((err) => console.error('addSignoffStamp failed:', err));
-      return;
+      return stampSubmissionTx(submissionId, step, stamp, event);
     }
 
-    setSubmissions(prev => prev.map(s => {
-      if (s.id !== submissionId) return s;
-      const chain = s.type in SIGNOFF_CHAINS ? SIGNOFF_CHAINS[s.type as keyof typeof SIGNOFF_CHAINS] : undefined;
-      const nextSignoff = { ...s.meta?.signoff, [step]: stamp };
-      const isFinalStep = chain ? chain[chain.length - 1] === step : false;
-      return {
-        ...s,
-        meta: { ...s.meta, signoff: nextSignoff },
-        status: isFinalStep ? 'APPROVED' : s.status,
-        wasApprovedBeforeEdit: isFinalStep ? false : s.wasApprovedBeforeEdit,
-      };
+    const target = submissions.find(s => s.id === submissionId);
+    if (!target) throw new Error('not-found');
+    const problem = stampProblem(target, currentUser.id, step);
+    if (problem) throw new Error(problem);
+    const chain = chainOf(target);
+    const isFinalStep = chain[chain.length - 1] === step;
+    setSubmissions(prev => prev.map(s => s.id !== submissionId ? s : {
+      ...s,
+      meta: { ...s.meta, signoff: { ...s.meta?.signoff, [step]: stamp }, history: [...(s.meta?.history || []), event] },
+      status: isFinalStep ? 'APPROVED' : s.status,
+      wasApprovedBeforeEdit: isFinalStep ? false : s.wasApprovedBeforeEdit,
     }));
+    return isFinalStep ? 'approved' : 'stamped';
   };
+
 
   // Sends a submission back to whoever filed it instead of advancing the
   // chain — same "someone has to decide" moment a plain Reject always
@@ -765,24 +777,9 @@ export function useAppStore() {
   // Chain of command: a Supervisor or higher sends a log (any status, even
   // APPROVED) back down to whoever filed it. Every sign-off stamp is
   // cleared, so once it's fixed it has to climb the whole chain again.
-  const returnSubmission = (submissionId: string, note: string) => {
-    const target = submissions.find(s => s.id === submissionId);
-    if (!currentUser || !target || !note.trim() || !canManageSubmission(currentUser, target)) return;
-    const returned = { userId: currentUser.id, name: currentUser.name, role: currentUser.role, at: new Date().toISOString(), note: note.trim(), fromStatus: target.status };
-    const signoff = target.meta?.signoff?.draftedBy ? { draftedBy: target.meta.signoff.draftedBy } : {};
-    if (isFirebaseConfigured) {
-      updateSubmissionDoc(submissionId, {
-        status: 'REJECTED',
-        rejectionReason: note.trim(),
-        'meta.returned': returned,
-        'meta.signoff': signoff,
-      }).catch((err) => console.error('returnSubmission failed:', err));
-      return;
-    }
-    setSubmissions(prev => prev.map(s => s.id === submissionId
-      ? { ...s, status: 'REJECTED' as const, rejectionReason: note.trim(), meta: { ...s.meta, returned, signoff } }
-      : s));
-  };
+  // Kept for older callers: Return for correction to the filer.
+  const returnSubmission = (submissionId: string, note: string) => guard(sendBack)(submissionId, note, 'filer');
+
 
   // Reject / send back with a note, choosing WHO fixes it:
   //   • target 'filer' — down to the person who filled it in: REJECTED,
@@ -794,17 +791,20 @@ export function useAppStore() {
   //     it sits in that reviewer's queue again with the note. They fix it
   //     and send it back up (resolveReturned), or pass it down to the filer.
   // notifySubmissionReturned pushes whoever has to fix it.
-  const sendBack = (submissionId: string, note: string, target: 'filer' | 'checkedBy' | 'approvedBy' | 'verifiedBy' = 'filer') => {
+  const sendBack = async (submissionId: string, note: string, target: 'filer' | 'checkedBy' | 'approvedBy' | 'verifiedBy' = 'filer'): Promise<void> => {
     const s0 = submissions.find(s => s.id === submissionId);
-    if (!currentUser || !s0 || !note.trim()) return;
-    const chain = (s0.type in SIGNOFF_CHAINS ? SIGNOFF_CHAINS[s0.type as keyof typeof SIGNOFF_CHAINS] : []) as ('checkedBy' | 'approvedBy' | 'verifiedBy')[];
+    if (!currentUser || !s0 || !note.trim()) throw new Error('invalid');
+    const chain = chainOf(s0);
     const so = s0.meta?.signoff || {};
-    const base = { userId: currentUser.id, name: currentUser.name, role: currentUser.role, at: new Date().toISOString(), note: note.trim(), fromStatus: s0.status };
+    const at = new Date().toISOString();
+    const base = { userId: currentUser.id, name: currentUser.name, role: currentUser.role, at, note: note.trim(), fromStatus: s0.status };
     let fields: Record<string, unknown>;
     let local: Partial<Submission>;
+    let event: LogEvent;
     if (target === 'filer' || !so[target]) {
       const returned = { ...base, to: 'filer' as const };
       const signoff = so.draftedBy ? { draftedBy: so.draftedBy } : {};
+      event = { action: 'sent_back', at, by: eventBy(currentUser), note: note.trim(), to: { name: so.draftedBy?.name || s0.userName, role: s0.role, kind: 'filer' } };
       fields = { status: 'REJECTED', rejectionReason: note.trim(), 'meta.returned': returned, 'meta.signoff': signoff };
       local = { status: 'REJECTED', rejectionReason: note.trim(), meta: { ...s0.meta, returned, signoff } };
     } else {
@@ -813,36 +813,54 @@ export function useAppStore() {
       const keep = chain.slice(0, Math.max(0, chain.indexOf(target)));
       const signoff: Record<string, unknown> = so.draftedBy ? { draftedBy: so.draftedBy } : {};
       for (const k of keep) if (so[k]) signoff[k] = so[k];
+      event = { action: 'sent_back', at, by: eventBy(currentUser), note: note.trim(), step: target, to: { name: who.name, role: who.role, kind: 'reviewer' } };
       fields = { status: 'PENDING', rejectionReason: CLEAR_FIELD, 'meta.returned': returned, 'meta.signoff': signoff };
       local = { status: 'PENDING', rejectionReason: undefined, meta: { ...s0.meta, returned, signoff: signoff as NonNullable<Submission['meta']>['signoff'] } };
     }
     if (isFirebaseConfigured) {
-      updateSubmissionDoc(submissionId, fields).catch((err) => console.error('sendBack failed:', err));
+      await updateSubmissionDoc(submissionId, { ...fields, 'meta.history': appendHistory(event) });
       return;
     }
-    setSubmissions(prev => prev.map(s => s.id === submissionId ? { ...s, ...local } as Submission : s));
+    setSubmissions(prev => prev.map(s => s.id === submissionId
+      ? { ...s, ...local, meta: { ...local.meta, history: [...(s.meta?.history || []), event] } } as Submission
+      : s));
   };
+
 
   const rejectSignoff = (submissionId: string, reason: string) => sendBack(submissionId, reason, 'filer');
 
   // The reviewer a log was sent back to (meta.returned.to === 'reviewer')
   // fixes it and sends it back up: re-stamps their own step (with an
   // optional e-signature) and records what they did.
-  const resolveReturned = (submissionId: string, note: string, signature?: string) => {
+  const resolveReturned = async (submissionId: string, note: string, signature?: string): Promise<'stamped' | 'approved'> => {
     const s0 = submissions.find(s => s.id === submissionId);
     const r = s0?.meta?.returned;
-    if (!currentUser || !s0 || !r || r.to !== 'reviewer' || !r.toStep || r.resolved) return;
-    const resolved = { userId: currentUser.id, name: currentUser.name, at: new Date().toISOString(), note: note.trim() };
+    if (!currentUser || !s0 || !r || r.to !== 'reviewer' || !r.toStep || r.resolved) throw new Error('invalid');
+    const at = new Date().toISOString();
+    const resolved = { userId: currentUser.id, name: currentUser.name, at, note: note.trim() };
     const nextReturned = { ...r, resolved };
+    const event: LogEvent = { action: 'resolved', at, by: eventBy(currentUser), note: note.trim() };
     if (isFirebaseConfigured) {
-      updateSubmissionDoc(submissionId, { 'meta.returned': nextReturned })
-        .then(() => addSignoffStamp(submissionId, r.toStep!, signature))
-        .catch((err) => console.error('resolveReturned failed:', err));
-      return;
+      await updateSubmissionDoc(submissionId, { 'meta.returned': nextReturned, 'meta.history': appendHistory(event) });
+      return addSignoffStamp(submissionId, r.toStep, signature);
     }
-    setSubmissions(prev => prev.map(s => s.id === submissionId ? { ...s, meta: { ...s.meta, returned: nextReturned } } : s));
-    addSignoffStamp(submissionId, r.toStep, signature);
+    // Demo mode: apply to a local copy first so the stamp's checks see it.
+    const updated = { ...s0, meta: { ...s0.meta, returned: nextReturned, history: [...(s0.meta?.history || []), event] } };
+    const problem = stampProblem(updated, currentUser.id, r.toStep);
+    if (problem) throw new Error(problem);
+    const stampAt = new Date().toISOString();
+    const stamp = { userId: currentUser.id, name: currentUser.name, role: currentUser.role, at: stampAt, ...(signature ? { signature } : {}) };
+    const stampEvent: LogEvent = { action: 'stamped', step: r.toStep, at: stampAt, by: eventBy(currentUser) };
+    const chain = chainOf(s0);
+    const isFinal = chain[chain.length - 1] === r.toStep;
+    setSubmissions(prev => prev.map(s => s.id !== submissionId ? s : {
+      ...updated,
+      meta: { ...updated.meta, signoff: { ...updated.meta.signoff, [r.toStep!]: stamp }, history: [...(updated.meta.history || []), stampEvent] },
+      status: isFinal ? 'APPROVED' : 'PENDING',
+    }));
+    return isFinal ? 'approved' : 'stamped';
   };
+
 
 
 
@@ -860,7 +878,7 @@ export function useAppStore() {
   // was given, so editing that content has to send it back through
   // review, not silently keep an approval that no longer matches what's
   // actually on the record.
-  const resubmitAfterRejection = (submissionId: string, updates: Partial<Pick<Submission, 'items' | 'meta' | 'score'>>) => {
+  const resubmitAfterRejection = async (submissionId: string, updates: Partial<Pick<Submission, 'items' | 'meta' | 'score'>>): Promise<void> => {
     if (!currentUser) return;
     const target = submissions.find(s => s.id === submissionId);
     if (!target || target.userId !== currentUser.id) return;
@@ -872,15 +890,24 @@ export function useAppStore() {
     // types.ts). A normal fix-after-rejection doesn't need the same
     // callout: PENDING/REJECTED already reads as "not done yet."
     const wasApprovedBeforeEdit = target.status === 'APPROVED';
+    // History: "edited" (or "fixed & resent" after a send-back). If it had
+    // been sent back to a reviewer, the filer's edit settles that too.
+    const fixNote = updates.meta?.fixNote;
+    const event: LogEvent = { action: target.status === 'REJECTED' ? 'resolved' : 'edited', at: draftedBy.at, by: eventBy(currentUser), ...(fixNote ? { note: fixNote } : {}) };
+    const r = target.meta?.returned;
+    const returnedPatch = r && r.to === 'reviewer' && !r.resolved
+      ? { returned: { ...r, resolved: { userId: currentUser.id, name: currentUser.name, at: draftedBy.at, note: fixNote || 'Edited by the filer' } } }
+      : {};
+    const history = [...(target.meta?.history || []), event];
 
     if (isFirebaseConfigured) {
-      updateSubmissionDoc(submissionId, {
+      await updateSubmissionDoc(submissionId, {
         ...updates,
-        meta: { ...target.meta, ...updates.meta, signoff: { draftedBy } },
+        meta: { ...target.meta, ...updates.meta, ...returnedPatch, signoff: { draftedBy }, history },
         status: 'PENDING',
         rejectionReason: CLEAR_FIELD,
         wasApprovedBeforeEdit,
-      }).catch((err) => console.error('resubmitAfterRejection failed:', err));
+      });
       return;
     }
 
@@ -891,7 +918,7 @@ export function useAppStore() {
         ...updates,
         status: 'PENDING' as const,
         rejectionReason: undefined,
-        meta: { ...s.meta, ...updates.meta, signoff: { draftedBy } },
+        meta: { ...s.meta, ...updates.meta, ...returnedPatch, signoff: { draftedBy }, history },
         wasApprovedBeforeEdit,
       };
     }));
@@ -1263,13 +1290,13 @@ export function useAppStore() {
     loginByStaffCode,
     logout,
     addSubmission,
-    deleteSubmission,
+    deleteSubmission: guard(deleteSubmission),
     returnSubmission,
-    addSignoffStamp,
-    rejectSignoff,
-    sendBack,
-    resolveReturned,
-    resubmitAfterRejection,
+    addSignoffStamp: guard(addSignoffStamp),
+    rejectSignoff: guard(rejectSignoff),
+    sendBack: guard(sendBack),
+    resolveReturned: guard(resolveReturned),
+    resubmitAfterRejection: guard(resubmitAfterRejection),
     addUser,
     updateUserRole,
     updateUserSite,

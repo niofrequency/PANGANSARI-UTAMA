@@ -197,6 +197,22 @@ service cloud.firestore {
         && (roleDept(myRole) == 'ALL' || roleDept(myRole) == roleDept(resource.data.role));
     }
 
+    // Who may stamp / reject a PENDING log (branch 1 below): an active
+    // reviewer — Leadhand or above — in the filer's department (Admin /
+    // GM: any), ranked at least as high as the filer. Frontline staff and
+    // the other department can't touch someone else's log. Which step and
+    // in what order is checked by the app inside a transaction
+    // (stampSubmissionTx / lib/logLifecycle.ts).
+    function canReview() {
+      let me = get(/databases/$(database)/documents/users/$(email())).data;
+      let myRole = isSuperAdmin() ? 'ADMIN' : me.role;
+      return request.auth.uid != resource.data.userId
+        && me.get('isActive', true) != false
+        && roleRank(myRole) >= 2
+        && roleRank(myRole) >= roleRank(resource.data.role)
+        && (roleDept(myRole) == 'ALL' || roleDept(myRole) == roleDept(resource.data.role));
+    }
+
     // ── submissions ─────────────────────────────────────────────────
     match /submissions/{submissionId} {
       allow read: if isSignedIn();
@@ -230,8 +246,9 @@ service cloud.firestore {
       //    every other field stay exactly as they were, so the record
       //    still reads as real history if it's ever needed again.
       allow update: if isSignedIn() && (
-        (request.auth.uid != resource.data.userId
+        (canReview()
           && resource.data.status == 'PENDING'
+          && request.resource.data.status in ['PENDING', 'APPROVED', 'REJECTED']
           && onlyChanged(['meta', 'status', 'rejectionReason', 'wasApprovedBeforeEdit']))
         ||
         (request.auth.uid == resource.data.userId

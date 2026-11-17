@@ -26,11 +26,13 @@
 // queries need.
 
 import {
-  collection, doc, addDoc, updateDoc, deleteField, onSnapshot, getDocs,
+  collection, doc, addDoc, updateDoc, deleteField, onSnapshot, getDocs, runTransaction, arrayUnion,
   query, where, orderBy, limit, type QueryConstraint,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Submission } from '../types';
+import { LogEvent, chainOf, stampProblem } from '../lib/logLifecycle';
+import { SignoffStep } from '../data/opsLogsCatalog';
 
 export const LIVE_WINDOW_DAYS = 60;
 export const OLDER_PAGE_SIZE = 300;
@@ -225,3 +227,36 @@ export async function updateSubmissionDoc(
 // Resubmitting needs to actually remove the old rejectionReason, not just
 // omit it from the patch, so it uses this sentinel instead.
 export const CLEAR_FIELD = deleteField();
+
+// Stamps one sign-off step inside a transaction, so two reviewers acting
+// at the same moment can't both "win" (the second one is told it's
+// already stamped instead of silently overwriting), and the stamp is
+// checked against the live document — not the possibly-stale copy on
+// screen — with the same rules as lib/logLifecycle.ts's stampProblem.
+// Appends the history event in the same write.
+export async function stampSubmissionTx(
+  submissionId: string,
+  step: SignoffStep,
+  stamp: { userId: string; [k: string]: unknown },
+  event: LogEvent,
+): Promise<'stamped' | 'approved'> {
+  if (!db) return 'stamped';
+  const ref = doc(db, 'submissions', submissionId);
+  return runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error('not-found');
+    const live = { ...(snap.data() as Omit<Submission, 'id'>), id: snap.id } as Submission;
+    const problem = stampProblem(live, stamp.userId, step);
+    if (problem) throw new Error(problem);
+    const chain = chainOf(live);
+    const isFinal = chain[chain.length - 1] === step;
+    tx.update(ref, {
+      [`meta.signoff.${step}`]: stamp,
+      'meta.history': arrayUnion(event),
+      ...(isFinal ? { status: 'APPROVED', wasApprovedBeforeEdit: false } : {}),
+    });
+    return isFinal ? 'approved' : 'stamped';
+  });
+}
+
+export const appendHistory = (event: LogEvent) => arrayUnion(event);
