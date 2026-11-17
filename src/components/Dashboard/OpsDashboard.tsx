@@ -48,7 +48,7 @@ function approvedAt(s: Submission): string | undefined {
   return chain.length ? s.meta?.signoff?.[chain[chain.length - 1]]?.at : undefined;
 }
 
-export function OpsDashboard({ store, onNavigate, onlySiteId, onlyDept }: {
+export function OpsDashboard({ store, onNavigate, onlySiteId: adminSiteId, onlyDept }: {
   store: Store;
   onNavigate?: (t: DashTarget) => void;
   // Admin's scope filters (site / department) narrow it further.
@@ -58,6 +58,12 @@ export function OpsDashboard({ store, onNavigate, onlySiteId, onlyDept }: {
   const { t } = useTranslation();
   const { currentUser, submissions, sites, fieldReports, correctiveActions, missedChecks } = store;
   const [period, setPeriod] = useState<Period>(7);
+  // Location filter for Managers / Supervisors covering more than one site
+  // (Admin has its own site filter above the dashboard).
+  const [mySite, setMySite] = useState('ALL');
+  const onlySiteId = adminSiteId ?? (mySite === 'ALL' ? undefined : mySite);
+  const myScope = currentUser ? sitesForScope(currentUser) : [];
+  const showSiteFilter = adminSiteId === undefined && currentUser?.role !== 'ADMIN' && (myScope === 'ALL' || myScope.length > 1);
   // The app keeps only a recent window live (lib/dataScope.ts). When the
   // chosen period + the previous one reach further back, fetch just the
   // missing days once (and the missed checks for them) instead of keeping
@@ -91,6 +97,19 @@ export function OpsDashboard({ store, onNavigate, onlySiteId, onlyDept }: {
     for (const x of submissions) byId.set(x.id, x);
     return Array.from(byId.values());
   }, [submissions, extra]);
+  // Locations this person covers that have submissions, for the filter.
+  const siteChoices = useMemo(() => {
+    if (!currentUser) return [] as [string, string][];
+    const depts = reviewDepartments(currentUser.role) as string[];
+    const m = new Map<string, string>();
+    for (const x of allSubs) {
+      const dpt = departmentOf(x);
+      if (!x.deletedAt && dpt && depts.includes(dpt) && userCanSeeSite(currentUser, x.siteId)) m.set(x.siteId, x.siteName);
+    }
+    if (Array.isArray(myScope)) for (const id of myScope) if (!m.has(id)) m.set(id, sites.find(x => x.id === id)?.name || id);
+    return Array.from(m.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, allSubs, sites]);
   const allMissed = useMemo(() => {
     if (!extra) return missedChecks;
     const byId = new Map<string, MissedCheck>();
@@ -210,6 +229,14 @@ export function OpsDashboard({ store, onNavigate, onlySiteId, onlyDept }: {
           {loadingExtra && <span className="ml-2 text-psu-blue">· {t('dash.loading')}</span>}
           {extra?.truncated && <span className="ml-2 text-amber-700">· {t('dash.truncated')}</span>}
         </p>
+        <div className="flex items-center gap-2 flex-wrap">
+        {showSiteFilter && (
+          <select value={mySite} onChange={(e) => setMySite(e.target.value)} aria-label={t('ops.locationFilter.label')}
+            className="p-2 bg-white border border-psu-gray/10 rounded-xl text-[11px] font-bold text-psu-gray max-w-[220px]">
+            <option value="ALL">{t('ops.locationFilter.all', { count: siteChoices.length })}</option>
+            {siteChoices.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+          </select>
+        )}
         <div className="flex bg-white rounded-xl p-1 border border-psu-gray/10">
           {([1, 7, 30] as Period[]).map(p => (
             <button key={p} type="button" onClick={() => setPeriod(p)}
@@ -217,6 +244,7 @@ export function OpsDashboard({ store, onNavigate, onlySiteId, onlyDept }: {
               {p === 1 ? t('dash.today') : t('dash.nDays', { n: p })}
             </button>
           ))}
+        </div>
         </div>
       </div>
 

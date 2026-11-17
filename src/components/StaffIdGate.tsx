@@ -31,6 +31,13 @@ const ACTION_LABEL_KEY: Record<DeepLinkJob['action'], string> = {
 
 const MAX_STAFF_ID_LENGTH = 12;
 const MIN_STAFF_ID_LENGTH = 3;
+// Staff IDs are A–Z / 0–9, upper-case, ≤ 12 characters (see staffCodes in
+// firestore.rules) — typing or pasting anything else is cleaned to that.
+export function cleanStaffId(raw: string): string {
+  return raw.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, MAX_STAFF_ID_LENGTH);
+}
+// Touch phones keep the on-screen keypad as the way in.
+const coarsePointer = typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)').matches;
 
 const LETTER_ROWS = ['ABCDEF', 'GHIJKL', 'MNOPQR', 'STUVWX', 'YZ'];
 
@@ -143,14 +150,34 @@ export function StaffIdGate({ pendingJob, sites, loginByStaffCode, onSuccess, on
         <label className="block text-[10px] font-black text-psu-gray/40 uppercase tracking-widest mb-2 text-center">
           {t('staffIdGate.staffIdLabel')}
         </label>
-        <div
+        {/* A real text field: on a computer you can click, type or paste
+            (Ctrl/⌘+V) the ID — letters and numbers. Pasted text is cleaned
+            to A–Z / 0–9 and upper-cased ("tech-01 " → "TECH01"). On
+            touch phones the on-screen keypad below stays the way in
+            (inputMode none keeps the phone keyboard from covering it). */}
+        <input
+          type="text"
+          value={staffCode}
+          onChange={(e) => {
+            if (isSubmitting) return;
+            setError('');
+            setNeedPassword(false);
+            setPassword('');
+            setStaffCode(cleanStaffId(e.target.value));
+          }}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(); }}
+          inputMode={coarsePointer ? 'none' : 'text'}
+          autoComplete="username"
+          autoCapitalize="characters"
+          spellCheck={false}
+          aria-label={t('staffIdGate.staffIdLabel')}
+          placeholder={t('staffIdGate.staffIdPlaceholder')}
           className={
-            "w-full min-h-[64px] flex items-center justify-center text-center text-3xl font-black tracking-[0.2em] py-3 mb-6 bg-psu-bg border-2 rounded-2xl transition-all " +
+            "w-full min-h-[64px] text-center text-3xl font-black tracking-[0.2em] py-3 mb-6 bg-psu-bg border-2 rounded-2xl transition-all " +
+            "placeholder:text-psu-gray/20 placeholder:text-lg placeholder:tracking-normal placeholder:font-black focus:outline-none focus:ring-2 focus:ring-psu-green/20 " +
             (error ? "border-psu-rejected" : "border-psu-gray/10")
           }
-        >
-          {staffCode || <span className="text-psu-gray/20 text-lg tracking-normal">{t('staffIdGate.staffIdPlaceholder')}</span>}
-        </div>
+        />
 
         {/* 123/ABC toggle — a Staff ID can mix digits and letters (e.g.
             "TECH01"), so the keypad switches character sets instead of

@@ -736,6 +736,8 @@ function coversSite(u: any, siteId: string): boolean {
   const a = u.assignedSites;
   if (a === 'ALL') return true;
   if (Array.isArray(a) && a.length > 0) return a.includes(siteId);
+  // Managers / GM / Admin: every site unless narrowed (src/lib/siteScope.ts).
+  if (['GENERAL_MANAGER', 'ADMIN', 'HOUSEKEEPING_MANAGER', 'FOOD_SAFETY_MANAGER'].includes(u.role)) return true;
   return u.site === siteId;
 }
 
@@ -754,16 +756,15 @@ export const notifyReviewers = functionsV1.firestore
     if (r?.to === 'reviewer' && !r.resolved) return;
 
     const dept = logDept(after);
+    // A Supervisor-filed log can also be checked by the Manager (no second
+    // Supervisor needed — src/lib/logLifecycle.ts tierSteps).
+    const filerIsSupervisor = /_SUPERVISOR$|_MANAGER$|^GENERAL_MANAGER$|^ADMIN$/.test(String(after.role || ''));
     const roles = step === 'checkedBy'
-      ? [`${dept}_SUPERVISOR`, `${dept}_LEADHAND`]
+      ? [`${dept}_SUPERVISOR`, `${dept}_LEADHAND`, ...(filerIsSupervisor ? [`${dept}_MANAGER`] : [])]
       : [`${dept}_MANAGER`];
     const so = after.meta?.signoff || {};
-    // Same level only (src/lib/logLifecycle.ts's stampProblem): someone who
-    // checked it as Supervisor may still approve it as Manager.
-    const sameLevel = step === 'checkedBy' ? ['checkedBy'] : ['approvedBy', 'verifiedBy'];
-    const stampers = new Set(sameLevel.map((k) => so[k]?.userId).filter(Boolean));
     const uids = (await usersWithRoles(roles))
-      .filter((u) => coversSite(u, after.siteId) && u.uid !== after.userId && !stampers.has(u.uid))
+      .filter((u) => coversSite(u, after.siteId) && u.uid !== after.userId)
       .map((u) => u.uid as string);
     if (!uids.length) return;
 

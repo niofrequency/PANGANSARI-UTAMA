@@ -1,6 +1,7 @@
 import { Submission, User, UserRole } from '../types';
 import { SIGNOFF_CHAINS, SignoffChainType, SignoffStep, OpsDepartment, departmentOf } from '../data/opsLogsCatalog';
 import { userCanSeeSite } from './siteScope';
+import { roleRank } from './submissionAuthority';
 
 // One place for the rules of a log's life — who may stamp which step,
 // and the activity history every log keeps. Used by the store (demo
@@ -35,8 +36,10 @@ export type StampProblem = 'not-pending' | 'own-log' | 'no-step' | 'already-stam
 //   • only PENDING logs, never your own;
 //   • steps in chain order, each once — a second reviewer arriving a
 //     moment later gets 'already-stamped' instead of overwriting;
-//   • separation of duties — one person never stamps two steps at the
-//     same level of one log (e.g. a Manager can't both approve and verify).
+//   • no "separation of duties" block: a chain must never get stuck because
+//     a site has only one Supervisor or the department one Manager (e.g.
+//     Mess Hall's Approved + Verified). Every stamp is still recorded by
+//     name in the activity history.
 export function stampProblem(s: Submission, userId: string, step: SignoffStep): StampProblem | null {
   if (s.status !== 'PENDING') return 'not-pending';
   if (s.userId === userId) return 'own-log';
@@ -46,10 +49,6 @@ export function stampProblem(s: Submission, userId: string, step: SignoffStep): 
   const so = s.meta?.signoff || {};
   if (so[step]) return 'already-stamped';
   if (chain.slice(0, i).some(k => !so[k])) return 'out-of-order';
-  // Same level only: a Manager can't both approve and verify one log, but
-  // someone who checked it as Supervisor may approve it as Manager.
-  const level = (k: SignoffStep) => (k === 'checkedBy' ? 'supervisor' : 'manager');
-  if (chain.some(k => k !== step && so[k]?.userId === userId && level(k) === level(step))) return 'stamped-other-step';
   return null;
 }
 
@@ -88,8 +87,13 @@ export function reviewTierOf(role?: UserRole): ReviewTier | null {
   return null;
 }
 
-export function tierSteps(tier: ReviewTier): SignoffStep[] {
-  return tier === 'supervisor' ? ['checkedBy'] : ['approvedBy', 'verifiedBy'];
+// Steps a tier stamps for a given log. A log filed by a Supervisor (Mess
+// Hall, Cooking, Hot Packed, Thawing, Staff Ready can be) is "Checked" by
+// another Leadhand / Supervisor — or by the Manager, so it never waits
+// forever at a site with a single Supervisor.
+export function tierSteps(tier: ReviewTier, s?: Pick<Submission, 'role'>): SignoffStep[] {
+  if (tier === 'supervisor') return ['checkedBy'];
+  return s && roleRank(s.role) >= 3 ? ['checkedBy', 'approvedBy', 'verifiedBy'] : ['approvedBy', 'verifiedBy'];
 }
 
 export function reviewDepartments(role?: UserRole): OpsDepartment[] {
@@ -116,8 +120,8 @@ export function reviewQueueFor(user: User | null | undefined, submissions: Submi
   const tier = reviewTierOf(user?.role);
   if (!user || !tier) return out;
   const depts = department ? [department] : reviewDepartments(user.role);
-  const steps = tierSteps(tier);
   for (const s of submissions) {
+    const steps = tierSteps(tier, s);
     if (s.status !== 'PENDING' || s.deletedAt) continue;
     const dept = departmentOf(s);
     if (!dept || !depts.includes(dept) || !userCanSeeSite(user, s.siteId)) continue;

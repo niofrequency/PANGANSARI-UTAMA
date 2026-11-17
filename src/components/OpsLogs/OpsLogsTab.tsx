@@ -7,10 +7,12 @@ import { useTranslation } from '../../i18n/LanguageContext';
 import { cn } from '../../utils/cn';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
-import { stampProblem, reviewQueueFor, isToday } from '../../lib/logLifecycle';
+import { stampProblem, reviewQueueFor, isToday, tierSteps } from '../../lib/logLifecycle';
+import { MapPin } from 'lucide-react';
+import { sitesForScope } from '../../lib/siteScope';
 import { ClipboardList, ChevronRight, CheckCircle2, XCircle, Clock, Pencil, AlertTriangle, CornerUpLeft } from 'lucide-react';
 import { Submission, OpsLogType } from '../../types';
-import { OPS_LOG_DEFS, OpsDepartment, departmentOf, titleKeyForChainType } from '../../data/opsLogsCatalog';
+import { OPS_LOG_DEFS, OpsDepartment, SignoffStep, departmentOf, titleKeyForChainType } from '../../data/opsLogsCatalog';
 import { SignoffProgress, nextSignoffStep, OpsFormProps } from './opsHelpers';
 import { userCanSeeSite } from '../../lib/siteScope';
 import { MessHallHygieneForm } from './MessHallHygieneForm';
@@ -82,6 +84,8 @@ export function OpsLogsTab({
   const [selected, setSelected] = useState<Submission | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [queueOpen, setQueueOpen] = useState(true);
+  // Location filter — shown only to people who cover more than one site.
+  const [siteFilter, setSiteFilter] = useState<string>('ALL');
 
   const defs = OPS_LOG_DEFS.filter(d => d.department === department);
   const fillableDefs = tier === 'supervisor'
@@ -105,22 +109,31 @@ export function OpsLogsTab({
   // Only logs this person can actually stamp: not their own, and not one
   // where they already stamped another step (one person never signs two
   // steps of the same log — see lib/logLifecycle.ts's stampProblem).
-  const tierStep = (step?: string) => tier === 'supervisor' ? step === 'checkedBy' : step === 'approvedBy' || step === 'verifiedBy';
+  const tierStep = (step?: string, s?: Submission) => !!step && tierSteps(tier, s).includes(step as SignoffStep);
   const canStampLog = (s: Submission) => {
     const step = nextSignoffStep(s);
-    return !!step && !!currentUser && tierStep(step) && !stampProblem(s, currentUser.id, step);
+    return !!step && !!currentUser && tierStep(step, s) && !stampProblem(s, currentUser.id, step);
   };
   // What's waiting at this person's level (lib/logLifecycle.ts's
   // reviewQueueFor — the same function behind the tab / app-icon badge and
   // the push notifications): `queue` = theirs to stamp; `othersWaiting` =
   // at their level but someone else must stamp it (their own log, or they
   // stamped an earlier step) — listed so nothing silently disappears.
-  const rq = reviewQueueFor(currentUser, submissions, department);
-  const queue = rq.mine.filter(s => tierStep(nextSignoffStep(s)));
+  // Everything below (queue, waiting lists, history) follows the chosen
+  // location; "All my locations" shows every site in this person's access.
+  const myScope = currentUser ? sitesForScope(currentUser) : [];
+  const multiSite = myScope === 'ALL' || myScope.length > 1;
+  const siteOptions: [string, string][] = Array.from(new Map<string, string>(
+    submissions.filter(inScope).map(x => [x.siteId, x.siteName] as [string, string])
+      .concat(Array.isArray(myScope) ? myScope.map(id => [id, store.sites.find(x => x.id === id)?.name || id] as [string, string]) : []),
+  ).entries()).sort((a, b) => a[1].localeCompare(b[1]));
+  const siteSubs = siteFilter === 'ALL' ? submissions : submissions.filter(x => x.siteId === siteFilter);
+  const rq = reviewQueueFor(currentUser, siteSubs, department);
+  const queue = rq.mine.filter(s => tierStep(nextSignoffStep(s), s));
   const othersWaiting = rq.others;
   const newToday = queue.filter(s => isToday(s.timestamp)).length;
 
-  const history = submissions.filter(inScope).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  const history = siteSubs.filter(inScope).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
   const handleStamp = async (s: Submission, signature?: string) => {
     const step = nextSignoffStep(s);
@@ -146,6 +159,10 @@ export function OpsLogsTab({
     setEditing(s);
   };
   useFixEditor((s) => s.userId === currentUser?.id && EDITABLE_OPS_LOG_TYPES.includes(s.type as OpsLogType), handleEdit);
+  // Every hook must run on every render — keep them all above the early
+  // returns below (a form being open returns early).
+  const closeDetail = () => setSelected(null);
+  useBackToClose(!!selected, closeDetail);
 
   if (openType) {
     const FormComponent = FORM_COMPONENTS[openType];
@@ -164,13 +181,11 @@ export function OpsLogsTab({
     );
   }
 
-  const closeDetail = () => setSelected(null);
-  useBackToClose(!!selected, closeDetail);
 
   // Logs a Supervisor/Manager (or anyone up the chain) sent back for
   // correction, still waiting for the filer to fix them — shown to the
   // whole chain until resolved.
-  const returnedWaiting = submissions.filter(s => !s.deletedAt && inScope(s) && (s.status === 'REJECTED'
+  const returnedWaiting = siteSubs.filter(s => !s.deletedAt && inScope(s) && (s.status === 'REJECTED'
     || (s.status === 'PENDING' && s.meta?.returned?.to === 'reviewer' && !s.meta.returned.resolved)))
     .sort((a, b) => new Date(b.meta?.returned?.at || b.timestamp).getTime() - new Date(a.meta?.returned?.at || a.timestamp).getTime());
 
@@ -226,6 +241,16 @@ export function OpsLogsTab({
 
   return (
     <div className="space-y-6">
+      {multiSite && siteOptions.length > 1 && (
+        <div className="flex items-center gap-2 px-1">
+          <MapPin size={14} className="text-psu-blue shrink-0" />
+          <select value={siteFilter} onChange={(e) => setSiteFilter(e.target.value)} aria-label={t('ops.locationFilter.label')}
+            className="flex-1 min-w-0 md:flex-none md:w-80 p-2.5 bg-white border border-psu-gray/10 rounded-xl text-xs font-bold text-psu-gray">
+            <option value="ALL">{t('ops.locationFilter.all', { count: siteOptions.length })}</option>
+            {siteOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+          </select>
+        </div>
+      )}
       <div className="space-y-6">
       {mode !== 'historyOnly' && fillableDefs.length > 0 && (
         <div className="space-y-3">

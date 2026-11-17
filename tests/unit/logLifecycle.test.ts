@@ -21,10 +21,9 @@ describe('stampProblem — who may stamp which step', () => {
   it('in chain order', () => {
     expect(stampProblem(log(), 'mgr', 'approvedBy')).toBe('out-of-order');
   });
-  it('separation of duties within a level (approve + verify)', () => {
+  it('a single Manager can approve and then verify (no chain gets stuck)', () => {
     const mh = log({ type: 'MESS_HALL_HYGIENE', signoff: { checkedBy: stamp('sup'), approvedBy: stamp('mgr') } });
-    expect(stampProblem(mh, 'mgr', 'verifiedBy')).toBe('stamped-other-step');
-    expect(stampProblem(mh, 'mgr2', 'verifiedBy')).toBeNull();
+    expect(stampProblem(mh, 'mgr', 'verifiedBy')).toBeNull();
   });
   it('but checking as supervisor then approving as manager is allowed', () => {
     expect(stampProblem(log({ signoff: { checkedBy: stamp('tes') } }), 'tes', 'approvedBy')).toBeNull();
@@ -55,6 +54,16 @@ describe('reviewQueueFor — what reaches whom', () => {
     const q = reviewQueueFor(user('sup', 'FOOD_SAFETY_SUPERVISOR'), [own]);
     expect(q.mine).toHaveLength(0);
     expect(q.others[0].reason).toBe('own-log');
+  });
+  it("a Supervisor's own log reaches the Manager (no second Supervisor needed)", () => {
+    const own = log({ type: 'COOKING_SERVICE', userId: 'sup', role: 'FOOD_SAFETY_SUPERVISOR' });
+    expect(reviewQueueFor(user('mgr', 'FOOD_SAFETY_MANAGER'), [own]).mine).toHaveLength(1);
+    expect(reviewQueueFor(user('sup2', 'FOOD_SAFETY_SUPERVISOR'), [own]).mine).toHaveLength(1);
+  });
+  it("a Leadhand's log still goes to the Supervisor first, not straight to the Manager", () => {
+    const lh = log({ type: 'COOKING_SERVICE', userId: 'lh', role: 'FOOD_SAFETY_LEADHAND' });
+    expect(reviewQueueFor(user('mgr', 'FOOD_SAFETY_MANAGER'), [lh]).mine).toHaveLength(0);
+    expect(reviewQueueFor(user('sup', 'FOOD_SAFETY_SUPERVISOR'), [lh]).mine).toHaveLength(1);
   });
   it('frontline has no review queue', () => {
     expect(reviewQueueFor(user('t', 'FOOD_SAFETY_TECHNICIAN'), all).mine).toHaveLength(0);

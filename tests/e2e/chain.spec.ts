@@ -65,3 +65,25 @@ test('a log sent back to the technician shows in their Rejected tab with the com
   await expect(page.getByText(/Comment from Fajar Pengawas/).first()).toBeVisible();
   noErrors();
 });
+
+test('a manager based at the office approves a log from a work site; it becomes final and moves to History', async ({ page }) => {
+  const noErrors = failOnPageErrors(page);
+  const officeMgr = U('mgr2', 'Maya', 'Office', 'FOOD_SAFETY_MANAGER', 'site-townsite');
+  const atMelati = pendingLog('l4', { siteId: 'site-melatimess', siteName: '68 Melati Mess Hall' });
+  (atMelati.meta as { signoff: Record<string, unknown> }).signoff.checkedBy = { userId: 'sup', name: 'Fajar Pengawas', role: 'FOOD_SAFETY_SUPERVISOR', at: new Date().toISOString() };
+  await seed(page, { users: [...users, officeMgr], submissions: [atMelati], as: officeMgr });
+  await openOpsLogs(page);
+  await page.locator('text=Tono Teknisi >> visible=true').first().click();
+  await page.getByRole('button', { name: /Stamp — Approved/ }).click();
+  await page.getByRole('button', { name: /Stamp without signature/ }).click();
+  await expect(page.getByText(/Approved — the log is complete/)).toBeVisible();
+  expect((await stored(page, 'l4')).status).toBe('APPROVED');
+  // Gone from the queue, now in History.
+  await openOpsLogs(page);
+  await expect(page.locator('text=Tono Teknisi >> visible=true')).toHaveCount(0);
+  const historyNav = page.locator('nav button[title="History"]');
+  await historyNav.first().click();
+  await page.waitForTimeout(500);
+  await expect(page.locator('text=Tono Teknisi >> visible=true').first()).toBeVisible();
+  noErrors();
+});
